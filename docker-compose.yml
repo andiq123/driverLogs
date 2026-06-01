@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: driverlogs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-driverlogs}
+      POSTGRES_USER: ${POSTGRES_USER:-driverlogs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-driverlogs}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - driverlogs-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U driverlogs -d driverlogs"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    container_name: driverlogs-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - driverlogs-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  driverlogs-postgres-data:
+  driverlogs-redis-data:

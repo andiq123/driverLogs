@@ -1,0 +1,48 @@
+package main
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"os"
+	"time"
+
+	"driverlogs/backend/internal/config"
+	"driverlogs/backend/internal/database"
+	"driverlogs/backend/internal/fuelprices"
+	"driverlogs/backend/internal/httpapi"
+	"driverlogs/backend/internal/store"
+)
+
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+	cfg := config.Load()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db, err := database.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("postgres unavailable", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	repo, err := store.NewPostgresStore(ctx, db.Pool())
+	if err != nil {
+		logger.Error("postgres store unavailable", "error", err)
+		os.Exit(1)
+	}
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           httpapi.NewRouter(repo, db, fuelprices.NewService(), cfg.JWTSecret),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	logger.Info("driverlogs api listening", "port", cfg.Port)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Error("api server stopped", "error", err)
+		os.Exit(1)
+	}
+}

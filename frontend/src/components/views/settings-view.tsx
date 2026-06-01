@@ -1,0 +1,86 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { BadgeDollarSign, Car, Check, Copy, Fuel, Globe2, Save, UserRound, Wrench } from "lucide-react";
+import { motion } from "framer-motion";
+import { countries, userCurrencies } from "@/lib/theme";
+import type { UserSettings, Vehicle } from "@/lib/types";
+import { fuelTypes, normalizeFuelType } from "@/lib/car-options";
+import { vehicleName } from "@/lib/format";
+import { CustomSelect } from "../custom-select";
+import { ActionButton, Input, Panel } from "../ui";
+
+export function SettingsView({ settings, loginID, vehicles, activeVehicleID, saving, onCopyLoginID, onOpenGarage, onSelectVehicle, onSave, onUpdateVehicle }: { settings: UserSettings; loginID: string; vehicles: Vehicle[]; activeVehicleID: string; saving?: boolean; onCopyLoginID: () => void; onOpenGarage: () => void; onSelectVehicle: (id: string) => void; onSave: (settings: UserSettings) => Promise<void> | void; onUpdateVehicle: (id: string, vehicle: Partial<Vehicle>) => Promise<void> | void }) {
+  const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleID);
+  const [currency, setCurrency] = useState(settings.default_currency);
+  const [country, setCountry] = useState(settings.country);
+  const [compareCountry, setCompareCountry] = useState(settings.compare_country || "RO");
+  const [name, setName] = useState(settings.name ?? "");
+  const [preferredFuelType, setPreferredFuelType] = useState(normalizeFuelType(activeVehicle?.preferred_fuel_type));
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onSave({ name: name.trim(), default_currency: currency, country, compare_country: compareCountry });
+    if (activeVehicle && preferredFuelType !== normalizeFuelType(activeVehicle.preferred_fuel_type)) {
+      await onUpdateVehicle(activeVehicle.id, { ...activeVehicle, preferred_fuel_type: preferredFuelType });
+    }
+  }
+
+  return (
+    <div className="max-w-2xl">
+      <Panel title="Profile" eyebrow="Account">
+        <form onSubmit={submit} className="grid gap-4">
+          <Input name="name" label="Name" icon={UserRound} value={name} maxLength={80} onChange={(event) => setName(event.currentTarget.value)} />
+          <div className="grid gap-1 text-sm font-semibold">
+            <span className="sr-only">Login ID</span>
+            <div className="grid grid-cols-[1fr_48px] gap-2">
+              <div className="relative flex h-12 min-w-0 items-center rounded-[18px] border border-black/[0.08] bg-[#f1f4ec] py-0 pl-10 pr-4 font-mono text-sm tracking-wide text-[#30342e]">
+                <UserRound size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62685e]" />
+                <span className="truncate">{loginID}</span>
+              </div>
+              <button type="button" aria-label="Copy login ID" onClick={onCopyLoginID} className="flex size-12 touch-manipulation items-center justify-center rounded-[18px] bg-[#151712] text-white transition-[transform,opacity] duration-200 active:scale-[0.985]">
+                <Copy size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CustomSelect name="default_currency" label="Default base currency" icon={BadgeDollarSign} options={userCurrencies} value={currency} onChange={setCurrency} />
+            <CustomSelect name="country" label="Country" icon={Globe2} options={countries} value={country} onChange={setCountry} />
+          </div>
+          <CustomSelect name="compare_country" label="Fuel compare country" icon={Globe2} options={countries} value={compareCountry} onChange={setCompareCountry} />
+          {activeVehicle ? (
+            <CustomSelect name="preferred_fuel_type" label="Preferred fuel for active car" icon={Fuel} options={fuelTypes} value={preferredFuelType} onChange={setPreferredFuelType} />
+          ) : null}
+          <button type="button" onClick={onOpenGarage} className="flex h-12 touch-manipulation items-center justify-center gap-2 rounded-[18px] bg-[#eef3e8] text-sm font-bold text-[#151712] transition-[background-color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#dfe7d4] active:scale-[0.985]">
+            <Wrench size={17} />
+            My Garage
+          </button>
+          {vehicles.length ? (
+            <section className="grid gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#70776a]">Active vehicle</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {vehicles.map((vehicle) => {
+                  const active = vehicle.id === activeVehicleID;
+                  return (
+                    <button key={vehicle.id} type="button" onClick={() => onSelectVehicle(vehicle.id)} className={`relative flex min-w-0 touch-manipulation items-center gap-3 overflow-hidden rounded-[18px] border px-3 py-3 text-left transition-[border-color,color,transform] duration-200 active:scale-[0.985] ${active ? "border-[#151712]/10 text-[#151712]" : "border-black/[0.06] text-[#62685e] hover:text-[#151712]"}`}>
+                      {active ? <motion.span layoutId="settings-active-car" className="absolute inset-0 bg-[#e6f0df]" transition={{ type: "spring", stiffness: 420, damping: 34 }} /> : null}
+                      <span className="relative flex size-10 shrink-0 items-center justify-center rounded-[16px] bg-white">
+                        <Car size={18} />
+                      </span>
+                      <span className="relative min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{vehicleName(vehicle)}</span>
+                        <span className="block truncate text-xs text-[#62685e]">{vehicle.plate_number}</span>
+                      </span>
+                      {active ? <Check size={16} className="relative shrink-0" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+          <ActionButton icon={Save} loading={saving} className="mt-2">Save settings</ActionButton>
+        </form>
+      </Panel>
+    </div>
+  );
+}
