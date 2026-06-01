@@ -5,7 +5,7 @@ export function money(amountMDL: number) {
 }
 
 export function equivalents(amountEUR: number, amountUSD: number) {
-  return `${decimalMoney(amountEUR)} EUR · ${decimalMoney(amountUSD)} USD`;
+  return `${convertedMoney(amountEUR)} EUR · ${convertedMoney(amountUSD)} USD`;
 }
 
 export function km(value: number) {
@@ -46,6 +46,13 @@ function decimalMoney(value: number) {
   return new Intl.NumberFormat("ro-MD", {
     minimumFractionDigits: hasFraction(value) ? 2 : 0,
     maximumFractionDigits: 6,
+  }).format(value);
+}
+
+function convertedMoney(value: number) {
+  return new Intl.NumberFormat("ro-MD", {
+    minimumFractionDigits: hasFraction(value) ? 2 : 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
