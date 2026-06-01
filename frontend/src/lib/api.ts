@@ -12,7 +12,7 @@ export async function register() {
 }
 
 export async function healthCheck() {
-  return getJSON<{ status: string; database: string }>("/healthz");
+  return getJSON<{ status: string; database: string }>("/healthz", undefined, 2500);
 }
 
 export async function login(loginID: string) {
@@ -92,13 +92,20 @@ export async function deleteVehicle(token: string, id: string) {
   if (!response.ok) throw await apiError(response, "delete vehicle failed");
 }
 
-async function getJSON<T>(path: string, token?: string) {
-  const response = await fetch(`${apiBase}${path}`, {
-    headers: token ? authHeaders(token) : undefined,
-  });
-  refreshToken(response);
-  if (!response.ok) throw await apiError(response, `${path} failed`);
-  return response.json() as Promise<T>;
+async function getJSON<T>(path: string, token?: string, timeoutMs?: number) {
+  const controller = timeoutMs ? new AbortController() : undefined;
+  const timeout = timeoutMs ? window.setTimeout(() => controller?.abort(), timeoutMs) : undefined;
+  try {
+    const response = await fetch(`${apiBase}${path}`, {
+      headers: token ? authHeaders(token) : undefined,
+      signal: controller?.signal,
+    });
+    refreshToken(response);
+    if (!response.ok) throw await apiError(response, `${path} failed`);
+    return response.json() as Promise<T>;
+  } finally {
+    if (timeout) window.clearTimeout(timeout);
+  }
 }
 
 async function sendJSON<T>(path: string, method: "POST" | "PUT", body: unknown, token?: string) {

@@ -10,12 +10,14 @@ export function useToasts() {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
-  const showToast = useCallback((kind: ToastKind, title: string, body?: string) => {
+  const showToast = useCallback((kind: ToastKind, title: string, body?: string, key?: string) => {
     const id = Date.now();
-    setToasts((current) => [...current.slice(-2), { id, kind, title, body }]);
+    setToasts((current) => {
+      const visible = key ? current.filter((toast) => toast.key !== key) : current;
+      return [...visible.slice(-2), { id, key, kind, title, body }];
+    });
     window.setTimeout(() => dismissToast(id), 4200);
   }, [dismissToast]);
 
   return { dismissToast, showToast, toasts };
 }
-

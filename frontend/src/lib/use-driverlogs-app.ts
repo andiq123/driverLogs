@@ -9,6 +9,7 @@ import { useAuthSession } from "./use-auth-session";
 import { useToasts } from "./use-toasts";
 
 const selectedVehicleStorageKey = "driverlogs:selected-vehicle-id";
+const healthToastKey = "api-health";
 
 export function useDriverLogsApp() {
   const [view, setView] = useState<View>("Dashboard");
@@ -53,9 +54,13 @@ export function useDriverLogsApp() {
   }, [logout, token]);
 
   useEffect(() => {
+    let cancelled = false;
     void healthCheck().catch(() => {
-      showToast("error", "Service is not available", "Please try again in a moment.");
+      if (!cancelled) showToast("error", "Service is not available", "Please try again in a moment.", healthToastKey);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [showToast]);
 
   useEffect(() => {
