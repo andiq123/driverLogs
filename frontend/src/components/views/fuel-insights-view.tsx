@@ -128,14 +128,14 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">Real gasoline data</p>
             <h2 className="mt-1 text-3xl font-semibold tracking-tight sm:mt-2 sm:text-5xl">Fuel prices</h2>
-            <p className="mt-2 max-w-2xl text-xs leading-5 text-white/68 sm:mt-3 sm:text-sm sm:leading-6">Real national fuel data, compared with {compareCountry} in MDL.</p>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-white/68 sm:mt-3 sm:text-sm sm:leading-6">Moldova national fuel prices with {currencyName(compareCountry)} converted to MDL.</p>
           </div>
           <div className="grid gap-2 text-right">
             <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold">{trends.currency}/L</span>
             {preferredFuel ? <span className="rounded-full bg-[#dfe7d4] px-3 py-1 text-xs font-bold text-[#151712]">{preferredFuel.fuel_type}: {fuelPriceLabel(preferredFuel.now)}</span> : null}
           </div>
         </div>
-        <div className="relative mt-5 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-3">
+        <div className="relative mt-4 grid grid-cols-3 gap-1.5 sm:mt-8 sm:gap-3">
           <MarketTile title="Tracked fuels" value={String(trends.rows.length)} detail="National average rows" />
           <MarketTile title="Cheapest now" value={fuelPriceLabel(cheapest(trends).now)} detail={cheapest(trends).fuel_type} />
           <MarketTile title="Largest yearly move" value={changePercent(biggestMove?.year.percent ?? 0)} detail={biggestMove?.fuel_type ?? "No movement"} />
@@ -145,18 +145,18 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
       <Panel title="Moldova prices" eyebrow="Now vs history">
         <div className="grid gap-2 sm:gap-3">
           {trends.rows.map((row) => (
-            <article key={row.fuel_type} className="rounded-[20px] bg-[#eef3e8] p-3 sm:rounded-[24px] sm:p-4">
+            <article key={row.fuel_type} className="rounded-[18px] bg-[#eef3e8] p-2.5 sm:rounded-[24px] sm:p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-base font-bold">{row.fuel_type}</p>
-                  <p className="text-xs text-[#62685e]">Current national reference</p>
+                  <p className="truncate text-sm font-bold sm:text-base">{row.fuel_type}</p>
+                  <p className="text-[11px] text-[#62685e] sm:text-xs">Moldova national reference</p>
                 </div>
-                <div className="grid justify-items-end gap-1">
-                  <p className="rounded-full bg-white px-3 py-1 text-sm font-bold">{fuelPriceLabel(row.now)}</p>
-                  {comparisonByFuel.get(row.fuel_type) ? <p className="rounded-full bg-[#151712] px-2.5 py-1 text-[11px] font-bold text-white">{compareCountry} {fuelPriceLabel(comparisonByFuel.get(row.fuel_type)?.compare_price_mdl ?? 0)}</p> : null}
+                <div className="grid shrink-0 justify-items-end gap-1">
+                  <p className="rounded-full bg-white px-2.5 py-1 text-xs font-bold sm:px-3 sm:text-sm">{fuelPriceLabel(row.now)}</p>
+                  {comparisonByFuel.get(row.fuel_type) ? <p className="rounded-full bg-[#151712] px-2.5 py-1 text-[10px] font-bold text-white sm:text-[11px]">{comparisonTag(comparisonByFuel.get(row.fuel_type)!, compareCountry)}</p> : null}
                 </div>
               </div>
-              <div className="mt-2 grid grid-cols-3 gap-2 sm:mt-3">
+              <div className="mt-2 grid grid-cols-3 gap-1.5 sm:mt-3 sm:gap-2">
                 <ChangeCard label="Week" change={row.week} />
                 <ChangeCard label="Month" change={row.month} />
                 <ChangeCard label="Year" change={row.year} />
@@ -171,8 +171,8 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
 
 function MarketTile({ title, value, detail }: { title: string; value: string; detail: string }) {
   return (
-    <div className="min-w-0 rounded-[18px] bg-white/10 p-2.5 sm:rounded-[22px] sm:p-4">
-      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-white/50 sm:text-[11px]">{title}</p>
+    <div className="min-w-0 rounded-[16px] bg-white/10 p-2 sm:rounded-[22px] sm:p-4">
+      <p className="truncate text-[9px] font-semibold uppercase tracking-[0.1em] text-white/50 sm:text-[11px] sm:tracking-[0.12em]">{title}</p>
       <p className="mt-1.5 truncate text-sm font-bold sm:mt-2 sm:text-xl">{value}</p>
       <p className="mt-0.5 truncate text-[10px] text-white/55 sm:mt-1 sm:text-xs">{detail}</p>
     </div>
@@ -207,12 +207,12 @@ function ChangeCard({ label, change }: { label: string; change: FuelTrendChange 
   const negative = change.amount < 0;
   const Icon = positive ? TrendingUp : negative ? TrendingDown : RefreshCw;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[18px] bg-white/70 px-3 py-2">
-      <span>
-        <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-[#62685e]">{label}</span>
-        <span className="text-sm font-bold">{changeAmount(change.amount)}</span>
+    <div className="grid min-w-0 gap-1 rounded-[14px] bg-white/70 px-2 py-2 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:rounded-[18px] sm:px-3">
+      <span className="min-w-0">
+        <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[#62685e] sm:text-xs">{label}</span>
+        <span className="text-xs font-bold sm:text-sm">{changeAmount(change.amount)}</span>
       </span>
-      <span className={`flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold ${positive ? "bg-[#e5f3dc] text-[#0f6b3d]" : negative ? "bg-[#ffe8e2] text-[#8b2d20]" : "bg-[#eef3e8] text-[#62685e]"}`}>
+      <span className={`flex w-fit items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold sm:px-2 sm:py-1 sm:text-xs ${positive ? "bg-[#e5f3dc] text-[#0f6b3d]" : negative ? "bg-[#ffe8e2] text-[#8b2d20]" : "bg-[#eef3e8] text-[#62685e]"}`}>
         <Icon size={13} />
         {changePercent(change.percent)}
       </span>
@@ -228,9 +228,18 @@ function fuelPriceLabel(value: number) {
   return `MDL ${value.toFixed(2)}`;
 }
 
+function comparisonTag(row: FuelComparisonResponse["rows"][number], country: string) {
+  return `${country} ${row.compare_price.toFixed(2)} ${row.compare_currency} · ${fuelPriceLabel(row.compare_price_mdl)}`;
+}
+
+function currencyName(country: string) {
+  if (country === "RO") return "RON";
+  return country;
+}
+
 function changeAmount(value: number) {
   const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
-  return `${prefix} MDL ${Math.abs(value).toFixed(2)}`;
+  return `${prefix}${Math.abs(value).toFixed(2)} MDL`;
 }
 
 function changePercent(value: number) {
