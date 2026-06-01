@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   engine_type text NOT NULL DEFAULT '',
   vin text NOT NULL DEFAULT '',
   preferred_fuel_type text NOT NULL DEFAULT 'Super 95',
-  purchase_price int NOT NULL DEFAULT 0,
+  purchase_price numeric NOT NULL DEFAULT 0,
   purchase_currency text NOT NULL DEFAULT '',
   purchase_date text NOT NULL DEFAULT '',
   odometer int NOT NULL DEFAULT 0,
@@ -60,11 +60,11 @@ CREATE TABLE IF NOT EXISTS expenses (
   user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   vehicle_id text NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
   category text NOT NULL,
-  amount_base int NOT NULL DEFAULT 0,
+  amount_base numeric NOT NULL DEFAULT 0,
   base_currency text NOT NULL DEFAULT '',
-  amount_mdl int NOT NULL DEFAULT 0,
-  amount_eur int NOT NULL DEFAULT 0,
-  amount_usd int NOT NULL DEFAULT 0,
+  amount_mdl numeric NOT NULL DEFAULT 0,
+  amount_eur numeric NOT NULL DEFAULT 0,
+  amount_usd numeric NOT NULL DEFAULT 0,
   exchange_rate_eur double precision NOT NULL DEFAULT 0,
   exchange_rate_usd double precision NOT NULL DEFAULT 0,
   exchange_rate_date text NOT NULL DEFAULT '',
@@ -84,6 +84,17 @@ CREATE TABLE IF NOT EXISTS expenses (
 	}
 	if _, err := s.pool.Exec(ctx, `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS odometer int NOT NULL DEFAULT 0`); err != nil {
 		return fmt.Errorf("migrate expense odometer: %w", err)
+	}
+	for _, statement := range []string{
+		`ALTER TABLE vehicles ALTER COLUMN purchase_price TYPE numeric USING purchase_price::numeric`,
+		`ALTER TABLE expenses ALTER COLUMN amount_base TYPE numeric USING amount_base::numeric`,
+		`ALTER TABLE expenses ALTER COLUMN amount_mdl TYPE numeric USING amount_mdl::numeric`,
+		`ALTER TABLE expenses ALTER COLUMN amount_eur TYPE numeric USING amount_eur::numeric`,
+		`ALTER TABLE expenses ALTER COLUMN amount_usd TYPE numeric USING amount_usd::numeric`,
+	} {
+		if _, err := s.pool.Exec(ctx, statement); err != nil {
+			return fmt.Errorf("migrate decimal money columns: %w", err)
+		}
 	}
 	if _, err := s.pool.Exec(ctx, `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS preferred_fuel_type text NOT NULL DEFAULT 'Super 95'`); err != nil {
 		return fmt.Errorf("migrate vehicle preferred fuel type: %w", err)

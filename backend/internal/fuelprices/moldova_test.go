@@ -42,3 +42,20 @@ func TestExtractAutotravelerMDLPriceUsesNationalCurrencyTable(t *testing.T) {
 		t.Fatalf("price = %.2f, want 31.35", price)
 	}
 }
+
+func TestExtractAutotravelerRONPriceUsesNationalCurrencyTable(t *testing.T) {
+	html := `<td>Super 95</td><td>€ 1.734</td>
+<h2 id="local">Trends in gasoline prices in the national currency</h2>
+<td>Super 95</td><td>RON 9.12</td><td>RON 0.00<br/><sub>0.00 %</sub></td><td>+ RON 0.01<br/><sub>0.11 %</sub></td><td>+ RON 2.21<br/><sub>31.98 %</sub></td>
+<td>Premium 98</td><td>RON 9.24</td><td>RON 0.00<br/><sub>0.00 %</sub></td><td>+ RON 0.01<br/><sub>0.11 %</sub></td><td>+ RON 1.72<br/><sub>22.87 %</sub></td>
+<td>Diesel</td><td>RON 9.82</td><td>RON 0.00<br/><sub>0.00 %</sub></td><td>- RON 0.13<br/><sub>1.31 %</sub></td><td>+ RON 2.80<br/><sub>39.89 %</sub></td>
+<td>LPG</td><td>RON 3.92</td><td>RON 0.00<br/><sub>0.00 %</sub></td><td>+ RON 0.12<br/><sub>3.16 %</sub></td><td>+ RON 0.39<br/><sub>11.05 %</sub></td>`
+
+	price, err := extractAutotravelerRONPrice(html, "Super 95")
+	if err != nil {
+		t.Fatalf("extractAutotravelerRONPrice() error = %v", err)
+	}
+	if price != 9.12 {
+		t.Fatalf("price = %.2f, want 9.12", price)
+	}
+}

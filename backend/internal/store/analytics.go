@@ -9,14 +9,14 @@ import (
 )
 
 func analyticsFrom(expenses []domain.Expense, vehicles []domain.Vehicle, vehicleID string) map[string]any {
-	var total, fuel, maintenance, insurance int
-	var totalEUR, totalUSD, fuelEUR, fuelUSD, maintenanceEUR, maintenanceUSD, insuranceEUR, insuranceUSD int
-	categoryTotals := map[string]int{}
-	categoryTotalsEUR := map[string]int{}
-	categoryTotalsUSD := map[string]int{}
-	vehicleTotals := map[string]int{}
-	vehicleTotalsEUR := map[string]int{}
-	vehicleTotalsUSD := map[string]int{}
+	var total, fuel, maintenance, insurance float64
+	var totalEUR, totalUSD, fuelEUR, fuelUSD, maintenanceEUR, maintenanceUSD, insuranceEUR, insuranceUSD float64
+	categoryTotals := map[string]float64{}
+	categoryTotalsEUR := map[string]float64{}
+	categoryTotalsUSD := map[string]float64{}
+	vehicleTotals := map[string]float64{}
+	vehicleTotalsEUR := map[string]float64{}
+	vehicleTotalsUSD := map[string]float64{}
 	for _, expense := range expenses {
 		total += expense.AmountMDL
 		totalEUR += expense.AmountEUR
@@ -45,7 +45,7 @@ func analyticsFrom(expenses []domain.Expense, vehicles []domain.Vehicle, vehicle
 	return analyticsPayload(expenses, vehicles, vehicleID, total, totalEUR, totalUSD, fuel, fuelEUR, fuelUSD, maintenance, maintenanceEUR, maintenanceUSD, insurance, insuranceEUR, insuranceUSD, categoryTotals, categoryTotalsEUR, categoryTotalsUSD, vehicleTotals, vehicleTotalsEUR, vehicleTotalsUSD)
 }
 
-func analyticsPayload(expenses []domain.Expense, vehicles []domain.Vehicle, vehicleID string, total, totalEUR, totalUSD, fuel, fuelEUR, fuelUSD, maintenance, maintenanceEUR, maintenanceUSD, insurance, insuranceEUR, insuranceUSD int, categoryTotals, categoryTotalsEUR, categoryTotalsUSD, vehicleTotals, vehicleTotalsEUR, vehicleTotalsUSD map[string]int) map[string]any {
+func analyticsPayload(expenses []domain.Expense, vehicles []domain.Vehicle, vehicleID string, total, totalEUR, totalUSD, fuel, fuelEUR, fuelUSD, maintenance, maintenanceEUR, maintenanceUSD, insurance, insuranceEUR, insuranceUSD float64, categoryTotals, categoryTotalsEUR, categoryTotalsUSD, vehicleTotals, vehicleTotalsEUR, vehicleTotalsUSD map[string]float64) map[string]any {
 	comparison := make([]map[string]any, 0, len(vehicles))
 	for _, vehicle := range vehicles {
 		if vehicleID != "" && vehicle.ID != vehicleID {
@@ -68,7 +68,7 @@ func analyticsPayload(expenses []domain.Expense, vehicles []domain.Vehicle, vehi
 }
 
 func trendsFrom(expenses []domain.Expense) []map[string]any {
-	months := map[string]int{}
+	months := map[string]float64{}
 	for _, expense := range expenses {
 		month := expenseMonth(expense.Date)
 		if month == "" {
@@ -92,11 +92,14 @@ func insightsFrom(expenses []domain.Expense, currentOdometer int) map[string]any
 	return map[string]any{
 		"fuel":        fuelInsight(expenses),
 		"maintenance": maintenanceInsight(expenses, currentOdometer),
+		"insurance":   yearlyExpiryInsight(expenses, "Insurance"),
+		"inspection":  yearlyExpiryInsight(expenses, "Inspection"),
 	}
 }
 
 func fuelInsight(expenses []domain.Expense) map[string]any {
-	var count, pricedCount, totalAmount int
+	var count, pricedCount int
+	var totalAmount float64
 	var liters, priceTotal float64
 	fuelExpenses := make([]domain.Expense, 0)
 	for _, expense := range expenses {
@@ -112,9 +115,9 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 			priceTotal += expense.FuelPricePerLiterMDL
 		}
 	}
-	averageFill := 0
+	averageFill := 0.0
 	if count > 0 {
-		averageFill = totalAmount / count
+		averageFill = totalAmount / float64(count)
 	}
 	averagePrice := 0.0
 	if pricedCount > 0 {
@@ -164,7 +167,8 @@ func maintenanceInsight(expenses []domain.Expense, currentOdometer int) map[stri
 }
 
 func serviceInsight(expenses []domain.Expense) map[string]any {
-	var count, total int
+	var count int
+	var total float64
 	var lastDate string
 	for _, expense := range expenses {
 		if expense.Category != "Maintenance" && expense.Category != "Repairs" {
@@ -176,15 +180,16 @@ func serviceInsight(expenses []domain.Expense) map[string]any {
 			lastDate = expense.Date
 		}
 	}
-	average := 0
+	average := 0.0
 	if count > 0 {
-		average = total / count
+		average = total / float64(count)
 	}
 	return map[string]any{"entry_count": count, "total_mdl": total, "average_mdl": average, "last_date": lastDate}
 }
 
 func categoryInsight(expenses []domain.Expense, category string) map[string]any {
-	var count, total int
+	var count int
+	var total float64
 	var lastDate string
 	for _, expense := range expenses {
 		if expense.Category != category {
@@ -196,11 +201,36 @@ func categoryInsight(expenses []domain.Expense, category string) map[string]any 
 			lastDate = expense.Date
 		}
 	}
-	average := 0
+	average := 0.0
 	if count > 0 {
-		average = total / count
+		average = total / float64(count)
 	}
 	return map[string]any{"entry_count": count, "total_mdl": total, "average_mdl": average, "last_date": lastDate}
+}
+
+func yearlyExpiryInsight(expenses []domain.Expense, category string) map[string]any {
+	var lastDate string
+	for _, expense := range expenses {
+		if expense.Category == category && expense.Date > lastDate {
+			lastDate = expense.Date
+		}
+	}
+	if lastDate == "" {
+		return map[string]any{"status": "not_logged", "confidence": "none", "interval_days": 365}
+	}
+	last, ok := parseDate(lastDate)
+	if !ok {
+		return map[string]any{"status": "not_logged", "confidence": "none", "interval_days": 365}
+	}
+	expires := last.AddDate(1, 0, 0)
+	daysLeft := int(time.Until(expires).Hours() / 24)
+	status := "ok"
+	if daysLeft < 0 {
+		status = "expired"
+	} else if daysLeft <= 30 {
+		status = "soon"
+	}
+	return map[string]any{"status": status, "confidence": "yearly", "last_date": lastDate, "expires_date": expires.Format("2006-01-02"), "days_left": daysLeft, "interval_days": 365}
 }
 
 func oilChangeExpenses(expenses []domain.Expense) []domain.Expense {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getSession, login, onTokenRefresh, register } from "./api";
+import { getSession, isUnauthorizedError, login, onTokenRefresh, register } from "./api";
 import { clearAuth, readLoginID, readToken, saveLoginID, saveToken } from "./auth-storage";
 import type { LoginNotice } from "./types";
 
@@ -23,9 +23,11 @@ export function useAuthSession() {
       setLoginID(readLoginID());
       if (!savedToken) return;
       setToken(savedToken);
-      void getSession(savedToken).catch(() => {
-        clearAuth();
-        setToken("");
+      void getSession(savedToken).catch((error) => {
+        if (isUnauthorizedError(error)) {
+          clearAuth();
+          setToken("");
+        }
       });
     });
     return () => cancelAnimationFrame(frame);
@@ -55,7 +57,7 @@ export function useAuthSession() {
   }, []);
 
   const signIn = useCallback(async (nextLoginID: string) => {
-    const cleanLoginID = nextLoginID.trim();
+    const cleanLoginID = cleanNumericLoginID(nextLoginID);
     if (!cleanLoginID) {
       setAuthStatus("Enter your login ID.");
       setAuthFeedback("error");
@@ -111,4 +113,8 @@ export function useAuthSession() {
     authFeedback,
     token,
   };
+}
+
+function cleanNumericLoginID(value: string) {
+  return value.replace(/\D/g, "");
 }

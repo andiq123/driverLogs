@@ -19,7 +19,7 @@ export function LoginView({ savedLoginID, status, feedback, action, onClearStatu
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    onLogin(String(form.get("login_id") ?? "").trim());
+    onLogin(String(form.get("login_id") ?? ""));
   }
 
   return (
@@ -34,7 +34,7 @@ export function LoginView({ savedLoginID, status, feedback, action, onClearStatu
         </div>
 
         <form onSubmit={submit} className="mt-7 grid gap-3">
-          <Input name="login_id" label="Login ID" icon={KeyRound} defaultValue={savedLoginID} inputMode="numeric" autoComplete="one-time-code" required onChange={onClearStatus} />
+          <Input name="login_id" label="Login ID" icon={KeyRound} defaultValue={savedLoginID} inputMode="numeric" pattern="[0-9]*" autoComplete="one-time-code" required onChange={onClearStatus} />
           <button disabled={isBusy} className="flex h-12 touch-manipulation items-center justify-center gap-2 rounded-[18px] bg-[#151712] text-sm font-bold text-white transition-[transform,opacity] duration-200 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-70">
             {action === "login" ? <Loader2 size={17} className="animate-spin" /> : <ShieldCheck size={17} />}
             Sign in

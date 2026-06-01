@@ -43,6 +43,7 @@ export function ExpenseCategoryPicker({ name, value, onChange }: ExpenseCategory
 
 function categoryLabel(category: ExpenseCategory) {
   if (category === "Maintenance") return "Service";
+  if (category === "Inspection") return "ITP";
   if (category === "Miscellaneous") return "Other";
   return category;
 }

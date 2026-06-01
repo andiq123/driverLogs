@@ -168,6 +168,8 @@ export type TrendDatum = {
 export type SmartInsights = {
   fuel: FuelInsight;
   maintenance: MaintenanceInsight;
+  insurance: YearlyExpiryInsight;
+  inspection: YearlyExpiryInsight;
 };
 
 export type FuelInsight = {
@@ -201,6 +203,15 @@ export type OilChangeInsight = {
   remaining_km?: number;
   interval_days?: number;
   recommended_interval_km?: number;
+};
+
+export type YearlyExpiryInsight = {
+  status: "ok" | "soon" | "expired" | "not_logged";
+  confidence: "yearly" | "none";
+  last_date?: string;
+  expires_date?: string;
+  days_left?: number;
+  interval_days?: number;
 };
 
 export type ChartDatum = {

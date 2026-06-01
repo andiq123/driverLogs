@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,11 +13,11 @@ import (
 const bnmEndpoint = "https://bnm.md/en/official_exchange_rates"
 
 type Conversion struct {
-	AmountBase   int
+	AmountBase   float64
 	BaseCurrency string
-	AmountMDL    int
-	AmountEUR    int
-	AmountUSD    int
+	AmountMDL    float64
+	AmountEUR    float64
+	AmountUSD    float64
 	RateEUR      float64
 	RateUSD      float64
 	Date         string
@@ -33,11 +32,11 @@ func NewBNMClient() BNMClient {
 	return BNMClient{httpClient: &http.Client{Timeout: 8 * time.Second}}
 }
 
-func (c BNMClient) ConvertMDL(ctx context.Context, amountMDL int, date string) (Conversion, error) {
+func (c BNMClient) ConvertMDL(ctx context.Context, amountMDL float64, date string) (Conversion, error) {
 	return c.Convert(ctx, amountMDL, "MDL", date)
 }
 
-func (c BNMClient) Convert(ctx context.Context, amount int, currency string, date string) (Conversion, error) {
+func (c BNMClient) Convert(ctx context.Context, amount float64, currency string, date string) (Conversion, error) {
 	rates, rateDate, err := c.rates(ctx, date)
 	if err != nil {
 		return Conversion{}, err
@@ -48,7 +47,7 @@ func (c BNMClient) Convert(ctx context.Context, amount int, currency string, dat
 		if rate <= 0 {
 			return Conversion{}, fmt.Errorf("missing %s exchange rate", currency)
 		}
-		amountMDL = int(math.Round(float64(amount) * rate))
+		amountMDL = amount * rate
 	}
 	eur := rates["EUR"]
 	usd := rates["USD"]
@@ -58,9 +57,9 @@ func (c BNMClient) Convert(ctx context.Context, amount int, currency string, dat
 	return Conversion{
 		AmountBase:   amount,
 		BaseCurrency: currency,
-		AmountMDL:    int(math.Round(float64(amountMDL))),
-		AmountEUR:    int(math.Round(float64(amountMDL) / eur)),
-		AmountUSD:    int(math.Round(float64(amountMDL) / usd)),
+		AmountMDL:    amountMDL,
+		AmountEUR:    amountMDL / eur,
+		AmountUSD:    amountMDL / usd,
 		RateEUR:      eur,
 		RateUSD:      usd,
 		Date:         rateDate,

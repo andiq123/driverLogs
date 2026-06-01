@@ -93,17 +93,21 @@ func autotravelerFuelLabel(fuelType string) string {
 }
 
 func extractMoldovaTrendRows(text string) ([]TrendRow, error) {
+	labels := []string{"Super 95", "Premium 95", "Diesel", "LPG"}
+	return extractAutotravelerTrendRows(text, "moldova", "MDL", labels)
+}
+
+func extractAutotravelerTrendRows(text string, country string, currency string, labels []string) ([]TrendRow, error) {
 	localStart := strings.Index(text, `id="local"`)
 	if localStart < 0 {
-		return nil, fmt.Errorf("moldova national currency trend section missing")
+		return nil, fmt.Errorf("%s national currency trend section missing", country)
 	}
 	text = text[localStart:]
-	labels := []string{"Super 95", "Premium 95", "Diesel", "LPG"}
 	rows := make([]TrendRow, 0, len(labels))
 	for index, label := range labels {
 		start := strings.Index(text, label)
 		if start < 0 {
-			return nil, fmt.Errorf("moldova trend row missing: %s", label)
+			return nil, fmt.Errorf("%s trend row missing: %s", country, label)
 		}
 		end := len(text)
 		for _, nextLabel := range labels[index+1:] {
@@ -112,7 +116,7 @@ func extractMoldovaTrendRows(text string) ([]TrendRow, error) {
 				break
 			}
 		}
-		row, err := parseTrendRow(label, text[start:end])
+		row, err := parseTrendRow(label, text[start:end], currency, country)
 		if err != nil {
 			return nil, err
 		}
@@ -121,8 +125,9 @@ func extractMoldovaTrendRows(text string) ([]TrendRow, error) {
 	return rows, nil
 }
 
-func parseTrendRow(label, text string) (TrendRow, error) {
-	numbers := regexp.MustCompile(`[-+]?\s*(?:MDL\s*)[0-9]+(?:\.[0-9]+)?|[-+]?\s*[0-9]+(?:\.[0-9]+)?\s*%`).FindAllString(text, -1)
+func parseTrendRow(label, text string, currency string, country string) (TrendRow, error) {
+	pattern := fmt.Sprintf(`[-+]?\s*(?:%s\s*)[0-9]+(?:\.[0-9]+)?|[-+]?\s*[0-9]+(?:\.[0-9]+)?\s*%%`, regexp.QuoteMeta(currency))
+	numbers := regexp.MustCompile(pattern).FindAllString(text, -1)
 	values := make([]float64, 0, len(numbers))
 	for _, token := range numbers {
 		value, err := parseSignedNumber(token)
@@ -131,7 +136,7 @@ func parseTrendRow(label, text string) (TrendRow, error) {
 		}
 	}
 	if len(values) < 7 {
-		return TrendRow{}, fmt.Errorf("moldova trend row incomplete: %s", label)
+		return TrendRow{}, fmt.Errorf("%s trend row incomplete: %s", country, label)
 	}
 	return TrendRow{
 		FuelType: label,
@@ -157,6 +162,8 @@ func parseSignedNumber(value string) (float64, error) {
 	}
 	trimmed = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(trimmed, "+"), "-"))
 	trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "MDL"))
+	trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "RON"))
+	trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "€"))
 	trimmed = strings.TrimSpace(strings.TrimSuffix(trimmed, "%"))
 	parsed, err := strconv.ParseFloat(strings.TrimSpace(trimmed), 64)
 	return parsed * sign, err

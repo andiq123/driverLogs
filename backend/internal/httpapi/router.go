@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -372,10 +371,10 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (doma
 		if err != nil {
 			return domain.Expense{}, http.StatusBadGateway, errors.New("fuel price exchange rate unavailable")
 		}
-		expense.FuelPricePerLiterMDL = math.Round(priceMDL*100) / 100
+		expense.FuelPricePerLiterMDL = priceMDL
 	}
 	if expense.Category == "Fuel" && expense.AmountBase <= 0 && expense.FuelLiters > 0 && expense.FuelPricePerLiterBase > 0 {
-		expense.AmountBase = int(math.Round(expense.FuelLiters * expense.FuelPricePerLiterBase))
+		expense.AmountBase = expense.FuelLiters * expense.FuelPricePerLiterBase
 	}
 	if expense.VehicleID == "" || expense.Category == "" || expense.AmountBase <= 0 || expense.Date == "" {
 		return domain.Expense{}, http.StatusBadRequest, errors.New("vehicle_id, category, amount, and date are required")

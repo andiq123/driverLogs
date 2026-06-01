@@ -3,6 +3,12 @@ import type { AuthSession, Expense, FuelComparisonResponse, FuelPriceResponse, F
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:18080";
 let tokenHandler: ((token: string) => void) | undefined;
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 export function onTokenRefresh(handler: (token: string) => void) {
   tokenHandler = handler;
 }
@@ -138,8 +144,12 @@ function refreshToken(response: Response) {
 async function apiError(response: Response, fallback: string) {
   try {
     const body = await response.json() as { error?: string; detail?: string };
-    return new Error(body.detail || body.error || fallback);
+    return new ApiError(body.detail || body.error || fallback, response.status);
   } catch {
-    return new Error(fallback);
+    return new ApiError(fallback, response.status);
   }
+}
+
+export function isUnauthorizedError(error: unknown) {
+  return error instanceof ApiError && error.status === 401;
 }

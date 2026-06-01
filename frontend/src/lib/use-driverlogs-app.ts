@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createExpense, createVehicle, deleteVehicle, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, updateExpense, updateUserSettings, updateVehicle } from "./api";
+import { createExpense, createVehicle, deleteVehicle, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, isUnauthorizedError, updateExpense, updateUserSettings, updateVehicle } from "./api";
 import { copyText } from "./clipboard";
 import { emptyTotals } from "./theme";
 import type { Expense, UserSettings, Vehicle, View } from "./types";
@@ -10,6 +10,7 @@ import { useToasts } from "./use-toasts";
 
 const selectedVehicleStorageKey = "driverlogs:selected-vehicle-id";
 const healthToastKey = "api-health";
+const pwaUpdateToastKey = "pwa-update";
 
 export function useDriverLogsApp() {
   const [view, setView] = useState<View>("Dashboard");
@@ -45,13 +46,18 @@ export function useDriverLogsApp() {
         return nextVehicles.some((vehicle) => vehicle.id === preferred) ? preferred : nextVehicles[0]?.id || "";
       });
       setStatus(nextVehicles.length ? "Ready" : "Add your first vehicle to start tracking ownership costs.");
-    } catch {
-      setStatus("Session expired or backend is not reachable.");
-      logout();
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        setStatus("Session expired. Please sign in again.");
+        logout();
+        return;
+      }
+      setStatus("Service is not available. Your login is still saved.");
+      showToast("error", "Service is not available", "Please try again in a moment.", healthToastKey);
     } finally {
       if (showLoading) setIsLoadingData(false);
     }
-  }, [logout, token]);
+  }, [logout, showToast, token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +67,14 @@ export function useDriverLogsApp() {
     return () => {
       cancelled = true;
     };
+  }, [showToast]);
+
+  useEffect(() => {
+    const showUpdateToast = () => {
+      showToast("info", "Updating app", "A fresh version is being installed.", pwaUpdateToastKey);
+    };
+    window.addEventListener("driverlogs:pwa-update", showUpdateToast);
+    return () => window.removeEventListener("driverlogs:pwa-update", showUpdateToast);
   }, [showToast]);
 
   useEffect(() => {

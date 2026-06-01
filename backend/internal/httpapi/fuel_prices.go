@@ -121,7 +121,7 @@ func (h Handler) fuelPriceComparison(w http.ResponseWriter, r *http.Request) {
 			DifferencePercent: percent,
 		})
 	}
-	writeJSON(w, http.StatusOK, fuelComparisonResponse{Country: country, CompareCountry: compareCountry, Currency: "MDL", Source: "Autotraveler.ru + PretCarburant.ro + National Bank of Moldova", Rows: rows})
+	writeJSON(w, http.StatusOK, fuelComparisonResponse{Country: country, CompareCountry: compareCountry, Currency: "MDL", Source: "Autotraveler.ru + National Bank of Moldova", Rows: rows})
 }
 
 func queryDefault(r *http.Request, key string, fallback string) string {

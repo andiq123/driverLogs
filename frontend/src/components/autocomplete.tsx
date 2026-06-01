@@ -2,7 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { controls, popoverMotion } from "@/lib/theme";
 
 type AutocompleteProps = {
@@ -19,8 +20,22 @@ type AutocompleteProps = {
 export function Autocomplete({ label, name, options, value, maxLength, icon: Icon, isAutofilled = false, onChange }: AutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [bounds, setBounds] = useState<DOMRect>();
+  const inputRef = useRef<HTMLInputElement>(null);
   const matches = useMemo(() => filterOptions(options, value), [options, value]);
   const listID = `${name}-options`;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const updateBounds = () => setBounds(inputRef.current?.getBoundingClientRect());
+    updateBounds();
+    window.addEventListener("resize", updateBounds);
+    window.addEventListener("scroll", updateBounds, true);
+    return () => {
+      window.removeEventListener("resize", updateBounds);
+      window.removeEventListener("scroll", updateBounds, true);
+    };
+  }, [isOpen]);
 
   function choose(option: string) {
     onChange(option);
@@ -61,6 +76,7 @@ export function Autocomplete({ label, name, options, value, maxLength, icon: Ico
       <span className="relative block">
         {Icon ? <Icon size={17} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[#62685e]" /> : null}
         <input
+          ref={inputRef}
           name={name}
           value={value}
           maxLength={maxLength}
@@ -78,8 +94,14 @@ export function Autocomplete({ label, name, options, value, maxLength, icon: Ico
         />
       </span>
       <AnimatePresence>
-        {isOpen && matches.length ? (
-          <motion.div id={listID} role="listbox" className={`${controls.popover} z-30 max-h-56 overflow-auto p-1`} {...popoverMotion}>
+        {isOpen && matches.length && bounds ? createPortal((
+          <motion.div
+            id={listID}
+            role="listbox"
+            style={{ left: bounds.left, top: bounds.bottom + 8, width: bounds.width }}
+            className="fixed z-[1000] max-h-56 overflow-auto rounded-[22px] border border-black/[0.08] bg-[#fbfcf8] p-1 shadow-[0_18px_48px_rgba(31,41,28,0.16)]"
+            {...popoverMotion}
+          >
             {matches.map((option, index) => (
               <button
                 key={option}
@@ -94,7 +116,7 @@ export function Autocomplete({ label, name, options, value, maxLength, icon: Ico
               </button>
             ))}
           </motion.div>
-        ) : null}
+        ), document.body) : null}
       </AnimatePresence>
     </label>
   );

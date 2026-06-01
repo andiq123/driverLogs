@@ -77,7 +77,7 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
       year: intValue(form.get("year")),
       engine_type: String(form.get("engine_type") ?? "").trim(),
       odometer: intValue(form.get("odometer")),
-      purchase_price: intValue(form.get("purchase_price")),
+      purchase_price: numberValue(form.get("purchase_price")),
       purchase_currency: String(form.get("purchase_currency") ?? "MDL"),
     };
     if (vehicle) onUpdate?.(vehicle.id, payload);
@@ -244,7 +244,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     const payload = {
       vehicle_id: vehicle.id,
       category: String(form.get("category")) as ExpenseCategory,
-      amount_base: intValue(form.get("amount_base")),
+      amount_base: numberValue(form.get("amount_base")),
       base_currency: String(form.get("base_currency") ?? baseCurrency),
       fuel_liters: numberValue(form.get("fuel_liters")),
       fuel_price_per_liter_base: numberValue(form.get("fuel_price_per_liter_base")),
@@ -351,9 +351,9 @@ function ServicePresets({ value, onChange }: { value: string; onChange: (value: 
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((option) => {
-        const active = value.toLowerCase().includes(option.toLowerCase());
+        const active = selectedServicePresets(value).includes(option);
         return (
-          <button key={option} type="button" onClick={() => onChange(option)} className={`h-9 touch-manipulation rounded-full px-3 text-xs font-bold transition-[background-color,color,transform] duration-200 active:scale-[0.985] ${active ? "bg-[#151712] text-white" : "bg-[#eef3e8] text-[#62685e] hover:text-[#151712]"}`}>
+          <button key={option} type="button" onClick={() => onChange(toggleServicePreset(value, option))} className={`h-9 touch-manipulation rounded-full px-3 text-xs font-bold transition-[background-color,color,transform] duration-200 active:scale-[0.985] ${active ? "bg-[#151712] text-white" : "bg-[#eef3e8] text-[#62685e] hover:text-[#151712]"}`}>
             {option}
           </button>
         );
@@ -365,8 +365,27 @@ function ServicePresets({ value, onChange }: { value: string; onChange: (value: 
 const servicePresetOptions = ["Oil change", "Regular service", "Filters", "Alignment"];
 
 function isServicePreset(value: string) {
-  const cleanValue = value.trim().toLowerCase();
-  return servicePresetOptions.some((option) => option.toLowerCase() === cleanValue);
+  const selected = selectedServicePresets(value);
+  return selected.length > 0 && selected.length === splitServiceDescription(value).length;
+}
+
+function toggleServicePreset(value: string, option: string) {
+  const parts = splitServiceDescription(value);
+  const exists = parts.some((part) => samePreset(part, option));
+  const next = exists ? parts.filter((part) => !samePreset(part, option)) : [...parts, option];
+  return next.join(" · ");
+}
+
+function selectedServicePresets(value: string) {
+  return splitServiceDescription(value).filter((part) => servicePresetOptions.some((option) => samePreset(part, option)));
+}
+
+function splitServiceDescription(value: string) {
+  return value.split(/[,·]/).map((part) => part.trim()).filter(Boolean);
+}
+
+function samePreset(value: string, option: string) {
+  return value.toLowerCase() === option.toLowerCase();
 }
 
 function amountPlaceholder(category: ExpenseCategory, currency: string) {

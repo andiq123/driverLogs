@@ -1,11 +1,11 @@
 import type { Vehicle } from "./types";
 
 export function money(amountMDL: number) {
-  return `${new Intl.NumberFormat("ro-MD").format(amountMDL)} MDL`;
+  return `${decimalMoney(amountMDL)} MDL`;
 }
 
 export function equivalents(amountEUR: number, amountUSD: number) {
-  return `${new Intl.NumberFormat("ro-MD", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amountEUR)} · ${new Intl.NumberFormat("ro-MD", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amountUSD)}`;
+  return `${decimalMoney(amountEUR)} EUR · ${decimalMoney(amountUSD)} USD`;
 }
 
 export function km(value: number) {
@@ -25,4 +25,15 @@ export function numberValue(value: FormDataEntryValue | null) {
 
 export function intValue(value: FormDataEntryValue | null) {
   return Math.round(numberValue(value));
+}
+
+function decimalMoney(value: number) {
+  return new Intl.NumberFormat("ro-MD", {
+    minimumFractionDigits: hasFraction(value) ? 2 : 0,
+    maximumFractionDigits: 6,
+  }).format(value);
+}
+
+function hasFraction(value: number) {
+  return Math.abs(value % 1) > Number.EPSILON;
 }

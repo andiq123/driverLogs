@@ -10,6 +10,10 @@ export function PWARegister() {
     let refreshing = false;
     let registration: ServiceWorkerRegistration | undefined;
 
+    const notifyUpdate = () => {
+      window.dispatchEvent(new CustomEvent("driverlogs:pwa-update"));
+    };
+
     const activateWaitingWorker = () => {
       registration?.waiting?.postMessage({ type: "SKIP_WAITING" });
     };
@@ -27,6 +31,7 @@ export function PWARegister() {
         if (!worker) return;
         worker.addEventListener("statechange", () => {
           if (worker.state === "installed" && navigator.serviceWorker.controller) {
+            notifyUpdate();
             activateWaitingWorker();
           }
         });
@@ -37,6 +42,7 @@ export function PWARegister() {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (refreshing) return;
       refreshing = true;
+      notifyUpdate();
       window.location.reload();
     });
     window.addEventListener("focus", checkForUpdate);

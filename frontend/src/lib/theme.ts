@@ -19,7 +19,7 @@ export const mobileNavItems: NavItem[] = [
   { label: "Settings", icon: Settings },
 ];
 
-export const categories: ExpenseCategory[] = ["Fuel", "Maintenance", "Insurance", "Tires", "Parking", "Upgrades", "Miscellaneous"];
+export const categories: ExpenseCategory[] = ["Fuel", "Maintenance", "Insurance", "Inspection", "Tires", "Parking", "Upgrades", "Miscellaneous"];
 
 export const userCurrencies = ["MDL", "EUR", "USD", "RON"] as const;
 
@@ -70,6 +70,8 @@ export const emptyTotals: MoneyTotals = {
   insights: {
     fuel: { entry_count: 0, total_liters: 0, average_fill_mdl: 0, average_price_per_liter_mdl: 0 },
     maintenance: { entry_count: 0, total_mdl: 0, average_mdl: 0, oil_change: { status: "not_enough_data", confidence: "none", recommended_interval_km: 10000 } },
+    insurance: { status: "not_logged", confidence: "none", interval_days: 365 },
+    inspection: { status: "not_logged", confidence: "none", interval_days: 365 },
   },
 };
 

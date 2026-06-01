@@ -13,7 +13,7 @@ type Vehicle struct {
 	EngineType        string    `json:"engine_type,omitempty"`
 	VIN               string    `json:"vin,omitempty"`
 	PreferredFuelType string    `json:"preferred_fuel_type,omitempty"`
-	PurchasePrice     int       `json:"purchase_price,omitempty"`
+	PurchasePrice     float64   `json:"purchase_price,omitempty"`
 	PurchaseCurrency  string    `json:"purchase_currency,omitempty"`
 	PurchaseDate      string    `json:"purchase_date,omitempty"`
 	Odometer          int       `json:"odometer,omitempty"`
@@ -26,11 +26,11 @@ type Expense struct {
 	UserID                string    `json:"-"`
 	VehicleID             string    `json:"vehicle_id"`
 	Category              string    `json:"category"`
-	AmountBase            int       `json:"amount_base,omitempty"`
+	AmountBase            float64   `json:"amount_base,omitempty"`
 	BaseCurrency          string    `json:"base_currency,omitempty"`
-	AmountMDL             int       `json:"amount_mdl"`
-	AmountEUR             int       `json:"amount_eur"`
-	AmountUSD             int       `json:"amount_usd"`
+	AmountMDL             float64   `json:"amount_mdl"`
+	AmountEUR             float64   `json:"amount_eur"`
+	AmountUSD             float64   `json:"amount_usd"`
 	ExchangeRateEUR       float64   `json:"exchange_rate_eur,omitempty"`
 	ExchangeRateUSD       float64   `json:"exchange_rate_usd,omitempty"`
 	ExchangeRateDate      string    `json:"exchange_rate_date,omitempty"`
@@ -65,11 +65,11 @@ type UserSettings struct {
 }
 
 type TimelineEntry struct {
-	ID        string `json:"id"`
-	VehicleID string `json:"vehicle_id"`
-	Type      string `json:"type"`
-	Title     string `json:"title"`
-	Category  string `json:"category"`
-	Date      string `json:"date"`
-	AmountMDL int    `json:"amount_mdl"`
+	ID        string  `json:"id"`
+	VehicleID string  `json:"vehicle_id"`
+	Type      string  `json:"type"`
+	Title     string  `json:"title"`
+	Category  string  `json:"category"`
+	Date      string  `json:"date"`
+	AmountMDL float64 `json:"amount_mdl"`
 }
