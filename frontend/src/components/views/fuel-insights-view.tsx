@@ -143,24 +143,64 @@ function MarketTile({ title, value, detail }: { title: string; value: string; de
 
 function FuelPricesLoading() {
   return (
-    <div className="grid gap-4">
-      <section className="relative overflow-hidden rounded-[28px] bg-[#151712] p-5 text-white shadow-[0_22px_72px_rgba(21,23,18,0.22)] sm:p-6">
+    <div className="grid gap-3 sm:gap-4">
+      <section className="relative min-h-[216px] overflow-hidden rounded-[24px] bg-[#151712] p-4 text-white shadow-[0_22px_72px_rgba(21,23,18,0.22)] sm:min-h-[300px] sm:rounded-[28px] sm:p-6">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,rgba(223,231,212,0.18),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_42%)]" />
         <div className="relative">
           <SkeletonLine className="h-3 w-36 bg-white/12" />
-          <SkeletonLine className="mt-4 h-12 w-56 bg-white/12" />
-          <SkeletonLine className="mt-4 h-4 w-72 max-w-full bg-white/10" />
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {Array.from({ length: 3 }, (_, index) => <SkeletonLine key={index} className="h-24 rounded-[22px] bg-white/10" />)}
+          <SkeletonLine className="mt-1 h-9 w-44 bg-white/12 sm:mt-2 sm:h-14 sm:w-64" />
+          <div className="mt-2 flex gap-2 sm:mt-3">
+            <SkeletonLine className="h-7 w-32 bg-[#dfe7d4]/70" />
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-1.5 sm:mt-8 sm:gap-3">
+            {Array.from({ length: 3 }, (_, index) => <FuelTileSkeleton key={index} />)}
           </div>
         </div>
       </section>
-      <Panel title="National currency table" eyebrow="Loading real data">
-        <div className="grid gap-3">
-          {Array.from({ length: 5 }, (_, index) => <SkeletonLine key={index} className="h-24 rounded-[24px]" />)}
+
+      <section className="rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_14px_48px_rgba(31,41,28,0.08)] sm:p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#70776a]">Now vs history</p>
+        <h2 className="mt-1 text-xl font-semibold">Moldova prices</h2>
+        <div className="mt-5 grid gap-2 sm:gap-3">
+          {Array.from({ length: 4 }, (_, index) => <FuelRowSkeleton key={index} />)}
         </div>
-      </Panel>
+      </section>
     </div>
+  );
+}
+
+function FuelTileSkeleton() {
+  return (
+    <div className="min-w-0 rounded-[16px] bg-white/10 p-2 sm:rounded-[22px] sm:p-4">
+      <SkeletonLine className="h-2.5 w-16 bg-white/12 sm:h-3 sm:w-24" />
+      <SkeletonLine className="mt-1.5 h-4 w-12 bg-white/12 sm:mt-2 sm:h-6 sm:w-16" />
+      <SkeletonLine className="mt-1 h-3 w-20 bg-white/10 sm:w-28" />
+    </div>
+  );
+}
+
+function FuelRowSkeleton() {
+  return (
+    <article className="rounded-[18px] bg-[#eef3e8] p-2.5 sm:rounded-[24px] sm:p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <SkeletonLine className="h-4 w-24 bg-white/70 sm:h-5" />
+          <SkeletonLine className="mt-1 h-3 w-36 bg-white/60" />
+        </div>
+        <div className="grid shrink-0 justify-items-end gap-1">
+          <SkeletonLine className="h-7 w-20 bg-white" />
+          <SkeletonLine className="h-6 w-28 bg-[#151712]/12" />
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1.5 sm:mt-3 sm:gap-2">
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={index} className="rounded-[14px] bg-white/70 px-2 py-2 sm:rounded-[18px] sm:px-3">
+            <SkeletonLine className="h-3 w-12 bg-[#dfe7d4]" />
+            <SkeletonLine className="mt-2 h-4 w-14 bg-[#dfe7d4]" />
+          </div>
+        ))}
+      </div>
+    </article>
   );
 }
 
