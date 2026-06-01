@@ -274,11 +274,20 @@ func (h Handler) updateVehicle(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "plate_number is required"})
 		return
 	}
-	updated, err := h.store.UpdateVehicle(userID(r), r.PathValue("id"), vehicle)
+	current, err := h.store.Vehicle(userID(r), r.PathValue("id"))
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "vehicle not found"})
 		return
 	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	if vehicle.Odometer > 0 && current.Odometer > 0 && vehicle.Odometer < current.Odometer {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "odometer cannot be lower than the current reading"})
+		return
+	}
+	updated, err := h.store.UpdateVehicle(userID(r), r.PathValue("id"), vehicle)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
@@ -356,6 +365,16 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (doma
 	settings, err := h.store.UserSettings(userID(r))
 	if err != nil {
 		return domain.Expense{}, http.StatusInternalServerError, errors.New("settings unavailable")
+	}
+	vehicle, err := h.store.Vehicle(userID(r), expense.VehicleID)
+	if errors.Is(err, store.ErrNotFound) {
+		return domain.Expense{}, http.StatusNotFound, errors.New("vehicle not found")
+	}
+	if err != nil {
+		return domain.Expense{}, http.StatusInternalServerError, errors.New("vehicle unavailable")
+	}
+	if expense.Odometer > 0 && vehicle.Odometer > 0 && expense.Odometer < vehicle.Odometer {
+		return domain.Expense{}, http.StatusBadRequest, errors.New("odometer cannot be lower than the current reading")
 	}
 	if expense.BaseCurrency == "" {
 		expense.BaseCurrency = settings.DefaultCurrency

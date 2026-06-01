@@ -163,7 +163,7 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
         </div>
         <CustomSelect name="preferred_fuel_type" label="Preferred fuel" icon={Fuel} options={fuelTypes} value={preferredFuelType} onChange={setPreferredFuelType} />
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(128px,0.78fr)_96px]">
-          <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" defaultValue={vehicle?.odometer || ""} />
+          <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" min={vehicle?.odometer || undefined} defaultValue={vehicle?.odometer || ""} />
           <Input name="purchase_price" label="Purchase price" icon={BadgeDollarSign} inputMode="decimal" defaultValue={vehicle?.purchase_price || ""} />
           <CustomSelect name="purchase_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} onChange={setPurchaseCurrency} />
         </div>
@@ -327,7 +327,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
             ) : null}
           </AnimatePresence>
           <div className="grid gap-2">
-            <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" required={category === "Maintenance"} value={odometerValue} onChange={(event) => setOdometerValue(event.currentTarget.value)} placeholder={category === "Maintenance" ? "Required odometer, km" : "Odometer, km"} />
+            <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" min={vehicle.odometer || undefined} required={category === "Maintenance"} value={odometerValue} onChange={(event) => setOdometerValue(event.currentTarget.value)} placeholder={category === "Maintenance" ? `Minimum ${vehicle.odometer || 0} km` : "Odometer, km"} />
             {category === "Fuel" && odometerSuggestion && !odometerValue ? (
               <button type="button" onClick={() => setOdometerValue(String(odometerSuggestion))} className="w-fit rounded-full bg-[#eef3e8] px-3 py-1.5 text-xs font-bold text-[#62685e] transition-colors hover:text-[#151712]">
                 Use current estimate {km(odometerSuggestion)}

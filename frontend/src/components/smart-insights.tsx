@@ -5,8 +5,8 @@ import { km, money } from "@/lib/format";
 export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   const oil = insights.maintenance.oil_change;
   return (
-    <section className="grid grid-cols-2 gap-2 sm:grid-cols-5 sm:gap-3">
-      <InsightTile icon={CalendarClock} title="Oil change" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} />
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 2xl:grid-cols-5">
+      <InsightTile wide icon={CalendarClock} title="Oil change" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} />
       <InsightTile icon={Fuel} title="Fuel trend" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples)} />
       <InsightTile icon={Wrench} title="Service average" value={insights.maintenance.average_mdl ? money(insights.maintenance.average_mdl) : "No service yet"} detail={entryDetail(insights.maintenance.entry_count)} />
       <InsightTile icon={ShieldCheck} title="Insurance" value={expiryValue(insights.insurance)} detail={expiryDetail("insurance", insights.insurance)} />
@@ -15,16 +15,16 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   );
 }
 
-function InsightTile({ icon: Icon, title, value, detail }: { icon: LucideIcon; title: string; value: string; detail: string }) {
+function InsightTile({ icon: Icon, title, value, detail, wide = false }: { icon: LucideIcon; title: string; value: string; detail: string; wide?: boolean }) {
   return (
-    <div className="relative overflow-hidden rounded-[20px] bg-[#eef3e8] p-3 sm:rounded-[24px] sm:p-4">
+    <div className={`relative min-h-[8.75rem] overflow-hidden rounded-[20px] bg-[#eef3e8] p-3 sm:rounded-[24px] sm:p-4 ${wide ? "sm:col-span-2 2xl:col-span-1" : ""}`}>
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.72),transparent_48%),radial-gradient(circle_at_88%_12%,rgba(15,143,104,0.08),transparent_34%)]" />
-      <div className="relative flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#62685e] sm:gap-2 sm:text-xs sm:tracking-[0.14em]">
+      <div className="relative flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#62685e] sm:gap-2 sm:text-[11px] sm:tracking-[0.14em]">
         <Icon size={14} />
-        <span className="truncate">{title}</span>
+        <span className="min-w-0 truncate">{title}</span>
       </div>
-      <p className="relative mt-2 line-clamp-2 text-sm font-bold leading-tight sm:mt-3 sm:text-lg">{value}</p>
-      <p className="relative mt-1 hidden text-xs leading-5 text-[#62685e] sm:block">{detail}</p>
+      <p className="relative mt-2 text-base font-bold leading-tight sm:mt-3 sm:text-lg">{value}</p>
+      <p className="relative mt-1 line-clamp-3 text-xs leading-5 text-[#62685e]">{detail}</p>
     </div>
   );
 }

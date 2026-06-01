@@ -18,13 +18,28 @@ export function vehicleName(vehicle: Vehicle) {
 }
 
 export function numberValue(value: FormDataEntryValue | null) {
-  const normalized = String(value ?? "").trim().replace(/\s/g, "").replace(",", ".");
+  const normalized = normalizeDecimal(String(value ?? ""));
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function intValue(value: FormDataEntryValue | null) {
-  return Math.round(numberValue(value));
+  const normalized = String(value ?? "").trim().replace(/[^\d-]/g, "");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeDecimal(value: string) {
+  const compact = value.trim().replace(/\s/g, "");
+  const comma = compact.lastIndexOf(",");
+  const dot = compact.lastIndexOf(".");
+  if (comma >= 0 && dot >= 0) {
+    const decimalSeparator = comma > dot ? "," : ".";
+    const thousandsSeparator = decimalSeparator === "," ? "." : ",";
+    return compact.replaceAll(thousandsSeparator, "").replace(decimalSeparator, ".");
+  }
+  if (comma >= 0) return compact.replace(",", ".");
+  return compact;
 }
 
 function decimalMoney(value: number) {

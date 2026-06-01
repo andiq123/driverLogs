@@ -153,3 +153,7 @@ async function apiError(response: Response, fallback: string) {
 export function isUnauthorizedError(error: unknown) {
   return error instanceof ApiError && error.status === 401;
 }
+
+export function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}

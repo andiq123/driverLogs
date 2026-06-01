@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createExpense, createVehicle, deleteVehicle, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, isUnauthorizedError, updateExpense, updateUserSettings, updateVehicle } from "./api";
+import { createExpense, createVehicle, deleteVehicle, errorMessage, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, isUnauthorizedError, updateExpense, updateUserSettings, updateVehicle } from "./api";
 import { copyText } from "./clipboard";
 import { emptyTotals } from "./theme";
 import type { Expense, UserSettings, Vehicle, View } from "./types";
@@ -132,9 +132,9 @@ export function useDriverLogsApp() {
       setActiveVehicleID(saved.id);
       localStorage.setItem(selectedVehicleStorageKey, saved.id);
       showToast("success", "Vehicle updated", "Your car details were saved.");
-    } catch {
+    } catch (error) {
       setStatus("Vehicle could not be updated.");
-      showToast("error", "Vehicle was not updated", "Check required fields and backend availability.");
+      showToast("error", "Vehicle was not updated", errorMessage(error, "Check required fields and backend availability."));
     } finally {
       setAction("");
     }
@@ -148,9 +148,9 @@ export function useDriverLogsApp() {
       await loadData(false);
       setView("Timeline");
       showToast("success", "Expense saved", "The conversion was stamped for that date.");
-    } catch {
+    } catch (error) {
       setStatus("Expense could not be saved. Check the required fields.");
-      showToast("error", "Expense was not saved", "Check required fields and backend availability.");
+      showToast("error", "Expense was not saved", errorMessage(error, "Check required fields and backend availability."));
     } finally {
       setAction("");
     }
@@ -163,9 +163,9 @@ export function useDriverLogsApp() {
       await updateExpense(token, id, expense);
       await loadData(false);
       showToast("success", "Expense updated", "The conversion was refreshed for that date.");
-    } catch {
+    } catch (error) {
       setStatus("Expense could not be updated.");
-      showToast("error", "Expense was not updated", "Check required fields and backend availability.");
+      showToast("error", "Expense was not updated", errorMessage(error, "Check required fields and backend availability."));
     } finally {
       setAction("");
     }

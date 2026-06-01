@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -57,14 +58,18 @@ func (c BNMClient) Convert(ctx context.Context, amount float64, currency string,
 	return Conversion{
 		AmountBase:   amount,
 		BaseCurrency: currency,
-		AmountMDL:    amountMDL,
-		AmountEUR:    amountMDL / eur,
-		AmountUSD:    amountMDL / usd,
+		AmountMDL:    roundMoney(amountMDL),
+		AmountEUR:    roundMoney(amountMDL / eur),
+		AmountUSD:    roundMoney(amountMDL / usd),
 		RateEUR:      eur,
 		RateUSD:      usd,
 		Date:         rateDate,
 		Source:       "National Bank of Moldova",
 	}, nil
+}
+
+func roundMoney(value float64) float64 {
+	return math.Round(value*100) / 100
 }
 
 func (c BNMClient) ConvertDecimalToMDL(ctx context.Context, amount float64, currency string, date string) (float64, error) {
