@@ -25,7 +25,7 @@ export async function login(loginID: string) {
   return sendJSON<AuthSession>("/auth/login", "POST", { login_id: loginID });
 }
 
-export async function getSession(token: string) {
+export async function getSession(token?: string) {
   return getJSON<{ user_id: string; max_vehicles: number; settings: UserSettings }>("/auth/session", token);
 }
 
@@ -97,6 +97,7 @@ export async function deleteVehicle(token: string, id: string) {
   const response = await fetch(`${apiBase}/vehicles/${id}`, {
     method: "DELETE",
     headers: authHeaders(token),
+    credentials: "include",
   });
   refreshToken(response);
   if (!response.ok) throw await apiError(response, "delete vehicle failed");
@@ -108,6 +109,7 @@ async function getJSON<T>(path: string, token?: string, timeoutMs?: number) {
   try {
     const response = await fetch(`${apiBase}${path}`, {
       headers: token ? authHeaders(token) : undefined,
+      credentials: "include",
       signal: controller?.signal,
     });
     refreshToken(response);
@@ -122,6 +124,7 @@ async function sendJSON<T>(path: string, method: "POST" | "PUT", body: unknown, 
   const response = await fetch(`${apiBase}${path}`, {
     method,
     headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    credentials: "include",
     body: JSON.stringify(body),
   });
   refreshToken(response);
@@ -156,4 +159,33 @@ export function isUnauthorizedError(error: unknown) {
 
 export function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export function logClientError(event: { level?: "warn" | "error"; area: string; message: string; detail?: string; context?: Record<string, unknown> }) {
+  if (typeof window === "undefined") return;
+  const body = JSON.stringify({
+    level: event.level ?? "error",
+    area: event.area,
+    message: scrub(event.message),
+    detail: scrub(event.detail ?? ""),
+    path: window.location.pathname,
+    standalone: window.matchMedia?.("(display-mode: standalone)").matches || ("standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone)),
+    context: event.context ?? {},
+  });
+  const url = `${apiBase}/client-errors`;
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+    return;
+  }
+  void fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body,
+    keepalive: true,
+  }).catch(() => {});
+}
+
+function scrub(value: string) {
+  return value.replace(/\b\d{8,}\b/g, "[number]").replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
 }

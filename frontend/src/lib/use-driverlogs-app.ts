@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createExpense, createVehicle, deleteVehicle, errorMessage, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, isUnauthorizedError, updateExpense, updateUserSettings, updateVehicle } from "./api";
+import { createExpense, createVehicle, deleteVehicle, errorMessage, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
 import { copyText } from "./clipboard";
 import { emptyTotals } from "./theme";
 import type { Expense, UserSettings, Vehicle, View } from "./types";
@@ -48,10 +48,12 @@ export function useDriverLogsApp() {
       setStatus(nextVehicles.length ? "Ready" : "Add your first vehicle to start tracking ownership costs.");
     } catch (error) {
       if (isUnauthorizedError(error)) {
+        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail: errorMessage(error, "unauthorized") });
         setStatus("Session expired. Please sign in again.");
         logout();
         return;
       }
+      logClientError({ level: "error", area: "app.load", message: "Authenticated data load failed", detail: errorMessage(error, "unknown error") });
       setStatus("Service is not available. Your login is still saved.");
       showToast("error", "Service is not available", "Please try again in a moment.", healthToastKey);
     } finally {
@@ -61,7 +63,8 @@ export function useDriverLogsApp() {
 
   useEffect(() => {
     let cancelled = false;
-    void healthCheck().catch(() => {
+    void healthCheck().catch((error) => {
+      logClientError({ level: "warn", area: "app.health", message: "Health check failed", detail: errorMessage(error, "unknown error") });
       if (!cancelled) showToast("error", "Service is not available", "Please try again in a moment.", healthToastKey);
     });
     return () => {
@@ -71,6 +74,7 @@ export function useDriverLogsApp() {
 
   useEffect(() => {
     const showUpdateToast = () => {
+      logClientError({ level: "warn", area: "pwa.update", message: "PWA update event received" });
       showToast("info", "Updating app", "A fresh version is being installed.", pwaUpdateToastKey);
     };
     window.addEventListener("driverlogs:pwa-update", showUpdateToast);
@@ -98,6 +102,7 @@ export function useDriverLogsApp() {
         if (!cancelled) setVehicleTotals(totals);
       })
       .catch(() => {
+        logClientError({ level: "warn", area: "analytics", message: "Vehicle analytics failed" });
         if (!cancelled) setVehicleTotals(emptyTotals);
       });
     return () => {

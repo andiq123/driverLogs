@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getSession, isUnauthorizedError, login, onTokenRefresh, register } from "./api";
+import { errorMessage, getSession, isUnauthorizedError, logClientError, login, onTokenRefresh, register } from "./api";
 import { clearAuth, readLoginID, readToken, saveLoginID, saveToken } from "./auth-storage";
 import type { LoginNotice } from "./types";
 
@@ -14,26 +14,52 @@ export function useAuthSession() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [loginNotice, setLoginNotice] = useState<LoginNotice>({ loginID: "", isOpen: false });
 
+  const restoreCookieSession = useCallback(async () => {
+    try {
+      await getSession();
+      setLoginID(readLoginID());
+    } catch (error) {
+      logClientError({ level: "warn", area: "auth.restore.cookie", message: "Cookie session restore failed", detail: errorMessage(error, "unknown error") });
+      setToken("");
+    }
+  }, []);
+
+  const restoreSession = useCallback(async () => {
+    const savedLoginID = readLoginID();
+    const savedToken = readToken();
+    setLoginID(savedLoginID);
+    if (!savedToken) {
+      await restoreCookieSession();
+      setIsAuthReady(true);
+      return;
+    }
+    setToken(savedToken);
+    try {
+      await getSession(savedToken);
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        logClientError({ level: "warn", area: "auth.restore.token", message: "Stored token was rejected", detail: errorMessage(error, "unauthorized"), context: { had_saved_token: true } });
+        clearAuth();
+        setToken("");
+        await restoreCookieSession();
+      } else {
+        logClientError({ level: "warn", area: "auth.restore.token", message: "Stored token check failed", detail: errorMessage(error, "unknown error"), context: { had_saved_token: true } });
+      }
+    } finally {
+      setIsAuthReady(true);
+    }
+  }, [restoreCookieSession]);
+
   useEffect(() => {
     onTokenRefresh((nextToken) => {
       saveToken(nextToken);
       setToken(nextToken);
     });
     const frame = requestAnimationFrame(() => {
-      const savedToken = readToken();
-      setLoginID(readLoginID());
-      setIsAuthReady(true);
-      if (!savedToken) return;
-      setToken(savedToken);
-      void getSession(savedToken).catch((error) => {
-        if (isUnauthorizedError(error)) {
-          clearAuth();
-          setToken("");
-        }
-      });
+      void restoreSession();
     });
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [restoreSession]);
 
   const createLogin = useCallback(async () => {
     setAuthAction("register");
@@ -50,7 +76,8 @@ export function useAuthSession() {
       }
       setAuthStatus("Login created.");
       setAuthFeedback("success");
-    } catch {
+    } catch (error) {
+      logClientError({ level: "error", area: "auth.register", message: "Register request failed", detail: errorMessage(error, "unknown error") });
       setAuthStatus("Could not create login. Please try again.");
       setAuthFeedback("error");
     } finally {
@@ -76,7 +103,8 @@ export function useAuthSession() {
       setLoginID(cleanLoginID);
       setAuthStatus("");
       setAuthFeedback("idle");
-    } catch {
+    } catch (error) {
+      logClientError({ level: "error", area: "auth.login", message: "Login request failed", detail: errorMessage(error, "unknown error"), context: { login_length: cleanLoginID.length } });
       setAuthStatus("Incorrect login ID.");
       setAuthFeedback("error");
     } finally {

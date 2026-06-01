@@ -51,11 +51,13 @@ type healthPinger interface {
 type contextKey string
 
 const userIDKey contextKey = "user_id"
+const authCookieName = "driverlogs_token"
 
 func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSecret string, corsAllowedOrigins []string) http.Handler {
 	h := Handler{store: repo, db: db, exchange: exchange.NewBNMClient(), fuelPrices: fuelPrices, jwtSecret: jwtSecret, logger: slog.Default(), cors: newCORSPolicy(corsAllowedOrigins)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
+	mux.HandleFunc("POST /client-errors", h.clientError)
 	mux.HandleFunc("POST /auth/register", h.register)
 	mux.HandleFunc("POST /auth/login", h.login)
 	mux.HandleFunc("GET /auth/session", h.requireAuth(h.session))
@@ -130,6 +132,39 @@ func (h Handler) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h Handler) clientError(w http.ResponseWriter, r *http.Request) {
+	var event struct {
+		Level      string         `json:"level"`
+		Area       string         `json:"area"`
+		Message    string         `json:"message"`
+		Detail     string         `json:"detail"`
+		Path       string         `json:"path"`
+		Standalone bool           `json:"standalone"`
+		Context    map[string]any `json:"context"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&event); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid client log"})
+		return
+	}
+	fields := []any{
+		"area", safeLogValue(event.Area, 80),
+		"message", safeLogValue(event.Message, 180),
+		"detail", safeLogValue(event.Detail, 240),
+		"path", safeLogValue(event.Path, 160),
+		"standalone", event.Standalone,
+		"user_agent", safeLogValue(r.UserAgent(), 220),
+	}
+	for key, value := range event.Context {
+		fields = append(fields, "ctx_"+safeLogValue(key, 40), value)
+	}
+	if strings.EqualFold(event.Level, "error") {
+		h.logger.Error("client error", fields...)
+	} else {
+		h.logger.Warn("client warning", fields...)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h Handler) register(w http.ResponseWriter, r *http.Request) {
 	loginID, err := auth.NewLoginID()
 	if err != nil {
@@ -146,6 +181,7 @@ func (h Handler) register(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not create token"})
 		return
 	}
+	setAuthCookie(w, r, token)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"login_id":     loginID,
 		"token":        token,
@@ -177,6 +213,7 @@ func (h Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.store.TouchUser(user.ID)
+	setAuthCookie(w, r, token)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"token":        token,
 		"expires_in":   int(auth.TokenTTL.Seconds()),
@@ -458,7 +495,7 @@ func (h Handler) reports(w http.ResponseWriter, r *http.Request) {
 
 func (h Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := auth.Bearer(r.Header.Get("Authorization"))
+		token := requestToken(r)
 		claims, err := auth.Verify(token, h.jwtSecret, time.Now())
 		if err != nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
@@ -471,8 +508,47 @@ func (h Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		h.store.TouchUser(claims.UserID)
 		w.Header().Set("Authorization", "Bearer "+refreshed)
+		setAuthCookie(w, r, refreshed)
 		next(w, r.WithContext(context.WithValue(r.Context(), userIDKey, claims.UserID)))
 	}
+}
+
+func requestToken(r *http.Request) string {
+	if token := auth.Bearer(r.Header.Get("Authorization")); token != "" {
+		return token
+	}
+	cookie, err := r.Cookie(authCookieName)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(cookie.Value)
+}
+
+func setAuthCookie(w http.ResponseWriter, r *http.Request, token string) {
+	sameSite := http.SameSiteLaxMode
+	secure := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	if secure {
+		sameSite = http.SameSiteNoneMode
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     authCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   int(auth.TokenTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: sameSite,
+	})
+}
+
+func safeLogValue(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	value = strings.ReplaceAll(value, "\n", " ")
+	value = strings.ReplaceAll(value, "\r", " ")
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit]
 }
 
 func userID(r *http.Request) string {
@@ -519,6 +595,7 @@ func (h Handler) withCORS(next http.Handler) http.Handler {
 		origin := h.cors.allowedOrigin(r.Header.Get("Origin"))
 		if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
