@@ -11,6 +11,7 @@ export function useAuthSession() {
   const [authStatus, setAuthStatus] = useState("");
   const [authFeedback, setAuthFeedback] = useState<"idle" | "error" | "success" | "loading">("idle");
   const [authAction, setAuthAction] = useState<"login" | "register" | "">("");
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [loginNotice, setLoginNotice] = useState<LoginNotice>({ loginID: "", isOpen: false });
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export function useAuthSession() {
     const frame = requestAnimationFrame(() => {
       const savedToken = readToken();
       setLoginID(readLoginID());
+      setIsAuthReady(true);
       if (!savedToken) return;
       setToken(savedToken);
       void getSession(savedToken).catch((error) => {
@@ -103,6 +105,7 @@ export function useAuthSession() {
     authStatus,
     closeLoginNotice,
     createLogin,
+    isAuthReady,
     loginID,
     loginNotice,
     logout,

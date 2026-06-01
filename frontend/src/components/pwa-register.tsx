@@ -9,6 +9,7 @@ export function PWARegister() {
 
     let refreshing = false;
     let registration: ServiceWorkerRegistration | undefined;
+    let updateTimer: number | undefined;
 
     const notifyUpdate = () => {
       window.dispatchEvent(new CustomEvent("driverlogs:pwa-update"));
@@ -21,6 +22,17 @@ export function PWARegister() {
     const checkForUpdate = () => {
       if (document.visibilityState !== "visible") return;
       void registration?.update();
+    };
+
+    const reloadOnActivation = () => {
+      if (refreshing) return;
+      refreshing = true;
+      notifyUpdate();
+      window.setTimeout(() => window.location.reload(), 350);
+    };
+
+    const notifyFromWorker = (event: MessageEvent) => {
+      if (event.data?.type === "APP_UPDATED") notifyUpdate();
     };
 
     const register = async () => {
@@ -37,14 +49,11 @@ export function PWARegister() {
         });
       });
       checkForUpdate();
+      updateTimer = window.setInterval(checkForUpdate, 30 * 60 * 1000);
     };
 
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (refreshing) return;
-      refreshing = true;
-      notifyUpdate();
-      window.location.reload();
-    });
+    navigator.serviceWorker.addEventListener("controllerchange", reloadOnActivation);
+    navigator.serviceWorker.addEventListener("message", notifyFromWorker);
     window.addEventListener("focus", checkForUpdate);
     document.addEventListener("visibilitychange", checkForUpdate);
 
@@ -55,6 +64,9 @@ export function PWARegister() {
     }
 
     return () => {
+      if (updateTimer) window.clearInterval(updateTimer);
+      navigator.serviceWorker.removeEventListener("controllerchange", reloadOnActivation);
+      navigator.serviceWorker.removeEventListener("message", notifyFromWorker);
       window.removeEventListener("focus", checkForUpdate);
       document.removeEventListener("visibilitychange", checkForUpdate);
     };

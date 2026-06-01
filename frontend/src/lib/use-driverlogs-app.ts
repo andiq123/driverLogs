@@ -241,6 +241,7 @@ export function useDriverLogsApp() {
     expenses,
     loginID,
     loginNotice: auth.loginNotice,
+    isAuthReady: auth.isAuthReady,
     isLoadingData,
     logout: logoutApp,
     mounted,

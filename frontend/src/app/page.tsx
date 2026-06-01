@@ -23,6 +23,15 @@ export default function HomePage() {
     app.setView("Dashboard");
   };
 
+  if (!app.isAuthReady) {
+    return (
+      <>
+        <ViewSkeleton />
+        <ToastCenter toasts={app.toasts} onDismiss={app.dismissToast} />
+      </>
+    );
+  }
+
   if (!app.token) {
     return (
       <>
