@@ -93,6 +93,7 @@ export function useAuthSession() {
     clearAuth();
     setToken("");
     setLoginID("");
+    setIsAuthReady(true);
     setAuthStatus("");
     setLoginNotice({ loginID: "", isOpen: false });
   }, []);
