@@ -22,7 +22,7 @@ func Load() Config {
 	loadDotEnv(".env")
 	return Config{
 		Port:               env("PORT", env("BACKEND_PORT", "18080")),
-		DatabaseURL:        env("DATABASE_URL", "postgres://driverlogs:driverlogs@localhost:5432/driverlogs?sslmode=disable"),
+		DatabaseURL:        databaseURL(),
 		JWTSecret:          env("JWT_SECRET", localJWTSecret),
 		CORSAllowedOrigins: csvEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"),
 		Production:         isProductionEnvironment(),
@@ -81,6 +81,29 @@ func env(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func databaseURL() string {
+	if value := os.Getenv("DATABASE_URL"); value != "" {
+		return value
+	}
+	host := os.Getenv("POSTGRES_HOST")
+	port := env("POSTGRES_PORT", "5432")
+	user := os.Getenv("POSTGRES_USER")
+	password := os.Getenv("POSTGRES_PASSWORD")
+	database := os.Getenv("POSTGRES_DB")
+	if host != "" && user != "" && password != "" && database != "" {
+		values := url.Values{}
+		values.Set("sslmode", "disable")
+		return (&url.URL{
+			Scheme:   "postgres",
+			User:     url.UserPassword(user, password),
+			Host:     host + ":" + port,
+			Path:     database,
+			RawQuery: values.Encode(),
+		}).String()
+	}
+	return "postgres://driverlogs:driverlogs@localhost:5432/driverlogs?sslmode=disable"
 }
 
 func isProductionEnvironment() bool {
