@@ -41,6 +41,7 @@ type Handler struct {
 	fuelPrices fuelprices.Service
 	jwtSecret  string
 	logger     *slog.Logger
+	cors       corsPolicy
 }
 
 type healthPinger interface {
@@ -51,8 +52,8 @@ type contextKey string
 
 const userIDKey contextKey = "user_id"
 
-func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSecret string) http.Handler {
-	h := Handler{store: repo, db: db, exchange: exchange.NewBNMClient(), fuelPrices: fuelPrices, jwtSecret: jwtSecret, logger: slog.Default()}
+func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSecret string, corsAllowedOrigins []string) http.Handler {
+	h := Handler{store: repo, db: db, exchange: exchange.NewBNMClient(), fuelPrices: fuelPrices, jwtSecret: jwtSecret, logger: slog.Default(), cors: newCORSPolicy(corsAllowedOrigins)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
 	mux.HandleFunc("POST /auth/register", h.register)
@@ -76,7 +77,7 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSe
 	mux.HandleFunc("GET /timeline", h.requireAuth(h.timeline))
 	mux.HandleFunc("GET /analytics", h.requireAuth(h.analytics))
 	mux.HandleFunc("GET /reports", h.requireAuth(h.reports))
-	return withRequestLogging(h.logger, withCORS(mux))
+	return withRequestLogging(h.logger, h.withCORS(mux))
 }
 
 type statusRecorder struct {
@@ -433,13 +434,57 @@ func userID(r *http.Request) string {
 	return value
 }
 
-func withCORS(next http.Handler) http.Handler {
+type corsPolicy struct {
+	allowed  map[string]struct{}
+	allowAll bool
+}
+
+func newCORSPolicy(origins []string) corsPolicy {
+	policy := corsPolicy{allowed: map[string]struct{}{}}
+	for _, origin := range origins {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		if origin == "*" {
+			policy.allowAll = true
+			continue
+		}
+		policy.allowed[origin] = struct{}{}
+	}
+	return policy
+}
+
+func (p corsPolicy) allowedOrigin(origin string) string {
+	if origin == "" {
+		return ""
+	}
+	if p.allowAll {
+		return origin
+	}
+	if _, ok := p.allowed[origin]; ok {
+		return origin
+	}
+	return ""
+}
+
+func (h Handler) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := h.cors.allowedOrigin(r.Header.Get("Origin"))
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
 		w.Header().Set("Access-Control-Expose-Headers", "Authorization")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		if r.Method == http.MethodOptions {
+			if origin == "" && r.Header.Get("Origin") != "" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}

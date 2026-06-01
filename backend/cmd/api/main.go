@@ -18,6 +18,10 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		logger.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -36,7 +40,7 @@ func main() {
 	}
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(repo, db, fuelprices.NewService(), cfg.JWTSecret),
+		Handler:           httpapi.NewRouter(repo, db, fuelprices.NewService(), cfg.JWTSecret, cfg.CORSAllowedOrigins),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

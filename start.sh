@@ -13,16 +13,22 @@ OVERRIDE_POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 OVERRIDE_REDIS_HOST_PORT="${REDIS_HOST_PORT:-}"
 OVERRIDE_DATABASE_URL="${DATABASE_URL:-}"
 OVERRIDE_NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-}"
-OVERRIDE_RESET_DB_ON_START="${RESET_DB_ON_START:-}"
-OVERRIDE_CLEAN_DOCKER_VOLUMES_ON_EXIT="${CLEAN_DOCKER_VOLUMES_ON_EXIT:-}"
+OVERRIDE_CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-}"
 OVERRIDE_JWT_SECRET="${JWT_SECRET:-}"
 
-if [ -f "$ROOT_DIR/.env" ]; then
+source_env_file() {
+  local file="$1"
+  if [ ! -f "$file" ]; then
+    return
+  fi
   set -a
   # shellcheck disable=SC1091
-  source "$ROOT_DIR/.env"
+  source "$file"
   set +a
-fi
+}
+
+source_env_file "$BACKEND_DIR/.env"
+source_env_file "$FRONTEND_DIR/.env"
 
 BACKEND_PORT="${OVERRIDE_BACKEND_PORT:-${BACKEND_PORT:-}}"
 FRONTEND_PORT="${OVERRIDE_FRONTEND_PORT:-${FRONTEND_PORT:-}}"
@@ -33,8 +39,7 @@ POSTGRES_PASSWORD="${OVERRIDE_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD:-}}"
 REDIS_HOST_PORT="${OVERRIDE_REDIS_HOST_PORT:-${REDIS_HOST_PORT:-}}"
 DATABASE_URL="${OVERRIDE_DATABASE_URL:-${DATABASE_URL:-}}"
 NEXT_PUBLIC_API_URL="${OVERRIDE_NEXT_PUBLIC_API_URL:-${NEXT_PUBLIC_API_URL:-}}"
-RESET_DB_ON_START="${OVERRIDE_RESET_DB_ON_START:-${RESET_DB_ON_START:-}}"
-CLEAN_DOCKER_VOLUMES_ON_EXIT="${OVERRIDE_CLEAN_DOCKER_VOLUMES_ON_EXIT:-${CLEAN_DOCKER_VOLUMES_ON_EXIT:-}}"
+CORS_ALLOWED_ORIGINS="${OVERRIDE_CORS_ALLOWED_ORIGINS:-${CORS_ALLOWED_ORIGINS:-}}"
 JWT_SECRET="${OVERRIDE_JWT_SECRET:-${JWT_SECRET:-}}"
 
 BACKEND_PORT="${BACKEND_PORT:-18080}"
@@ -46,11 +51,10 @@ POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-driverlogs}"
 REDIS_HOST_PORT="${REDIS_HOST_PORT:-56379}"
 DATABASE_URL="${DATABASE_URL:-postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:$POSTGRES_HOST_PORT/$POSTGRES_DB?sslmode=disable}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:$BACKEND_PORT}"
-RESET_DB_ON_START="${RESET_DB_ON_START:-false}"
-CLEAN_DOCKER_VOLUMES_ON_EXIT="${CLEAN_DOCKER_VOLUMES_ON_EXIT:-false}"
+CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:$FRONTEND_PORT,http://127.0.0.1:$FRONTEND_PORT}"
 JWT_SECRET="${JWT_SECRET:-local-dev-change-this-secret}"
 
-export BACKEND_PORT FRONTEND_PORT POSTGRES_HOST_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD REDIS_HOST_PORT DATABASE_URL NEXT_PUBLIC_API_URL JWT_SECRET
+export BACKEND_PORT FRONTEND_PORT POSTGRES_HOST_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD REDIS_HOST_PORT DATABASE_URL NEXT_PUBLIC_API_URL CORS_ALLOWED_ORIGINS JWT_SECRET
 
 PIDS=()
 STOPPING=0
@@ -77,11 +81,7 @@ cleanup() {
 
   if [ "${COMPOSE_READY:-0}" -eq 1 ]; then
     echo "Stopping database services..."
-    if [ "$CLEAN_DOCKER_VOLUMES_ON_EXIT" = "true" ]; then
-      "${COMPOSE[@]}" -f "$ROOT_DIR/docker-compose.yml" down --remove-orphans --volumes
-    else
-      "${COMPOSE[@]}" -f "$ROOT_DIR/docker-compose.yml" stop postgres redis
-    fi
+    "${COMPOSE[@]}" -f "$ROOT_DIR/docker-compose.yml" stop postgres redis
   fi
 }
 trap cleanup EXIT INT TERM
@@ -194,12 +194,7 @@ else
 fi
 COMPOSE_READY=1
 
-if [ "$RESET_DB_ON_START" = "true" ]; then
-  echo "Resetting database volumes..."
-  "${COMPOSE[@]}" -f "$ROOT_DIR/docker-compose.yml" down --remove-orphans --volumes
-else
-  "${COMPOSE[@]}" -f "$ROOT_DIR/docker-compose.yml" down --remove-orphans >/dev/null 2>&1 || true
-fi
+"${COMPOSE[@]}" -f "$ROOT_DIR/docker-compose.yml" down --remove-orphans >/dev/null 2>&1 || true
 
 stop_workspace_processes
 stop_app_port_processes "$BACKEND_PORT" "Backend"
@@ -229,7 +224,7 @@ if ! command_exists air; then
 fi
 
 echo "Starting backend on http://localhost:$BACKEND_PORT"
-(cd "$BACKEND_DIR" && PORT="$BACKEND_PORT" DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" "$AIR_CMD") &
+(cd "$BACKEND_DIR" && PORT="$BACKEND_PORT" DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" CORS_ALLOWED_ORIGINS="$CORS_ALLOWED_ORIGINS" "$AIR_CMD") &
 PIDS+=("$!")
 
 echo "Starting frontend on http://localhost:$FRONTEND_PORT"

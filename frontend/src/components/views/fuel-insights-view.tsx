@@ -129,7 +129,7 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">Real gasoline data</p>
             <h2 className="mt-1 text-3xl font-semibold tracking-tight sm:mt-2 sm:text-5xl">Fuel prices</h2>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs sm:mt-3 sm:text-sm">
-              {preferredFuel ? <span className="rounded-full bg-[#dfe7d4] px-3 py-1 font-bold text-[#151712]">{preferredFuel.fuel_type} {priceOnly(preferredFuel.now)}</span> : null}
+              {preferredFuel ? <span className="rounded-full bg-[#dfe7d4] px-3 py-1 font-bold text-[#151712]">{preferredFuel.fuel_type} {priceOnly(preferredFuel.now)} MDL</span> : null}
             </div>
           </div>
         </div>
@@ -228,11 +228,6 @@ function priceOnly(value: number) {
 
 function comparisonTag(row: FuelComparisonResponse["rows"][number], country: string) {
   return `${country} ${priceOnly(row.compare_price)} ${row.compare_currency} · MDL ${priceOnly(row.compare_price_mdl)}`;
-}
-
-function currencyName(country: string) {
-  if (country === "RO") return "RON";
-  return country;
 }
 
 function changeAmount(value: number) {
