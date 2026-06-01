@@ -124,20 +124,18 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
     <div className="grid gap-3 sm:gap-4">
       <section className="relative overflow-hidden rounded-[24px] bg-[#151712] p-4 text-white shadow-[0_22px_72px_rgba(21,23,18,0.22)] sm:rounded-[28px] sm:p-6">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,rgba(223,231,212,0.18),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_42%)]" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
+        <div className="relative">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">Real gasoline data</p>
             <h2 className="mt-1 text-3xl font-semibold tracking-tight sm:mt-2 sm:text-5xl">Fuel prices</h2>
-            <p className="mt-2 max-w-2xl text-xs leading-5 text-white/68 sm:mt-3 sm:text-sm sm:leading-6">Moldova national fuel prices with {currencyName(compareCountry)} converted to MDL.</p>
-          </div>
-          <div className="grid gap-2 text-right">
-            <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold">{trends.currency}/L</span>
-            {preferredFuel ? <span className="rounded-full bg-[#dfe7d4] px-3 py-1 text-xs font-bold text-[#151712]">{preferredFuel.fuel_type}: {fuelPriceLabel(preferredFuel.now)}</span> : null}
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs sm:mt-3 sm:text-sm">
+              {preferredFuel ? <span className="rounded-full bg-[#dfe7d4] px-3 py-1 font-bold text-[#151712]">{preferredFuel.fuel_type} {priceOnly(preferredFuel.now)}</span> : null}
+            </div>
           </div>
         </div>
         <div className="relative mt-4 grid grid-cols-3 gap-1.5 sm:mt-8 sm:gap-3">
           <MarketTile title="Tracked fuels" value={String(trends.rows.length)} detail="National average rows" />
-          <MarketTile title="Cheapest now" value={fuelPriceLabel(cheapest(trends).now)} detail={cheapest(trends).fuel_type} />
+          <MarketTile title="Cheapest now" value={priceOnly(cheapest(trends).now)} detail={cheapest(trends).fuel_type} />
           <MarketTile title="Largest yearly move" value={changePercent(biggestMove?.year.percent ?? 0)} detail={biggestMove?.fuel_type ?? "No movement"} />
         </div>
       </section>
@@ -152,7 +150,7 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
                   <p className="text-[11px] text-[#62685e] sm:text-xs">Moldova national reference</p>
                 </div>
                 <div className="grid shrink-0 justify-items-end gap-1">
-                  <p className="rounded-full bg-white px-2.5 py-1 text-xs font-bold sm:px-3 sm:text-sm">{fuelPriceLabel(row.now)}</p>
+                  <p className="rounded-full bg-white px-2.5 py-1 text-xs font-bold sm:px-3 sm:text-sm">MDL {priceOnly(row.now)}</p>
                   {comparisonByFuel.get(row.fuel_type) ? <p className="rounded-full bg-[#151712] px-2.5 py-1 text-[10px] font-bold text-white sm:text-[11px]">{comparisonTag(comparisonByFuel.get(row.fuel_type)!, compareCountry)}</p> : null}
                 </div>
               </div>
@@ -224,12 +222,12 @@ function cheapest(trends: FuelTrendResponse) {
   return trends.rows.reduce((best, row) => row.now < best.now ? row : best, trends.rows[0]);
 }
 
-function fuelPriceLabel(value: number) {
-  return `MDL ${value.toFixed(2)}`;
+function priceOnly(value: number) {
+  return value.toFixed(2);
 }
 
 function comparisonTag(row: FuelComparisonResponse["rows"][number], country: string) {
-  return `${country} ${row.compare_price.toFixed(2)} ${row.compare_currency} · ${fuelPriceLabel(row.compare_price_mdl)}`;
+  return `${country} ${priceOnly(row.compare_price)} ${row.compare_currency} · MDL ${priceOnly(row.compare_price_mdl)}`;
 }
 
 function currencyName(country: string) {
