@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createExpense, createVehicle, deleteVehicle, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, updateUserSettings, updateVehicle } from "./api";
+import { createExpense, createVehicle, deleteVehicle, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, updateExpense, updateUserSettings, updateVehicle } from "./api";
 import { copyText } from "./clipboard";
 import { emptyTotals } from "./theme";
 import type { Expense, UserSettings, Vehicle, View } from "./types";
@@ -142,6 +142,21 @@ export function useDriverLogsApp() {
     }
   }
 
+  async function editExpense(id: string, expense: Partial<Expense>) {
+    setAction("expense");
+    setStatus("Saving expense...");
+    try {
+      await updateExpense(token, id, expense);
+      await loadData(false);
+      showToast("success", "Expense updated", "The conversion was refreshed for that date.");
+    } catch {
+      setStatus("Expense could not be updated.");
+      showToast("error", "Expense was not updated", "Check required fields and backend availability.");
+    } finally {
+      setAction("");
+    }
+  }
+
   async function saveSettings(nextSettings: UserSettings) {
     setAction("settings");
     setStatus("Saving settings...");
@@ -220,6 +235,7 @@ export function useDriverLogsApp() {
     saveSettings,
     saveProfileName,
     editVehicle,
+    editExpense,
     saveVehicle,
     setActiveVehicleID: selectVehicle,
     setView,

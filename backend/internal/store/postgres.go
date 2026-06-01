@@ -200,6 +200,26 @@ func (s *PostgresStore) CreateExpense(userID string, expense domain.Expense) (do
 	return expense, nil
 }
 
+func (s *PostgresStore) UpdateExpense(userID, id string, expense domain.Expense) (domain.Expense, error) {
+	if _, err := s.Vehicle(userID, expense.VehicleID); err != nil {
+		return domain.Expense{}, err
+	}
+	row := s.pool.QueryRow(context.Background(), `
+UPDATE expenses
+SET vehicle_id=$1, category=$2, amount_base=$3, base_currency=$4, amount_mdl=$5, amount_eur=$6, amount_usd=$7, exchange_rate_eur=$8, exchange_rate_usd=$9, exchange_rate_date=$10, exchange_rate_source=$11, fuel_liters=$12, fuel_price_currency=$13, fuel_price_per_liter_base=$14, fuel_price_per_liter_mdl=$15, fuel_type=$16, odometer=$17, date=$18, description=$19
+WHERE user_id=$20 AND id=$21
+RETURNING id, user_id, vehicle_id, category, amount_base, base_currency, amount_mdl, amount_eur, amount_usd, exchange_rate_eur, exchange_rate_usd, exchange_rate_date, exchange_rate_source, fuel_liters, fuel_price_currency, fuel_price_per_liter_base, fuel_price_per_liter_mdl, fuel_type, odometer, date, description, created_at`,
+		expense.VehicleID, expense.Category, expense.AmountBase, expense.BaseCurrency, expense.AmountMDL, expense.AmountEUR, expense.AmountUSD, expense.ExchangeRateEUR, expense.ExchangeRateUSD, expense.ExchangeRateDate, expense.ExchangeRateSource, expense.FuelLiters, expense.FuelPriceCurrency, expense.FuelPricePerLiterBase, expense.FuelPricePerLiterMDL, expense.FuelType, expense.Odometer, expense.Date, expense.Description, userID, id)
+	updated, err := scanExpense(row)
+	if err != nil {
+		return domain.Expense{}, err
+	}
+	if updated.Odometer > 0 {
+		_, _ = s.pool.Exec(context.Background(), `UPDATE vehicles SET odometer=GREATEST(odometer, $1) WHERE user_id=$2 AND id=$3`, updated.Odometer, userID, updated.VehicleID)
+	}
+	return updated, nil
+}
+
 func (s *PostgresStore) Timeline(userID, vehicleID string) ([]domain.TimelineEntry, error) {
 	expenses, err := s.UserExpenses(userID, vehicleID)
 	if err != nil {
@@ -324,12 +344,20 @@ func scanVehicles(rows pgx.Rows) ([]domain.Vehicle, error) {
 func scanExpenses(rows pgx.Rows) ([]domain.Expense, error) {
 	expenses := []domain.Expense{}
 	for rows.Next() {
-		var expense domain.Expense
-		err := rows.Scan(&expense.ID, &expense.UserID, &expense.VehicleID, &expense.Category, &expense.AmountBase, &expense.BaseCurrency, &expense.AmountMDL, &expense.AmountEUR, &expense.AmountUSD, &expense.ExchangeRateEUR, &expense.ExchangeRateUSD, &expense.ExchangeRateDate, &expense.ExchangeRateSource, &expense.FuelLiters, &expense.FuelPriceCurrency, &expense.FuelPricePerLiterBase, &expense.FuelPricePerLiterMDL, &expense.FuelType, &expense.Odometer, &expense.Date, &expense.Description, &expense.CreatedAt)
+		expense, err := scanExpense(rows)
 		if err != nil {
 			return nil, err
 		}
 		expenses = append(expenses, expense)
 	}
 	return expenses, rows.Err()
+}
+
+func scanExpense(row rowScanner) (domain.Expense, error) {
+	var expense domain.Expense
+	err := row.Scan(&expense.ID, &expense.UserID, &expense.VehicleID, &expense.Category, &expense.AmountBase, &expense.BaseCurrency, &expense.AmountMDL, &expense.AmountEUR, &expense.AmountUSD, &expense.ExchangeRateEUR, &expense.ExchangeRateUSD, &expense.ExchangeRateDate, &expense.ExchangeRateSource, &expense.FuelLiters, &expense.FuelPriceCurrency, &expense.FuelPricePerLiterBase, &expense.FuelPricePerLiterMDL, &expense.FuelType, &expense.Odometer, &expense.Date, &expense.Description, &expense.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Expense{}, ErrNotFound
+	}
+	return expense, err
 }

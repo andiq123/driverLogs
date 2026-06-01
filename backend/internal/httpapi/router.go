@@ -25,6 +25,7 @@ type Store interface {
 	DeleteVehicle(userID, id string) error
 	UserExpenses(userID, vehicleID string) ([]domain.Expense, error)
 	CreateExpense(userID string, expense domain.Expense) (domain.Expense, error)
+	UpdateExpense(userID, id string, expense domain.Expense) (domain.Expense, error)
 	Timeline(userID, vehicleID string) ([]domain.TimelineEntry, error)
 	Analytics(userID, vehicleID string) (map[string]any, error)
 	CreateUser(loginID string) (domain.User, error)
@@ -74,6 +75,7 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSe
 	mux.HandleFunc("DELETE /vehicles/{id}", h.requireAuth(h.deleteVehicle))
 	mux.HandleFunc("GET /expenses", h.requireAuth(h.listExpenses))
 	mux.HandleFunc("POST /expenses", h.requireAuth(h.createExpense))
+	mux.HandleFunc("PUT /expenses/{id}", h.requireAuth(h.updateExpense))
 	mux.HandleFunc("GET /timeline", h.requireAuth(h.timeline))
 	mux.HandleFunc("GET /analytics", h.requireAuth(h.analytics))
 	mux.HandleFunc("GET /reports", h.requireAuth(h.reports))
@@ -311,10 +313,50 @@ func (h Handler) createExpense(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid expense payload"})
 		return
 	}
+	normalized, status, err := h.normalizeExpense(r, expense)
+	if err != nil {
+		writeJSON(w, status, map[string]string{"error": err.Error()})
+		return
+	}
+	created, err := h.store.CreateExpense(userID(r), normalized)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "vehicle not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
+}
+
+func (h Handler) updateExpense(w http.ResponseWriter, r *http.Request) {
+	var expense domain.Expense
+	if err := json.NewDecoder(r.Body).Decode(&expense); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid expense payload"})
+		return
+	}
+	normalized, status, err := h.normalizeExpense(r, expense)
+	if err != nil {
+		writeJSON(w, status, map[string]string{"error": err.Error()})
+		return
+	}
+	updated, err := h.store.UpdateExpense(userID(r), r.PathValue("id"), normalized)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (domain.Expense, int, error) {
 	settings, err := h.store.UserSettings(userID(r))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings unavailable"})
-		return
+		return domain.Expense{}, http.StatusInternalServerError, errors.New("settings unavailable")
 	}
 	if expense.BaseCurrency == "" {
 		expense.BaseCurrency = settings.DefaultCurrency
@@ -328,8 +370,7 @@ func (h Handler) createExpense(w http.ResponseWriter, r *http.Request) {
 	if expense.Category == "Fuel" && expense.FuelPricePerLiterBase > 0 {
 		priceMDL, err := h.exchange.ConvertDecimalToMDL(r.Context(), expense.FuelPricePerLiterBase, expense.FuelPriceCurrency, expense.Date)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "fuel price exchange rate unavailable"})
-			return
+			return domain.Expense{}, http.StatusBadGateway, errors.New("fuel price exchange rate unavailable")
 		}
 		expense.FuelPricePerLiterMDL = math.Round(priceMDL*100) / 100
 	}
@@ -337,21 +378,17 @@ func (h Handler) createExpense(w http.ResponseWriter, r *http.Request) {
 		expense.AmountBase = int(math.Round(expense.FuelLiters * expense.FuelPricePerLiterBase))
 	}
 	if expense.VehicleID == "" || expense.Category == "" || expense.AmountBase <= 0 || expense.Date == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "vehicle_id, category, amount, and date are required"})
-		return
+		return domain.Expense{}, http.StatusBadRequest, errors.New("vehicle_id, category, amount, and date are required")
 	}
 	if expense.Category == "Fuel" && expense.FuelType == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "fuel_type is required for fuel expenses"})
-		return
+		return domain.Expense{}, http.StatusBadRequest, errors.New("fuel_type is required for fuel expenses")
 	}
 	if expense.Category == "Maintenance" && expense.Odometer <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "odometer is required for service expenses"})
-		return
+		return domain.Expense{}, http.StatusBadRequest, errors.New("odometer is required for service expenses")
 	}
 	conversion, err := h.exchange.Convert(r.Context(), expense.AmountBase, expense.BaseCurrency, expense.Date)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "exchange rates unavailable"})
-		return
+		return domain.Expense{}, http.StatusBadGateway, errors.New("exchange rates unavailable")
 	}
 	expense.AmountBase = conversion.AmountBase
 	expense.BaseCurrency = conversion.BaseCurrency
@@ -362,16 +399,7 @@ func (h Handler) createExpense(w http.ResponseWriter, r *http.Request) {
 	expense.ExchangeRateUSD = conversion.RateUSD
 	expense.ExchangeRateDate = conversion.Date
 	expense.ExchangeRateSource = conversion.Source
-	created, err := h.store.CreateExpense(userID(r), expense)
-	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "vehicle not found"})
-		return
-	}
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-		return
-	}
-	writeJSON(w, http.StatusCreated, created)
+	return expense, http.StatusOK, nil
 }
 
 func (h Handler) timeline(w http.ResponseWriter, r *http.Request) {

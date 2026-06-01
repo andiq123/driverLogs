@@ -18,6 +18,11 @@ export function vehicleName(vehicle: Vehicle) {
 }
 
 export function numberValue(value: FormDataEntryValue | null) {
-  const parsed = Number(value);
+  const normalized = String(value ?? "").trim().replace(/\s/g, "").replace(",", ".");
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function intValue(value: FormDataEntryValue | null) {
+  return Math.round(numberValue(value));
 }

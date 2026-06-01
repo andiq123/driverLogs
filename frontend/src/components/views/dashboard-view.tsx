@@ -5,7 +5,7 @@ import { Badge, EmptyState, Metric } from "../ui";
 import { ExpenseForm } from "../forms";
 import { SmartInsightsPanel } from "../smart-insights";
 
-export function DashboardView({ vehicle, totals, token, baseCurrency, country, savingExpense, onCreateExpense }: { vehicle?: Vehicle; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onCreateExpense: (expense: Partial<Expense>) => void }) {
+export function DashboardView({ vehicle, expenses, totals, token, baseCurrency, country, savingExpense, onCreateExpense }: { vehicle?: Vehicle; expenses: Expense[]; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onCreateExpense: (expense: Partial<Expense>) => void }) {
   if (!vehicle) {
     return <section className="rounded-[28px] bg-[#151712] p-6 text-white sm:p-8"><EmptyState icon={Car} title="Start with the garage" body="Add a vehicle before logging expenses or viewing dashboard metrics." dark /></section>;
   }
@@ -31,7 +31,12 @@ export function DashboardView({ vehicle, totals, token, baseCurrency, country, s
         </section>
         <SmartInsightsPanel insights={totals.insights} />
       </div>
-      <ExpenseForm key={vehicle.id} vehicle={vehicle} token={token} baseCurrency={baseCurrency} country={country} saving={savingExpense} onCreate={onCreateExpense} />
+      <ExpenseForm key={vehicle.id} vehicle={vehicle} token={token} baseCurrency={baseCurrency} country={country} saving={savingExpense} odometerSuggestion={odometerSuggestion(vehicle, expenses)} onCreate={onCreateExpense} />
     </div>
   );
+}
+
+function odometerSuggestion(vehicle: Vehicle, expenses: Expense[]) {
+  const readings = expenses.map((expense) => expense.odometer || 0).filter(Boolean);
+  return Math.max(vehicle.odometer || 0, ...readings);
 }

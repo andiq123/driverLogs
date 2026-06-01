@@ -83,6 +83,10 @@ export async function createExpense(token: string, expense: Partial<Expense>) {
   return sendJSON<Expense>("/expenses", "POST", expense, token);
 }
 
+export async function updateExpense(token: string, id: string, expense: Partial<Expense>) {
+  return sendJSON<Expense>(`/expenses/${encodeURIComponent(id)}`, "PUT", expense, token);
+}
+
 export async function deleteVehicle(token: string, id: string) {
   const response = await fetch(`${apiBase}/vehicles/${id}`, {
     method: "DELETE",

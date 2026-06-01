@@ -7,7 +7,7 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   return (
     <section className="grid grid-cols-3 gap-2 sm:gap-3">
       <InsightTile icon={CalendarClock} title="Oil change" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} />
-      <InsightTile icon={Fuel} title="Fuel trend" value={insights.fuel.average_fill_mdl ? money(insights.fuel.average_fill_mdl) : "No fuel yet"} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl)} />
+      <InsightTile icon={Fuel} title="Fuel trend" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples)} />
       <InsightTile icon={Wrench} title="Service average" value={insights.maintenance.average_mdl ? money(insights.maintenance.average_mdl) : "No service yet"} detail={entryDetail(insights.maintenance.entry_count)} />
     </section>
   );
@@ -41,8 +41,15 @@ function oilDetail(confidence: string, intervalKM = 10000, remainingKM?: number,
   return "Add Service → Oil change with odometer km.";
 }
 
-function fuelDetail(liters: number, averagePrice: number) {
+function fuelValue(consumption?: number, averageFill?: number) {
+  if (consumption) return `${consumption} L/100 km`;
+  if (averageFill) return money(averageFill);
+  return "No fuel yet";
+}
+
+function fuelDetail(liters: number, averagePrice: number, consumptionSamples = 0) {
   if (!liters) return "Add fuel records with liters and price.";
+  if (consumptionSamples) return `Learned from ${consumptionSamples} odometer interval${consumptionSamples === 1 ? "" : "s"}.`;
   const price = averagePrice ? `, ${averagePrice} MDL/L avg` : "";
   return `${liters} L logged${price}.`;
 }

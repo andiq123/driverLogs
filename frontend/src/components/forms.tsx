@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { decodeVIN, getVehicleMakes, getVehicleModels } from "@/lib/api";
 import { engineOptions, fuelTypes, normalizeFuelType, priceCurrencies } from "@/lib/car-options";
 import type { Expense, ExpenseCategory, FuelPriceSuggestion, Vehicle, VinDecode } from "@/lib/types";
-import { numberValue, vehicleName } from "@/lib/format";
+import { intValue, km, numberValue, vehicleName } from "@/lib/format";
 import { Autocomplete } from "./autocomplete";
 import { CalendarField } from "./calendar-field";
 import { CustomSelect } from "./custom-select";
@@ -74,10 +74,10 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
       preferred_fuel_type: String(form.get("preferred_fuel_type") ?? "Super 95"),
       make: String(form.get("make") ?? "").trim(),
       model: String(form.get("model") ?? "").trim(),
-      year: numberValue(form.get("year")),
+      year: intValue(form.get("year")),
       engine_type: String(form.get("engine_type") ?? "").trim(),
-      odometer: numberValue(form.get("odometer")),
-      purchase_price: numberValue(form.get("purchase_price")),
+      odometer: intValue(form.get("odometer")),
+      purchase_price: intValue(form.get("purchase_price")),
       purchase_currency: String(form.get("purchase_currency") ?? "MDL"),
     };
     if (vehicle) onUpdate?.(vehicle.id, payload);
@@ -158,13 +158,13 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
           <Autocomplete name="model" label="Model" icon={CarFront} options={modelOptions} value={modelValue} isAutofilled={autofilled.model} onChange={(value) => { clearAutofill("model"); setModelValue(value); }} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input name="year" label="Year" icon={CalendarDays} type="number" value={yearValue} isAutofilled={autofilled.year} onChange={(event) => { clearAutofill("year"); setYearValue(event.currentTarget.value); }} />
+          <Input name="year" label="Year" icon={CalendarDays} inputMode="numeric" value={yearValue} isAutofilled={autofilled.year} onChange={(event) => { clearAutofill("year"); setYearValue(event.currentTarget.value); }} />
           <Autocomplete name="engine_type" label="Engine" icon={Wrench} options={engineOptions} value={engineValue} maxLength={1600} isAutofilled={autofilled.engine} onChange={(value) => { clearAutofill("engine"); setEngineValue(value); }} />
         </div>
         <CustomSelect name="preferred_fuel_type" label="Preferred fuel" icon={Fuel} options={fuelTypes} value={preferredFuelType} onChange={setPreferredFuelType} />
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(128px,0.78fr)_96px]">
-          <Input name="odometer" label="Odometer" icon={Milestone} type="number" defaultValue={vehicle?.odometer || ""} />
-          <Input name="purchase_price" label="Purchase price" icon={BadgeDollarSign} type="number" defaultValue={vehicle?.purchase_price || ""} />
+          <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" defaultValue={vehicle?.odometer || ""} />
+          <Input name="purchase_price" label="Purchase price" icon={BadgeDollarSign} inputMode="decimal" defaultValue={vehicle?.purchase_price || ""} />
           <CustomSelect name="purchase_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} onChange={setPurchaseCurrency} />
         </div>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -209,14 +209,16 @@ function engineFromVIN(decoded: VinDecode) {
 
 const draftFuelTypeByVehicle = new Map<string, string>();
 
-export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, onCreate }: { vehicle: Vehicle; token: string; baseCurrency: string; country: string; saving?: boolean; onCreate: (expense: Partial<Expense>) => void }) {
-  const [category, setCategory] = useState<ExpenseCategory>("Fuel");
-  const [date, setDate] = useState("");
-  const [fuelType, setFuelType] = useState(() => draftFuelTypeByVehicle.get(vehicle.id) ?? normalizeFuelType(vehicle.preferred_fuel_type));
-  const [fuelPriceCurrency, setFuelPriceCurrency] = useState(baseCurrency);
-  const [fuelPrice, setFuelPrice] = useState("");
+export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, expense, odometerSuggestion, onCreate, onUpdate, onCancel }: { vehicle: Vehicle; token: string; baseCurrency: string; country: string; saving?: boolean; expense?: Expense; odometerSuggestion?: number; onCreate?: (expense: Partial<Expense>) => void; onUpdate?: (id: string, expense: Partial<Expense>) => void; onCancel?: () => void }) {
+  const isEditing = Boolean(expense);
+  const [category, setCategory] = useState<ExpenseCategory>(expense?.category ?? "Fuel");
+  const [date, setDate] = useState(expense?.date ?? "");
+  const [fuelType, setFuelType] = useState(() => normalizeFuelType(expense?.fuel_type || draftFuelTypeByVehicle.get(vehicle.id) || vehicle.preferred_fuel_type));
+  const [fuelPriceCurrency, setFuelPriceCurrency] = useState(expense?.fuel_price_currency || baseCurrency);
+  const [fuelPrice, setFuelPrice] = useState(expense?.fuel_price_per_liter_base ? String(expense.fuel_price_per_liter_base) : "");
   const [fuelPriceEdited, setFuelPriceEdited] = useState(false);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(expense?.description ?? "");
+  const [odometerValue, setOdometerValue] = useState(expense?.odometer ? String(expense.odometer) : "");
   const fuelSuggestion = useFuelPriceSuggestions({ category, country, fuelType, token });
 
   useEffect(() => {
@@ -238,19 +240,22 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, onC
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    onCreate({
+    const payload = {
       vehicle_id: vehicle.id,
       category: String(form.get("category")) as ExpenseCategory,
-      amount_base: numberValue(form.get("amount_base")),
-      base_currency: baseCurrency,
+      amount_base: intValue(form.get("amount_base")),
+      base_currency: String(form.get("base_currency") ?? baseCurrency),
       fuel_liters: numberValue(form.get("fuel_liters")),
       fuel_price_per_liter_base: numberValue(form.get("fuel_price_per_liter_base")),
       fuel_price_currency: String(form.get("fuel_price_currency") ?? baseCurrency),
       fuel_type: String(form.get("fuel_type") ?? "").trim(),
-      odometer: numberValue(form.get("odometer")),
+      odometer: intValue(form.get("odometer")),
       date: String(form.get("date") ?? ""),
       description: String(form.get("description") ?? "").trim(),
-    });
+    };
+    if (expense) onUpdate?.(expense.id, payload);
+    else onCreate?.(payload);
+    if (expense) return;
     event.currentTarget.reset();
     setCategory("Fuel");
     setDate("");
@@ -261,6 +266,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, onC
     setFuelPrice("");
     setFuelPriceEdited(false);
     setDescription("");
+    setOdometerValue("");
   }
 
   function applyFuelSuggestion(suggestion: FuelPriceSuggestion) {
@@ -279,9 +285,14 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, onC
   }
 
   function changeCategory(nextCategory: ExpenseCategory) {
+    const previousCategory = category;
     setCategory(nextCategory);
     if (nextCategory === "Maintenance" && !description.trim()) {
       setDescription("Oil change");
+      return;
+    }
+    if (previousCategory === "Maintenance" && nextCategory !== "Maintenance" && isServicePreset(description)) {
+      setDescription("");
     }
   }
 
@@ -290,13 +301,14 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, onC
       <form onSubmit={submit} className="grid gap-3">
         <ExpenseCategoryPicker name="category" value={category} onChange={changeCategory} />
         <motion.div className="grid gap-3">
-          <Input name="amount_base" label={`Amount ${baseCurrency}`} icon={BadgeDollarSign} type="number" placeholder={amountPlaceholder(category, baseCurrency)} />
+          <Input name="amount_base" label={`Amount ${baseCurrency}`} icon={BadgeDollarSign} inputMode="decimal" defaultValue={expense?.amount_base || ""} placeholder={amountPlaceholder(category, baseCurrency)} />
+          <input type="hidden" name="base_currency" value={expense?.base_currency || baseCurrency} />
           <AnimatePresence initial={false} mode="popLayout">
             {category === "Fuel" ? (
               <motion.div key="fuel-fields" initial={{ opacity: 0, y: 14, scale: 0.985, filter: "blur(5px)" }} animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, y: -8, scale: 0.99, filter: "blur(4px)" }} transition={{ duration: 0.34, ease: calmEase }} className="grid gap-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Input name="fuel_liters" label="Liters" icon={Droplets} type="number" step="0.01" placeholder="Liters" />
-                  <Input name="fuel_price_per_liter_base" label="Price / liter" icon={CircleGauge} type="number" step="0.01" value={fuelPrice} onChange={(event) => { setFuelPrice(event.currentTarget.value); setFuelPriceEdited(true); }} placeholder="Price / L" />
+                  <Input name="fuel_liters" label="Liters" icon={Droplets} inputMode="decimal" defaultValue={expense?.fuel_liters || ""} placeholder="Liters" />
+                  <Input name="fuel_price_per_liter_base" label="Price / liter" icon={CircleGauge} inputMode="decimal" value={fuelPrice} onChange={(event) => { setFuelPrice(event.currentTarget.value); setFuelPriceEdited(true); }} placeholder="Price / L" />
                   <CustomSelect name="fuel_price_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={fuelPriceCurrency} onChange={setFuelPriceCurrency} />
                   <CustomSelect name="fuel_type" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} />
                 </div>
@@ -311,18 +323,28 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, onC
               </motion.div>
             ) : null}
           </AnimatePresence>
-          <Input name="odometer" label="Odometer" icon={Milestone} type="number" required={category === "Maintenance"} placeholder={category === "Maintenance" ? "Required odometer, km" : "Odometer, km"} />
+          <div className="grid gap-2">
+            <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" required={category === "Maintenance"} value={odometerValue} onChange={(event) => setOdometerValue(event.currentTarget.value)} placeholder={category === "Maintenance" ? "Required odometer, km" : "Odometer, km"} />
+            {category === "Fuel" && odometerSuggestion && !odometerValue ? (
+              <button type="button" onClick={() => setOdometerValue(String(odometerSuggestion))} className="w-fit rounded-full bg-[#eef3e8] px-3 py-1.5 text-xs font-bold text-[#62685e] transition-colors hover:text-[#151712]">
+                Use current estimate {km(odometerSuggestion)}
+              </button>
+            ) : null}
+          </div>
           <CalendarField name="date" label="Date" value={date} placeholder="Choose date" onChange={setDate} />
           <Input name="description" label="Description" icon={Text} required value={description} onChange={(event) => setDescription(event.currentTarget.value)} placeholder={descriptionPlaceholder(category)} />
         </motion.div>
-        <ActionButton loading={saving} className="mt-2">Save expense</ActionButton>
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <ActionButton loading={saving} className="mt-2">{isEditing ? "Save changes" : "Save expense"}</ActionButton>
+          {isEditing && onCancel ? <ActionButton type="button" variant="soft" onClick={onCancel} className="mt-2 px-5">Cancel</ActionButton> : null}
+        </div>
       </form>
     </Panel>
   );
 }
 
 function ServicePresets({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const options = ["Oil change", "Regular service", "Filters", "Alignment"];
+  const options = servicePresetOptions;
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((option) => {
@@ -335,6 +357,13 @@ function ServicePresets({ value, onChange }: { value: string; onChange: (value: 
       })}
     </div>
   );
+}
+
+const servicePresetOptions = ["Oil change", "Regular service", "Filters", "Alignment"];
+
+function isServicePreset(value: string) {
+  const cleanValue = value.trim().toLowerCase();
+  return servicePresetOptions.some((option) => option.toLowerCase() === cleanValue);
 }
 
 function amountPlaceholder(category: ExpenseCategory, currency: string) {

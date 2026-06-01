@@ -175,6 +175,9 @@ export type FuelInsight = {
   total_liters: number;
   average_fill_mdl: number;
   average_price_per_liter_mdl: number;
+  average_consumption_l_per_100km?: number;
+  consumption_samples?: number;
+  consumption_confidence?: "learned" | "low" | "none";
 };
 
 export type CategoryInsight = {

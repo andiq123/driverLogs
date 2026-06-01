@@ -98,10 +98,12 @@ func insightsFrom(expenses []domain.Expense, currentOdometer int) map[string]any
 func fuelInsight(expenses []domain.Expense) map[string]any {
 	var count, pricedCount, totalAmount int
 	var liters, priceTotal float64
+	fuelExpenses := make([]domain.Expense, 0)
 	for _, expense := range expenses {
 		if expense.Category != "Fuel" {
 			continue
 		}
+		fuelExpenses = append(fuelExpenses, expense)
 		count++
 		totalAmount += expense.AmountMDL
 		liters += expense.FuelLiters
@@ -118,7 +120,40 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 	if pricedCount > 0 {
 		averagePrice = round2(priceTotal / float64(pricedCount))
 	}
-	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": averageFill, "average_price_per_liter_mdl": averagePrice}
+	consumption, consumptionSamples := fuelConsumption(fuelExpenses)
+	confidence := "none"
+	if consumptionSamples == 1 {
+		confidence = "low"
+	}
+	if consumptionSamples >= 2 {
+		confidence = "learned"
+	}
+	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": averageFill, "average_price_per_liter_mdl": averagePrice, "average_consumption_l_per_100km": consumption, "consumption_samples": consumptionSamples, "consumption_confidence": confidence}
+}
+
+func fuelConsumption(expenses []domain.Expense) (float64, int) {
+	sort.Slice(expenses, func(i, j int) bool {
+		if expenses[i].Date == expenses[j].Date {
+			return expenses[i].CreatedAt.Before(expenses[j].CreatedAt)
+		}
+		return expenses[i].Date < expenses[j].Date
+	})
+	var totalConsumption float64
+	var samples int
+	for index := 1; index < len(expenses); index++ {
+		previous := expenses[index-1]
+		current := expenses[index]
+		if previous.Odometer <= 0 || current.Odometer <= previous.Odometer || current.FuelLiters <= 0 {
+			continue
+		}
+		distance := current.Odometer - previous.Odometer
+		totalConsumption += current.FuelLiters / float64(distance) * 100
+		samples++
+	}
+	if samples == 0 {
+		return 0, 0
+	}
+	return round2(totalConsumption / float64(samples)), samples
 }
 
 func maintenanceInsight(expenses []domain.Expense, currentOdometer int) map[string]any {
