@@ -32,6 +32,15 @@ export const controls = {
   menuItem: "transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.985]",
 };
 
+export const authTheme = {
+  page: "relative grid min-h-dvh place-items-center overflow-hidden bg-[#f5f7f2] px-4 py-[max(1rem,env(safe-area-inset-top))] text-[#151712]",
+  glow: "pointer-events-none absolute inset-x-0 top-0 h-64 bg-[linear-gradient(180deg,rgba(223,231,212,0.86),rgba(245,247,242,0))]",
+  registerButton: "ml-auto flex h-11 touch-manipulation items-center justify-center gap-2 rounded-full border border-black/[0.06] bg-[#fbfcf8]/92 px-4 text-sm font-bold shadow-[0_10px_34px_rgba(31,41,28,0.10)] backdrop-blur transition-[background-color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-70",
+  card: "overflow-hidden rounded-[32px] border border-black/[0.06] bg-[#fbfcf8] shadow-[0_24px_82px_rgba(31,41,28,0.14)]",
+  cardHeader: "bg-[#eef3e8] px-5 py-5 sm:px-6",
+  submitButton: "flex h-12 touch-manipulation items-center justify-center gap-2 rounded-[18px] bg-[#151712] text-sm font-bold text-white transition-[transform,opacity,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] shadow-[0_12px_30px_rgba(21,23,18,0.16)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-70",
+};
+
 export const calmEase = [0.22, 1, 0.36, 1] as const;
 
 export const popoverMotion = {

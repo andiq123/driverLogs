@@ -16,7 +16,7 @@ export function useToasts() {
       const visible = key ? current.filter((toast) => toast.key !== key) : current;
       return [...visible.slice(-2), { id, key, kind, title, body }];
     });
-    window.setTimeout(() => dismissToast(id), 4200);
+    window.setTimeout(() => dismissToast(id), key?.startsWith("auth") ? 8500 : 4200);
   }, [dismissToast]);
 
   return { dismissToast, showToast, toasts };

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, getSession, isUnauthorizedError, logClientError, login, onTokenRefresh, register } from "./api";
+import { emitAuthDebug } from "./auth-debug";
 import { clearAuth, readLoginID, readToken, saveLoginID, saveToken } from "./auth-storage";
 import type { LoginNotice } from "./types";
 
@@ -15,45 +16,34 @@ export function useAuthSession() {
   const [loginNotice, setLoginNotice] = useState<LoginNotice>({ loginID: "", isOpen: false });
   const authRunRef = useRef(0);
 
-  const restoreCookieSession = useCallback(async (runID: number) => {
-    try {
-      await getSession();
-      if (authRunRef.current !== runID) return;
-      setLoginID(readLoginID());
-    } catch (error) {
-      logClientError({ level: "warn", area: "auth.restore.cookie", message: "Cookie session restore failed", detail: errorMessage(error, "unknown error") });
-      if (authRunRef.current !== runID) return;
-      setToken("");
-    }
-  }, []);
-
   const restoreSession = useCallback(async () => {
     const runID = authRunRef.current;
     const savedLoginID = readLoginID();
     const savedToken = readToken();
     setLoginID(savedLoginID);
     if (!savedToken) {
-      await restoreCookieSession(runID);
+      emitAuthDebug({ title: "Auth restore", body: "No saved JWT found.", kind: "info" });
       if (authRunRef.current === runID) setIsAuthReady(true);
       return;
     }
     setToken(savedToken);
     try {
       await getSession(savedToken);
+      emitAuthDebug({ title: "Auth restored", body: "Saved JWT accepted.", kind: "success" });
     } catch (error) {
       if (isUnauthorizedError(error)) {
         logClientError({ level: "warn", area: "auth.restore.token", message: "Stored token was rejected", detail: errorMessage(error, "unauthorized"), context: { had_saved_token: true } });
         if (authRunRef.current !== runID) return;
         clearAuth();
         setToken("");
-        await restoreCookieSession(runID);
+        emitAuthDebug({ title: "Auth cleared", body: "Saved JWT was rejected.", kind: "error" });
       } else {
         logClientError({ level: "warn", area: "auth.restore.token", message: "Stored token check failed", detail: errorMessage(error, "unknown error"), context: { had_saved_token: true } });
       }
     } finally {
       if (authRunRef.current === runID) setIsAuthReady(true);
     }
-  }, [restoreCookieSession]);
+  }, []);
 
   useEffect(() => {
     onTokenRefresh((nextToken) => {
@@ -73,7 +63,13 @@ export function useAuthSession() {
     setAuthStatus("Creating login...");
     try {
       const session = await register();
-      saveToken(session.token);
+      if (!saveToken(session.token)) {
+        setAuthStatus("Browser storage is blocked. Enable website storage and try again.");
+        setAuthFeedback("error");
+        emitAuthDebug({ title: "Register blocked", body: "JWT could not be saved to localStorage.", kind: "error" });
+        logClientError({ level: "error", area: "auth.register.storage", message: "Token was not persisted after register" });
+        return;
+      }
       setToken(session.token);
       if (session.login_id) {
         saveLoginID(session.login_id);
@@ -82,10 +78,12 @@ export function useAuthSession() {
       }
       setAuthStatus("Login created.");
       setAuthFeedback("success");
+      emitAuthDebug({ title: "Register success", body: "JWT saved. Opening app.", kind: "success" });
     } catch (error) {
       logClientError({ level: "error", area: "auth.register", message: "Register request failed", detail: errorMessage(error, "unknown error") });
       setAuthStatus("Could not create login. Please try again.");
       setAuthFeedback("error");
+      emitAuthDebug({ title: "Register failed", body: errorMessage(error, "Request failed."), kind: "error" });
     } finally {
       setAuthAction("");
     }
@@ -104,16 +102,24 @@ export function useAuthSession() {
     setAuthStatus("Signing in...");
     try {
       const session = await login(cleanLoginID);
-      saveToken(session.token);
+      if (!saveToken(session.token)) {
+        setAuthStatus("Browser storage is blocked. Enable website storage and try again.");
+        setAuthFeedback("error");
+        emitAuthDebug({ title: "Login blocked", body: "JWT could not be saved to localStorage.", kind: "error" });
+        logClientError({ level: "error", area: "auth.login.storage", message: "Token was not persisted after login", context: { login_length: cleanLoginID.length } });
+        return;
+      }
       saveLoginID(cleanLoginID);
       setToken(session.token);
       setLoginID(cleanLoginID);
       setAuthStatus("");
       setAuthFeedback("idle");
+      emitAuthDebug({ title: "Login success", body: "JWT saved. Loading dashboard.", kind: "success" });
     } catch (error) {
       logClientError({ level: "error", area: "auth.login", message: "Login request failed", detail: errorMessage(error, "unknown error"), context: { login_length: cleanLoginID.length } });
       setAuthStatus("Incorrect login ID.");
       setAuthFeedback("error");
+      emitAuthDebug({ title: "Login failed", body: errorMessage(error, "Request failed."), kind: "error" });
     } finally {
       setAuthAction("");
     }
@@ -124,14 +130,17 @@ export function useAuthSession() {
     setAuthFeedback("idle");
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((message = "") => {
     authRunRef.current += 1;
     clearAuth();
     setToken("");
     setLoginID("");
     setIsAuthReady(true);
-    setAuthStatus("");
+    setAuthStatus(message);
+    setAuthFeedback(message ? "error" : "idle");
+    setAuthAction("");
     setLoginNotice({ loginID: "", isOpen: false });
+    emitAuthDebug({ title: message ? "Redirected to login" : "Logged out", body: message || "JWT cleared from localStorage.", kind: message ? "error" : "info" });
   }, []);
 
   const closeLoginNotice = useCallback(() => {

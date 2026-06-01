@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createExpense, createVehicle, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
+import { authDebugEventName, type AuthDebugEvent } from "./auth-debug";
 import { copyText } from "./clipboard";
 import { emptyTotals } from "./theme";
 import type { Expense, UserSettings, Vehicle, View } from "./types";
@@ -37,6 +38,7 @@ export function useDriverLogsApp() {
     if (!token) return;
     if (showLoading) setIsLoadingData(true);
     setStatus("Loading app data...");
+    showToast("info", "Loading app", "JWT accepted locally. Fetching dashboard data.", "auth-flow");
     try {
       const data = await getAppData(token);
       setVehicles(data.vehicles);
@@ -51,11 +53,14 @@ export function useDriverLogsApp() {
       setActiveVehicleID(nextActiveID);
       activeVehicleIDRef.current = nextActiveID;
       setStatus(data.vehicles.length ? "Ready" : "Add your first vehicle to start tracking ownership costs.");
+      showToast("success", "Dashboard ready", `${data.vehicles.length} vehicles, ${data.expenses.length} expenses loaded.`, "auth-flow");
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail: errorMessage(error, "unauthorized") });
+        const detail = errorMessage(error, "unauthorized");
+        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail, context: { token_length: token.length } });
         setStatus("Session expired. Please sign in again.");
-        logout();
+        showToast("error", "Redirecting to login", `Backend rejected app data request: ${detail}`, "auth-flow");
+        logout("Session expired. Please sign in again.");
         return;
       }
       logClientError({ level: "error", area: "app.load", message: "Authenticated data load failed", detail: errorMessage(error, "unknown error") });
@@ -65,6 +70,16 @@ export function useDriverLogsApp() {
       if (showLoading) setIsLoadingData(false);
     }
   }, [logout, showToast, token]);
+
+  useEffect(() => {
+    const showAuthDebug = (event: Event) => {
+      const detail = (event as CustomEvent<AuthDebugEvent>).detail;
+      if (!detail) return;
+      showToast(detail.kind ?? "info", detail.title, detail.body, "auth-debug");
+    };
+    window.addEventListener(authDebugEventName, showAuthDebug);
+    return () => window.removeEventListener(authDebugEventName, showAuthDebug);
+  }, [showToast]);
 
   useEffect(() => {
     let cancelled = false;

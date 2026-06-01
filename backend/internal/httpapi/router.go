@@ -51,7 +51,6 @@ type healthPinger interface {
 type contextKey string
 
 const userIDKey contextKey = "user_id"
-const authCookieName = "driverlogs_token"
 
 func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSecret string, corsAllowedOrigins []string) http.Handler {
 	h := Handler{store: repo, db: db, exchange: exchange.NewBNMClient(), fuelPrices: fuelPrices, jwtSecret: jwtSecret, logger: slog.Default(), cors: newCORSPolicy(corsAllowedOrigins)}
@@ -183,7 +182,6 @@ func (h Handler) register(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not create token"})
 		return
 	}
-	setAuthCookie(w, r, token)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"login_id":     loginID,
 		"token":        token,
@@ -215,7 +213,6 @@ func (h Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.store.TouchUser(user.ID)
-	setAuthCookie(w, r, token)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"token":        token,
 		"expires_in":   int(auth.TokenTTL.Seconds()),
@@ -531,7 +528,7 @@ func (h Handler) reports(w http.ResponseWriter, r *http.Request) {
 
 func (h Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := requestToken(r)
+		token := auth.Bearer(r.Header.Get("Authorization"))
 		claims, err := auth.Verify(token, h.jwtSecret, time.Now())
 		if err != nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
@@ -544,37 +541,8 @@ func (h Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		h.store.TouchUser(claims.UserID)
 		w.Header().Set("Authorization", "Bearer "+refreshed)
-		setAuthCookie(w, r, refreshed)
 		next(w, r.WithContext(context.WithValue(r.Context(), userIDKey, claims.UserID)))
 	}
-}
-
-func requestToken(r *http.Request) string {
-	if token := auth.Bearer(r.Header.Get("Authorization")); token != "" {
-		return token
-	}
-	cookie, err := r.Cookie(authCookieName)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(cookie.Value)
-}
-
-func setAuthCookie(w http.ResponseWriter, r *http.Request, token string) {
-	sameSite := http.SameSiteLaxMode
-	secure := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
-	if secure {
-		sameSite = http.SameSiteNoneMode
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     authCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   int(auth.TokenTTL.Seconds()),
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: sameSite,
-	})
 }
 
 func safeLogValue(value string, limit int) string {
@@ -631,7 +599,6 @@ func (h Handler) withCORS(next http.Handler) http.Handler {
 		origin := h.cors.allowedOrigin(r.Header.Get("Origin"))
 		if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")

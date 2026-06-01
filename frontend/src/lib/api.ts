@@ -106,7 +106,6 @@ export async function deleteVehicle(token: string, id: string) {
   const response = await fetch(`${apiBase}/vehicles/${id}`, {
     method: "DELETE",
     headers: authHeaders(token),
-    credentials: "include",
   });
   refreshToken(response);
   if (!response.ok) throw await apiError(response, "delete vehicle failed");
@@ -118,7 +117,6 @@ async function getJSON<T>(path: string, token?: string, timeoutMs?: number) {
   try {
     const response = await fetch(`${apiBase}${path}`, {
       headers: token ? authHeaders(token) : undefined,
-      credentials: "include",
       signal: controller?.signal,
     });
     refreshToken(response);
@@ -133,7 +131,6 @@ async function sendJSON<T>(path: string, method: "POST" | "PUT", body: unknown, 
   const response = await fetch(`${apiBase}${path}`, {
     method,
     headers: { "Content-Type": "application/json", ...authHeaders(token) },
-    credentials: "include",
     body: JSON.stringify(body),
   });
   refreshToken(response);
@@ -189,7 +186,6 @@ export function logClientError(event: { level?: "warn" | "error"; area: string; 
   void fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body,
     keepalive: true,
   }).catch(() => {});
