@@ -54,7 +54,7 @@ export function useDriverLogsApp() {
 
   useEffect(() => {
     void healthCheck().catch(() => {
-      showToast("error", "Backend is not available", "Start the API with ./start.sh, then try again.");
+      showToast("error", "Service is not available", "Please try again in a moment.");
     });
   }, [showToast]);
 

@@ -47,7 +47,7 @@ export function useAuthSession() {
       setAuthStatus("Login created.");
       setAuthFeedback("success");
     } catch {
-      setAuthStatus("Could not create login. Start the backend with ./start.sh.");
+      setAuthStatus("Could not create login. Please try again.");
       setAuthFeedback("error");
     } finally {
       setAuthAction("");
