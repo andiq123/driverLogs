@@ -18,13 +18,22 @@ type Config struct {
 	Production         bool
 }
 
+type ValidationError struct {
+	Field  string
+	Detail string
+}
+
+func (e ValidationError) Error() string {
+	return e.Field + ": " + e.Detail
+}
+
 func Load() Config {
 	loadDotEnv(".env")
 	return Config{
 		Port:               env("PORT", env("BACKEND_PORT", "18080")),
 		DatabaseURL:        databaseURL(),
 		JWTSecret:          env("JWT_SECRET", localJWTSecret),
-		CORSAllowedOrigins: csvEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"),
+		CORSAllowedOrigins: allowedOrigins(),
 		Production:         isProductionEnvironment(),
 	}
 }
@@ -62,14 +71,17 @@ func (c Config) Validate() error {
 		return nil
 	}
 	if strings.Contains(c.DatabaseURL, "localhost") || c.DatabaseURL == "" {
-		return fmt.Errorf("DATABASE_URL must be configured for production")
+		return ValidationError{Field: "DATABASE_URL", Detail: "set DATABASE_URL or Railway POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB"}
 	}
 	if len(c.JWTSecret) < 32 || c.JWTSecret == localJWTSecret || strings.Contains(strings.ToLower(c.JWTSecret), "local") {
-		return fmt.Errorf("JWT_SECRET must be a production secret with at least 32 characters")
+		return ValidationError{Field: "JWT_SECRET", Detail: "must be a production secret with at least 32 characters"}
+	}
+	if len(c.CORSAllowedOrigins) == 0 {
+		return ValidationError{Field: "CORS_ALLOWED_ORIGINS", Detail: "set the deployed frontend origin, for example https://driver-logs-two.vercel.app"}
 	}
 	for _, origin := range c.CORSAllowedOrigins {
 		if !validProductionOrigin(origin) {
-			return fmt.Errorf("CORS_ALLOWED_ORIGINS must use deployed HTTPS frontend origins in production")
+			return ValidationError{Field: "CORS_ALLOWED_ORIGINS", Detail: fmt.Sprintf("%q is not a deployed HTTPS origin", origin)}
 		}
 	}
 	return nil
@@ -127,6 +139,40 @@ func csvEnv(key string, fallback string) []string {
 		}
 	}
 	return clean
+}
+
+func allowedOrigins() []string {
+	origins := csvEnv("CORS_ALLOWED_ORIGINS", "")
+	origins = append(origins, csvEnv("ALLOWED_ORIGINS", "")...)
+	for _, key := range []string{"FRONTEND_URL", "NEXT_PUBLIC_APP_URL"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			origins = append(origins, value)
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("VERCEL_URL")); value != "" {
+		origins = append(origins, "https://"+strings.TrimPrefix(value, "https://"))
+	}
+	if len(origins) == 0 && !isProductionEnvironment() {
+		return []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	}
+	return uniqueStrings(origins)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimRight(strings.TrimSpace(value), "/")
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
 }
 
 func validProductionOrigin(origin string) bool {

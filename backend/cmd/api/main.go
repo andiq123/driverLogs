@@ -19,7 +19,11 @@ func main() {
 	slog.SetDefault(logger)
 	cfg := config.Load()
 	if err := cfg.Validate(); err != nil {
-		logger.Error("invalid configuration", "error", err)
+		fields := []any{"error", err.Error()}
+		if validationErr, ok := err.(config.ValidationError); ok {
+			fields = append(fields, "field", validationErr.Field, "detail", validationErr.Detail)
+		}
+		logger.Error("invalid configuration", fields...)
 		os.Exit(1)
 	}
 
