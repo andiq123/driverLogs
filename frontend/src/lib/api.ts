@@ -1,4 +1,4 @@
-import type { AuthSession, Expense, FuelComparisonResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, UserSettings, Vehicle, VinDecode } from "./types";
+import type { AppDataResponse, AuthSession, Expense, FuelComparisonResponse, FuelMarketResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, UserSettings, Vehicle, VinDecode } from "./types";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:18080";
 let tokenHandler: ((token: string) => void) | undefined;
@@ -31,6 +31,10 @@ export async function getSession(token?: string) {
 
 export async function getUserSettings(token: string) {
   return getJSON<UserSettings>("/user/settings", token);
+}
+
+export async function getAppData(token: string) {
+  return getJSON<AppDataResponse>("/app-data", token);
 }
 
 export async function updateUserSettings(token: string, settings: UserSettings) {
@@ -75,6 +79,11 @@ export async function getFuelTrends(token: string, country: string) {
 export async function getFuelComparison(token: string, country: string, compareCountry: string) {
   const params = new URLSearchParams({ country, compare_country: compareCountry });
   return getJSON<FuelComparisonResponse>(`/fuel-comparison?${params.toString()}`, token);
+}
+
+export async function getFuelMarket(token: string, country: string, compareCountry: string) {
+  const params = new URLSearchParams({ country, compare_country: compareCountry });
+  return getJSON<FuelMarketResponse>(`/fuel-market?${params.toString()}`, token);
 }
 
 export async function createVehicle(token: string, vehicle: Partial<Vehicle>) {

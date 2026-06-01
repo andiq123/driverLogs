@@ -69,6 +69,11 @@ type fuelComparisonRow struct {
 	DifferencePercent float64 `json:"difference_percent"`
 }
 
+type fuelMarketResponse struct {
+	Trends     fuelprices.TrendResponse `json:"trends"`
+	Comparison fuelComparisonResponse   `json:"comparison"`
+}
+
 func (h Handler) fuelPriceComparison(w http.ResponseWriter, r *http.Request) {
 	settings, err := h.store.UserSettings(userID(r))
 	if errors.Is(err, store.ErrNotFound) {
@@ -85,10 +90,58 @@ func (h Handler) fuelPriceComparison(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "fuel comparison requires a different comparison country"})
 		return
 	}
+	trends, status, err := h.fuelMarketTrends(r, country)
+	if err != nil {
+		writeJSON(w, status, map[string]string{"error": "local fuel prices unavailable", "detail": err.Error()})
+		return
+	}
+	comparison, status, err := h.fuelMarketComparison(r, trends, country, compareCountry)
+	if err != nil {
+		writeJSON(w, status, map[string]string{"error": "fuel comparison unavailable", "detail": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, comparison)
+}
+
+func (h Handler) fuelMarket(w http.ResponseWriter, r *http.Request) {
+	settings, err := h.store.UserSettings(userID(r))
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings unavailable"})
+		return
+	}
+	country := queryDefault(r, "country", settings.Country)
+	compareCountry := queryDefault(r, "compare_country", settings.CompareCountry)
+	trends, status, err := h.fuelMarketTrends(r, country)
+	if err != nil {
+		writeJSON(w, status, map[string]string{"error": "fuel market unavailable", "detail": err.Error()})
+		return
+	}
+	comparison := fuelComparisonResponse{Country: country, CompareCountry: compareCountry, Currency: "MDL", Source: "Autotraveler.ru + National Bank of Moldova", Rows: []fuelComparisonRow{}}
+	if compareCountry != "" && compareCountry != country {
+		comparison, status, err = h.fuelMarketComparison(r, trends, country, compareCountry)
+		if err != nil {
+			writeJSON(w, status, map[string]string{"error": "fuel market comparison unavailable", "detail": err.Error()})
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, fuelMarketResponse{Trends: trends, Comparison: comparison})
+}
+
+func (h Handler) fuelMarketTrends(r *http.Request, country string) (fuelprices.TrendResponse, int, error) {
 	trends, err := h.fuelPrices.Trends(r.Context(), country)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "local fuel prices unavailable", "detail": err.Error()})
-		return
+		return fuelprices.TrendResponse{}, http.StatusBadGateway, err
+	}
+	return trends, http.StatusOK, nil
+}
+
+func (h Handler) fuelMarketComparison(r *http.Request, trends fuelprices.TrendResponse, country string, compareCountry string) (fuelComparisonResponse, int, error) {
+	if country != "MD" || compareCountry == "" || compareCountry == country {
+		return fuelComparisonResponse{}, http.StatusBadRequest, errors.New("fuel comparison requires a different comparison country")
 	}
 	rows := make([]fuelComparisonRow, 0, len(trends.Rows))
 	for _, trend := range trends.Rows {
@@ -103,8 +156,7 @@ func (h Handler) fuelPriceComparison(w http.ResponseWriter, r *http.Request) {
 		suggestion := compare.Suggestions[0]
 		compareMDL, err := h.exchange.ConvertDecimalToMDL(r.Context(), suggestion.Price, suggestion.Currency, time.Now().Format("2006-01-02"))
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "comparison exchange rate unavailable", "detail": err.Error()})
-			return
+			return fuelComparisonResponse{}, http.StatusBadGateway, err
 		}
 		diff := round2(compareMDL - trend.Now)
 		percent := 0.0
@@ -121,7 +173,7 @@ func (h Handler) fuelPriceComparison(w http.ResponseWriter, r *http.Request) {
 			DifferencePercent: percent,
 		})
 	}
-	writeJSON(w, http.StatusOK, fuelComparisonResponse{Country: country, CompareCountry: compareCountry, Currency: "MDL", Source: "Autotraveler.ru + National Bank of Moldova", Rows: rows})
+	return fuelComparisonResponse{Country: country, CompareCountry: compareCountry, Currency: "MDL", Source: "Autotraveler.ru + National Bank of Moldova", Rows: rows}, http.StatusOK, nil
 }
 
 func queryDefault(r *http.Request, key string, fallback string) string {

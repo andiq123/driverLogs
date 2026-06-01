@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, getSession, isUnauthorizedError, logClientError, login, onTokenRefresh, register } from "./api";
 import { clearAuth, readLoginID, readToken, saveLoginID, saveToken } from "./auth-storage";
 import type { LoginNotice } from "./types";
@@ -13,24 +13,28 @@ export function useAuthSession() {
   const [authAction, setAuthAction] = useState<"login" | "register" | "">("");
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [loginNotice, setLoginNotice] = useState<LoginNotice>({ loginID: "", isOpen: false });
+  const authRunRef = useRef(0);
 
-  const restoreCookieSession = useCallback(async () => {
+  const restoreCookieSession = useCallback(async (runID: number) => {
     try {
       await getSession();
+      if (authRunRef.current !== runID) return;
       setLoginID(readLoginID());
     } catch (error) {
       logClientError({ level: "warn", area: "auth.restore.cookie", message: "Cookie session restore failed", detail: errorMessage(error, "unknown error") });
+      if (authRunRef.current !== runID) return;
       setToken("");
     }
   }, []);
 
   const restoreSession = useCallback(async () => {
+    const runID = authRunRef.current;
     const savedLoginID = readLoginID();
     const savedToken = readToken();
     setLoginID(savedLoginID);
     if (!savedToken) {
-      await restoreCookieSession();
-      setIsAuthReady(true);
+      await restoreCookieSession(runID);
+      if (authRunRef.current === runID) setIsAuthReady(true);
       return;
     }
     setToken(savedToken);
@@ -39,14 +43,15 @@ export function useAuthSession() {
     } catch (error) {
       if (isUnauthorizedError(error)) {
         logClientError({ level: "warn", area: "auth.restore.token", message: "Stored token was rejected", detail: errorMessage(error, "unauthorized"), context: { had_saved_token: true } });
+        if (authRunRef.current !== runID) return;
         clearAuth();
         setToken("");
-        await restoreCookieSession();
+        await restoreCookieSession(runID);
       } else {
         logClientError({ level: "warn", area: "auth.restore.token", message: "Stored token check failed", detail: errorMessage(error, "unknown error"), context: { had_saved_token: true } });
       }
     } finally {
-      setIsAuthReady(true);
+      if (authRunRef.current === runID) setIsAuthReady(true);
     }
   }, [restoreCookieSession]);
 
@@ -62,6 +67,7 @@ export function useAuthSession() {
   }, [restoreSession]);
 
   const createLogin = useCallback(async () => {
+    authRunRef.current += 1;
     setAuthAction("register");
     setAuthFeedback("loading");
     setAuthStatus("Creating login...");
@@ -92,6 +98,7 @@ export function useAuthSession() {
       setAuthFeedback("error");
       return;
     }
+    authRunRef.current += 1;
     setAuthAction("login");
     setAuthFeedback("loading");
     setAuthStatus("Signing in...");
@@ -118,6 +125,7 @@ export function useAuthSession() {
   }, []);
 
   const logout = useCallback(() => {
+    authRunRef.current += 1;
     clearAuth();
     setToken("");
     setLoginID("");

@@ -61,12 +61,14 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSe
 	mux.HandleFunc("POST /auth/register", h.register)
 	mux.HandleFunc("POST /auth/login", h.login)
 	mux.HandleFunc("GET /auth/session", h.requireAuth(h.session))
+	mux.HandleFunc("GET /app-data", h.requireAuth(h.appData))
 	mux.HandleFunc("GET /user/settings", h.requireAuth(h.getSettings))
 	mux.HandleFunc("PUT /user/settings", h.requireAuth(h.updateSettings))
 	mux.HandleFunc("GET /vehicle-options/makes", h.vehicleMakes)
 	mux.HandleFunc("GET /vehicle-options/models", h.vehicleModels)
 	mux.HandleFunc("GET /vehicle-options/vin/{vin}", h.vehicleVIN)
 	mux.HandleFunc("GET /fuel-prices", h.requireAuth(h.fuelPriceSuggestions))
+	mux.HandleFunc("GET /fuel-market", h.requireAuth(h.fuelMarket))
 	mux.HandleFunc("GET /fuel-trends", h.requireAuth(h.fuelPriceTrends))
 	mux.HandleFunc("GET /fuel-comparison", h.requireAuth(h.fuelPriceComparison))
 	mux.HandleFunc("GET /vehicles", h.requireAuth(h.listVehicles))
@@ -227,6 +229,40 @@ func (h Handler) session(w http.ResponseWriter, r *http.Request) {
 		"user_id":      userID(r),
 		"max_vehicles": 4,
 		"settings":     settings,
+	})
+}
+
+func (h Handler) appData(w http.ResponseWriter, r *http.Request) {
+	userID := userID(r)
+	vehicles, err := h.store.UserVehicles(userID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "vehicles unavailable"})
+		return
+	}
+	expenses, err := h.store.UserExpenses(userID, "")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "expenses unavailable"})
+		return
+	}
+	settings, err := h.store.UserSettings(userID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings unavailable"})
+		return
+	}
+	totals := make(map[string]any, len(vehicles))
+	for _, vehicle := range vehicles {
+		summary, err := h.store.Analytics(userID, vehicle.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "analytics unavailable"})
+			return
+		}
+		totals[vehicle.ID] = summary
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"vehicles":       vehicles,
+		"expenses":       expenses,
+		"settings":       settings,
+		"vehicle_totals": totals,
 	})
 }
 

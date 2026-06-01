@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createExpense, createVehicle, deleteVehicle, errorMessage, getAnalytics, getExpenses, getUserSettings, getVehicles, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createExpense, createVehicle, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
 import { copyText } from "./clipboard";
 import { emptyTotals } from "./theme";
 import type { Expense, UserSettings, Vehicle, View } from "./types";
@@ -17,12 +17,13 @@ export function useDriverLogsApp() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activeVehicleID, setActiveVehicleID] = useState("");
-  const [vehicleTotals, setVehicleTotals] = useState(emptyTotals);
+  const [vehicleTotalsByID, setVehicleTotalsByID] = useState<Record<string, typeof emptyTotals>>({});
   const [settings, setSettings] = useState<UserSettings>({ name: "", default_currency: "MDL", country: "MD", compare_country: "RO" });
   const [status, setStatus] = useState("Loading app data...");
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [action, setAction] = useState<"vehicle" | "expense" | "settings" | "delete" | "profile" | "">("");
   const [mounted, setMounted] = useState(false);
+  const activeVehicleIDRef = useRef("");
   const auth = useAuthSession();
   const { authStatus, createLogin, loginID, logout, signIn, token } = auth;
   const toast = useToasts();
@@ -30,22 +31,26 @@ export function useDriverLogsApp() {
 
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleID) ?? vehicles[0];
   const activeExpenses = useMemo(() => activeVehicle ? expenses.filter((expense) => expense.vehicle_id === activeVehicle.id) : [], [activeVehicle, expenses]);
+  const vehicleTotals = activeVehicle?.id ? vehicleTotalsByID[activeVehicle.id] ?? emptyTotals : emptyTotals;
 
   const loadData = useCallback(async (showLoading = true) => {
     if (!token) return;
     if (showLoading) setIsLoadingData(true);
     setStatus("Loading app data...");
     try {
-      const [nextVehicles, nextExpenses, nextSettings] = await Promise.all([getVehicles(token), getExpenses(token), getUserSettings(token)]);
-      setVehicles(nextVehicles);
-      setExpenses(nextExpenses);
-      setSettings(nextSettings);
-      setActiveVehicleID((current) => {
+      const data = await getAppData(token);
+      setVehicles(data.vehicles);
+      setExpenses(data.expenses);
+      setSettings(data.settings);
+      setVehicleTotalsByID(data.vehicle_totals);
+      const nextActiveID = (() => {
         const saved = typeof window === "undefined" ? "" : localStorage.getItem(selectedVehicleStorageKey) ?? "";
-        const preferred = current || saved;
-        return nextVehicles.some((vehicle) => vehicle.id === preferred) ? preferred : nextVehicles[0]?.id || "";
-      });
-      setStatus(nextVehicles.length ? "Ready" : "Add your first vehicle to start tracking ownership costs.");
+        const preferred = activeVehicleIDRef.current || saved;
+        return data.vehicles.some((vehicle) => vehicle.id === preferred) ? preferred : data.vehicles[0]?.id || "";
+      })();
+      setActiveVehicleID(nextActiveID);
+      activeVehicleIDRef.current = nextActiveID;
+      setStatus(data.vehicles.length ? "Ready" : "Add your first vehicle to start tracking ownership costs.");
     } catch (error) {
       if (isUnauthorizedError(error)) {
         logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail: errorMessage(error, "unauthorized") });
@@ -90,26 +95,6 @@ export function useDriverLogsApp() {
     return () => cancelAnimationFrame(frame);
   }, [loadData, token]);
 
-  useEffect(() => {
-    if (!activeVehicle?.id) {
-      const frame = requestAnimationFrame(() => setVehicleTotals(emptyTotals));
-      return () => cancelAnimationFrame(frame);
-    }
-    if (!token) return;
-    let cancelled = false;
-    void getAnalytics(token, activeVehicle.id)
-      .then((totals) => {
-        if (!cancelled) setVehicleTotals(totals);
-      })
-      .catch(() => {
-        logClientError({ level: "warn", area: "analytics", message: "Vehicle analytics failed" });
-        if (!cancelled) setVehicleTotals(emptyTotals);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeVehicle?.id, token]);
-
   async function saveVehicle(vehicle: Partial<Vehicle>) {
     setAction("vehicle");
     setStatus("Saving vehicle...");
@@ -117,6 +102,7 @@ export function useDriverLogsApp() {
       const saved = await createVehicle(token, vehicle);
       await loadData(false);
       setActiveVehicleID(saved.id);
+      activeVehicleIDRef.current = saved.id;
       localStorage.setItem(selectedVehicleStorageKey, saved.id);
       setView("Dashboard");
       showToast("success", "Vehicle saved", "Your garage was updated.");
@@ -135,6 +121,7 @@ export function useDriverLogsApp() {
       const saved = await updateVehicle(token, id, vehicle);
       await loadData(false);
       setActiveVehicleID(saved.id);
+      activeVehicleIDRef.current = saved.id;
       localStorage.setItem(selectedVehicleStorageKey, saved.id);
       showToast("success", "Vehicle updated", "Your car details were saved.");
     } catch (error) {
@@ -204,7 +191,8 @@ export function useDriverLogsApp() {
     setStatus("Removing vehicle...");
     try {
       await deleteVehicle(token, id);
-      setActiveVehicleID("");
+    setActiveVehicleID("");
+    activeVehicleIDRef.current = "";
       localStorage.removeItem(selectedVehicleStorageKey);
       await loadData(false);
       showToast("success", "Vehicle removed");
@@ -220,12 +208,13 @@ export function useDriverLogsApp() {
     logout();
     setVehicles([]);
     setExpenses([]);
-    setVehicleTotals(emptyTotals);
+    setVehicleTotalsByID({});
     setView("Dashboard");
   }
 
   function selectVehicle(id: string) {
     setActiveVehicleID(id);
+    activeVehicleIDRef.current = id;
     localStorage.setItem(selectedVehicleStorageKey, id);
   }
 

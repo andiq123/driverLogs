@@ -138,6 +138,11 @@ export type FuelComparisonResponse = {
   rows: FuelComparisonRow[];
 };
 
+export type FuelMarketResponse = {
+  trends: FuelTrendResponse;
+  comparison: FuelComparisonResponse;
+};
+
 export type UserSettings = {
   name?: string;
   default_currency: string;
@@ -158,6 +163,13 @@ export type MoneyTotals = {
   vehicle_totals: VehicleTotal[];
   trends: TrendDatum[];
   insights: SmartInsights;
+};
+
+export type AppDataResponse = {
+  vehicles: Vehicle[];
+  expenses: Expense[];
+  settings: UserSettings;
+  vehicle_totals: Record<string, MoneyTotals>;
 };
 
 export type TrendDatum = {

@@ -2,23 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Fuel, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
-import { getFuelComparison, getFuelTrends } from "@/lib/api";
+import { getFuelMarket } from "@/lib/api";
 import { normalizeFuelType } from "@/lib/car-options";
-import type { FuelComparisonResponse, FuelTrendChange, FuelTrendResponse } from "@/lib/types";
+import type { FuelComparisonResponse, FuelMarketResponse, FuelTrendChange, FuelTrendResponse } from "@/lib/types";
 import { EmptyState, Panel, SkeletonLine } from "../ui";
 
-const trendCache = new Map<string, FuelTrendResponse>();
-const failedTrendCountries = new Set<string>();
-const inFlightTrendRequests = new Map<string, Promise<FuelTrendResponse>>();
-const comparisonCache = new Map<string, FuelComparisonResponse>();
-const failedComparisonKeys = new Set<string>();
-const inFlightComparisonRequests = new Map<string, Promise<FuelComparisonResponse>>();
+const marketCache = new Map<string, FuelMarketResponse>();
+const failedMarketKeys = new Set<string>();
+const inFlightMarketRequests = new Map<string, Promise<FuelMarketResponse>>();
 
 export function FuelInsightsView({ token, country, compareCountry, preferredFuelType = "Super 95" }: { token: string; country: string; compareCountry: string; preferredFuelType?: string }) {
-  const [trends, setTrends] = useState<FuelTrendResponse | undefined>(() => trendCache.get(country));
-  const [failed, setFailed] = useState(() => failedTrendCountries.has(country));
-  const comparisonKey = `${country}:${compareCountry}`;
-  const [comparison, setComparison] = useState<FuelComparisonResponse | undefined>(() => comparisonCache.get(comparisonKey));
+  const marketKey = `${country}:${compareCountry}`;
+  const [market, setMarket] = useState<FuelMarketResponse | undefined>(() => marketCache.get(marketKey));
+  const [failed, setFailed] = useState(() => failedMarketKeys.has(marketKey));
   const tokenRef = useRef(token);
 
   useEffect(() => {
@@ -27,11 +23,12 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
 
   useEffect(() => {
     let cancelled = false;
-    const cached = trendCache.get(country);
-    if (cached || failedTrendCountries.has(country)) {
+    const cacheKey = `${country}:${compareCountry}`;
+    const cached = marketCache.get(cacheKey);
+    if (cached || failedMarketKeys.has(cacheKey)) {
       void Promise.resolve().then(() => {
         if (cancelled) return;
-        setTrends(cached);
+        setMarket(cached);
         setFailed(!cached);
       });
       return () => {
@@ -39,72 +36,39 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
       };
     }
 
-    let request = inFlightTrendRequests.get(country);
+    let request = inFlightMarketRequests.get(cacheKey);
     if (!request) {
-      request = getFuelTrends(tokenRef.current, country);
-      inFlightTrendRequests.set(country, request);
+      request = getFuelMarket(tokenRef.current, country, compareCountry);
+      inFlightMarketRequests.set(cacheKey, request);
     }
     void request
       .then((response) => {
-        trendCache.set(country, response);
-        failedTrendCountries.delete(country);
+        marketCache.set(cacheKey, response);
+        failedMarketKeys.delete(cacheKey);
         if (!cancelled) {
-          setTrends(response);
+          setMarket(response);
           setFailed(false);
         }
       })
       .catch(() => {
-        failedTrendCountries.add(country);
+        failedMarketKeys.add(cacheKey);
         if (!cancelled) {
-          setTrends(undefined);
+          setMarket(undefined);
           setFailed(true);
         }
       })
       .finally(() => {
-        if (inFlightTrendRequests.get(country) === request) {
-          inFlightTrendRequests.delete(country);
+        if (inFlightMarketRequests.get(cacheKey) === request) {
+          inFlightMarketRequests.delete(cacheKey);
         }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [country]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const cacheKey = `${country}:${compareCountry}`;
-    const cached = comparisonCache.get(cacheKey);
-    if (cached || failedComparisonKeys.has(cacheKey)) {
-      void Promise.resolve().then(() => {
-        if (!cancelled) setComparison(cached);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-    let request = inFlightComparisonRequests.get(cacheKey);
-    if (!request) {
-      request = getFuelComparison(tokenRef.current, country, compareCountry);
-      inFlightComparisonRequests.set(cacheKey, request);
-    }
-    void request
-      .then((response) => {
-        comparisonCache.set(cacheKey, response);
-        failedComparisonKeys.delete(cacheKey);
-        if (!cancelled) setComparison(response);
-      })
-      .catch(() => {
-        failedComparisonKeys.add(cacheKey);
-        if (!cancelled) setComparison(undefined);
-      })
-      .finally(() => {
-        if (inFlightComparisonRequests.get(cacheKey) === request) inFlightComparisonRequests.delete(cacheKey);
       });
     return () => {
       cancelled = true;
     };
   }, [compareCountry, country]);
 
+  const trends = market?.trends;
+  const comparison = market?.comparison;
   const biggestMove = useMemo(() => trends?.rows.reduce((best, row) => Math.abs(row.year.percent) > Math.abs(best.year.percent) ? row : best, trends.rows[0]), [trends]);
   const preferredFuel = useMemo(() => trends?.rows.find((row) => row.fuel_type === preferredTrendFuel(preferredFuelType)), [preferredFuelType, trends]);
   const comparisonByFuel = useMemo(() => new Map(comparison?.rows.map((row) => [row.fuel_type, row]) ?? []), [comparison]);
