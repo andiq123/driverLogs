@@ -27,7 +27,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
               <motion.div key={expense.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.025, 0.18), duration: 0.18 }} className="flex items-center gap-3 rounded-[24px] bg-[#f1f4ec] p-3">
                 <span className="flex size-11 items-center justify-center rounded-[16px] bg-white"><Icon size={19} /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{expense.description}</span>
+                  <span className="block truncate text-sm font-semibold">{expense.description || expense.category}</span>
                   <span className="text-xs text-[#6b7065]">{expense.category} · {expense.date}</span>
                   {expense.category === "Fuel" && expense.fuel_type ? (
                     <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}</span>

@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { decodeVIN, getVehicleMakes, getVehicleModels } from "@/lib/api";
-import { engineOptions, fuelTypes, normalizeFuelType, priceCurrencies } from "@/lib/car-options";
+import { engineOptions, fuelTypes, gasStationBrands, normalizeFuelType, priceCurrencies } from "@/lib/car-options";
 import type { Expense, ExpenseCategory, FuelPriceSuggestion, Vehicle, VinDecode } from "@/lib/types";
 import { intValue, km, numberValue, vehicleName } from "@/lib/format";
 import { Autocomplete } from "./autocomplete";
@@ -12,7 +12,7 @@ import { CustomSelect } from "./custom-select";
 import { ExpenseCategoryPicker } from "./expense-category-picker";
 import { FuelPriceSuggestions } from "./fuel-price-suggestions";
 import { ActionButton, Input, Panel } from "./ui";
-import { BadgeCheck, BadgeDollarSign, CalendarDays, CarFront, CircleGauge, Droplets, Fuel, Hash, Landmark, Milestone, ScanLine, Text, Wrench } from "lucide-react";
+import { BadgeCheck, BadgeDollarSign, CalendarDays, CarFront, CircleGauge, Droplets, Fuel, Hash, Landmark, MapPin, Milestone, ScanLine, Text, Wrench } from "lucide-react";
 import { useFuelPriceSuggestions } from "@/lib/use-fuel-price-suggestions";
 import { calmEase } from "@/lib/theme";
 
@@ -218,6 +218,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const [fuelPrice, setFuelPrice] = useState(expense?.fuel_price_per_liter_base ? String(expense.fuel_price_per_liter_base) : "");
   const [fuelPriceEdited, setFuelPriceEdited] = useState(false);
   const [description, setDescription] = useState(expense?.description ?? "");
+  const [gasStation, setGasStation] = useState(expense?.category === "Fuel" ? expense.description : "");
   const [odometerValue, setOdometerValue] = useState(expense?.odometer ? String(expense.odometer) : "");
   const fuelSuggestion = useFuelPriceSuggestions({ category, country, fuelType, token });
 
@@ -251,7 +252,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       fuel_type: String(form.get("fuel_type") ?? "").trim(),
       odometer: intValue(form.get("odometer")),
       date: String(form.get("date") ?? ""),
-      description: String(form.get("description") ?? "").trim(),
+      description: expenseDescription(category, String(form.get("description") ?? ""), gasStation),
     };
     if (expense) onUpdate?.(expense.id, payload);
     else onCreate?.(payload);
@@ -266,6 +267,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     setFuelPrice("");
     setFuelPriceEdited(false);
     setDescription("");
+    setGasStation("");
     setOdometerValue("");
   }
 
@@ -312,6 +314,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
                   <CustomSelect name="fuel_price_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={fuelPriceCurrency} onChange={setFuelPriceCurrency} />
                   <CustomSelect name="fuel_type" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} />
                 </div>
+                <Autocomplete name="gas_station" label="Gas station" icon={MapPin} options={gasStationBrands} value={gasStation} onChange={setGasStation} />
                 <FuelPriceSuggestions suggestions={fuelSuggestion.suggestions} status={fuelSuggestion.status} onSelect={applyFuelSuggestion} />
               </motion.div>
             ) : null}
@@ -332,7 +335,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
             ) : null}
           </div>
           <CalendarField name="date" label="Date" value={date} placeholder="Choose date" onChange={setDate} />
-          <Input name="description" label="Description" icon={Text} required value={description} onChange={(event) => setDescription(event.currentTarget.value)} placeholder={descriptionPlaceholder(category)} />
+          <Input name="description" label="Description" icon={Text} value={description} onChange={(event) => setDescription(event.currentTarget.value)} placeholder={descriptionPlaceholder(category)} />
         </motion.div>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <ActionButton loading={saving} className="mt-2">{isEditing ? "Save changes" : "Save expense"}</ActionButton>
@@ -387,4 +390,12 @@ function descriptionPlaceholder(category: ExpenseCategory) {
     Miscellaneous: "Any other ownership cost",
   };
   return placeholders[category];
+}
+
+function expenseDescription(category: ExpenseCategory, description: string, gasStation: string) {
+  const cleanDescription = description.trim();
+  const cleanStation = gasStation.trim();
+  if (category !== "Fuel" || !cleanStation) return cleanDescription;
+  if (!cleanDescription || cleanDescription === cleanStation) return cleanStation;
+  return `${cleanStation} · ${cleanDescription}`;
 }

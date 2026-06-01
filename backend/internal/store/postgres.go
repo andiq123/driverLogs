@@ -227,7 +227,11 @@ func (s *PostgresStore) Timeline(userID, vehicleID string) ([]domain.TimelineEnt
 	}
 	entries := make([]domain.TimelineEntry, 0, len(expenses))
 	for _, expense := range expenses {
-		entries = append(entries, domain.TimelineEntry{ID: expense.ID, VehicleID: expense.VehicleID, Type: "expense", Title: expense.Description, Category: expense.Category, Date: expense.Date, AmountMDL: expense.AmountMDL})
+		title := expense.Description
+		if title == "" {
+			title = expense.Category
+		}
+		entries = append(entries, domain.TimelineEntry{ID: expense.ID, VehicleID: expense.VehicleID, Type: "expense", Title: title, Category: expense.Category, Date: expense.Date, AmountMDL: expense.AmountMDL})
 	}
 	return entries, nil
 }

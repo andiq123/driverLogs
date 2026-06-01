@@ -18,6 +18,27 @@ export const priceCurrencies = ["MDL", "EUR", "USD", "RON"] as const;
 
 export const fuelTypes = ["Super 95", "Diesel", "LPG", "Hybrid", "Electric"] as const;
 
+export const gasStationBrands = [
+  "Petrom",
+  "OMV",
+  "Lukoil",
+  "Rompetrol",
+  "MOL",
+  "SOCAR",
+  "Bemol",
+  "Vento",
+  "Tirex Petrol",
+  "Avante",
+  "ANP",
+  "Oscar Downstream",
+  "Gazprom",
+  "Shell",
+  "TotalEnergies",
+  "Circle K",
+  "Agip",
+  "Efix",
+];
+
 export function normalizeFuelType(value?: string) {
   const fuelType = value?.trim().toLowerCase();
   if (fuelType === "diesel") return "Diesel";
