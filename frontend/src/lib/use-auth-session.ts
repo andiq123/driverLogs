@@ -63,6 +63,7 @@ export function useAuthSession() {
     setAuthStatus("Creating login...");
     try {
       const session = await register();
+      await getSession(session.token);
       if (!saveToken(session.token)) {
         setAuthStatus("Browser storage is blocked. Enable website storage and try again.");
         setAuthFeedback("error");
@@ -102,6 +103,7 @@ export function useAuthSession() {
     setAuthStatus("Signing in...");
     try {
       const session = await login(cleanLoginID);
+      await getSession(session.token);
       if (!saveToken(session.token)) {
         setAuthStatus("Browser storage is blocked. Enable website storage and try again.");
         setAuthFeedback("error");

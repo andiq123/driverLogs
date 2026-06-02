@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createExpense, createVehicle, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
 import { authDebugEventName, type AuthDebugEvent } from "./auth-debug";
+import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
 import { emptyTotals } from "./theme";
 import type { Expense, UserSettings, Vehicle, View } from "./types";
@@ -36,11 +37,12 @@ export function useDriverLogsApp() {
 
   const loadData = useCallback(async (showLoading = true) => {
     if (!token) return;
+    const requestToken = readToken() || token;
     if (showLoading) setIsLoadingData(true);
     setStatus("Loading app data...");
-    showToast("info", "Loading app", "JWT accepted locally. Fetching dashboard data.", "auth-flow");
+    showToast("info", "Loading app", `Fetching dashboard data with JWT length ${requestToken.length}.`, "auth-flow");
     try {
-      const data = await getAppData(token);
+      const data = await getAppData(requestToken);
       setVehicles(data.vehicles);
       setExpenses(data.expenses);
       setSettings(data.settings);
@@ -57,7 +59,7 @@ export function useDriverLogsApp() {
     } catch (error) {
       if (isUnauthorizedError(error)) {
         const detail = errorMessage(error, "unauthorized");
-        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail, context: { token_length: token.length } });
+        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail, context: { state_token_length: token.length, stored_token_length: requestToken.length } });
         setStatus("Session expired. Please sign in again.");
         showToast("error", "Redirecting to login", `Backend rejected app data request: ${detail}`, "auth-flow");
         logout("Session expired. Please sign in again.");
