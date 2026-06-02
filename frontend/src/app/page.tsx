@@ -51,7 +51,7 @@ export default function HomePage() {
     <>
       <AppShell view={app.view} userName={app.settings.name} onLogout={app.logout} onViewChange={app.setView}>
         <AnimatePresence mode="wait">
-          <motion.div key={app.view} {...softReveal} className="pt-4">
+          <motion.div key={app.view} {...softReveal} className="pt-3 sm:pt-4">
             {app.isLoadingData ? <ViewSkeleton /> : null}
             {!app.isLoadingData && app.view === "Garage" && <GarageView vehicles={app.vehicles} activeVehicleID={app.activeVehicle?.id ?? ""} savingVehicle={app.action === "vehicle"} deletingVehicle={app.action === "delete"} onSelect={selectVehicleAndOpenDashboard} onDelete={app.removeVehicle} onCreate={app.saveVehicle} onUpdate={app.editVehicle} />}
             {!app.isLoadingData && app.view === "Dashboard" && <DashboardView vehicle={app.activeVehicle} expenses={app.activeExpenses} totals={app.vehicleTotals} token={app.token} baseCurrency={app.settings.default_currency} country={app.settings.country} savingExpense={app.action === "expense"} onCreateExpense={app.saveExpense} />}

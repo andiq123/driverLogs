@@ -77,9 +77,9 @@ export function Input({ name, label, icon: Icon, type = "text", required = false
 
 export function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="min-w-0 rounded-[18px] bg-white/10 p-2.5 sm:rounded-[22px] sm:p-3">
+    <div className="min-w-0 rounded-[16px] bg-white/10 p-2 sm:rounded-[22px] sm:p-3">
       <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-white/50 sm:text-[11px] sm:tracking-[0.14em]">{label}</p>
-      <p className="mt-1.5 truncate text-sm font-bold sm:mt-2 sm:text-base">{value}</p>
+      <p className="mt-1 truncate text-sm font-bold sm:mt-2 sm:text-base">{value}</p>
       <p className="mt-0.5 truncate text-[10px] text-white/52 sm:mt-1 sm:text-[11px]">{sub}</p>
     </div>
   );
@@ -95,32 +95,32 @@ export function ChartSkeleton() {
 
 export function ViewSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="grid min-h-[calc(100dvh-7rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <section className="grid min-h-[30rem] gap-4">
-        <div className="rounded-[28px] bg-[#151712] p-5 shadow-[0_22px_70px_rgba(31,41,28,0.18)] sm:p-6">
+    <div className="grid min-h-[calc(100dvh-7rem)] items-start gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.78fr)] 2xl:grid-cols-[minmax(0,1fr)_440px]">
+      <section className="grid content-start gap-3 sm:gap-4">
+        <div className="rounded-[24px] bg-[#151712] p-4 shadow-[0_22px_70px_rgba(31,41,28,0.18)] sm:min-h-[24rem] sm:rounded-[28px] sm:p-6 xl:min-h-[21rem]">
           <div className="flex gap-2">
-            <SkeletonLine className="h-6 w-20 bg-white/12" />
-            <SkeletonLine className="h-6 w-24 bg-white/12" />
             <SkeletonLine className="h-6 w-16 bg-white/12" />
+            <SkeletonLine className="h-6 w-20 bg-white/12" />
+            <SkeletonLine className="h-6 w-14 bg-white/12" />
           </div>
-          <SkeletonLine className="mt-8 h-10 w-3/4 bg-white/12 sm:h-14" />
-          <SkeletonLine className="mt-4 h-4 w-2/3 bg-white/12" />
-          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {Array.from({ length: 3 }, (_, index) => <SkeletonLine key={index} className="h-20 rounded-[22px] bg-white/12" />)}
+          <SkeletonLine className="mt-4 h-9 w-4/5 bg-white/12 sm:mt-8 sm:h-14" />
+          <SkeletonLine className="mt-3 hidden h-4 w-2/3 bg-white/12 sm:block" />
+          <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-3">
+            {Array.from({ length: 3 }, (_, index) => <SkeletonLine key={index} className="h-[4.625rem] !rounded-[16px] bg-white/12 sm:h-20 sm:!rounded-[22px]" />)}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          {Array.from({ length: rows + 1 }, (_, index) => <SkeletonLine key={index} className="h-32 rounded-[24px]" />)}
+        <div className="flex snap-x gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible xl:grid-cols-5">
+          {Array.from({ length: rows + 1 }, (_, index) => <SkeletonLine key={index} className="h-[7.35rem] w-28 shrink-0 snap-start !rounded-[20px] sm:h-32 sm:w-auto sm:!rounded-[24px]" />)}
         </div>
       </section>
-      <section className="h-fit rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_14px_48px_rgba(31,41,28,0.08)] sm:p-5">
+      <section className="h-fit rounded-[24px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_14px_48px_rgba(31,41,28,0.08)] sm:rounded-[28px] sm:p-5">
         <SkeletonLine className="h-3 w-28" />
         <SkeletonLine className="mt-3 h-7 w-40" />
-        <div className="mt-6 grid grid-cols-2 gap-2">
-          {Array.from({ length: 6 }, (_, index) => <SkeletonLine key={index} className="h-16 w-full rounded-[18px]" />)}
+        <div className="mt-5 grid grid-cols-4 gap-1.5 sm:mt-6 sm:grid-cols-2 sm:gap-2">
+          {Array.from({ length: 8 }, (_, index) => <SkeletonLine key={index} className="h-[3.9rem] w-full !rounded-[16px] sm:h-16 sm:!rounded-[18px]" />)}
         </div>
-        <div className="mt-4 grid gap-3">
-          {Array.from({ length: 6 }, (_, index) => <SkeletonLine key={index} className="h-12 w-full rounded-[18px]" />)}
+        <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
+          {Array.from({ length: 5 }, (_, index) => <SkeletonLine key={index} className="h-12 w-full !rounded-[18px]" />)}
         </div>
       </section>
     </div>
