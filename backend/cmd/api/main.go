@@ -48,6 +48,11 @@ func main() {
 		logger.Error("file storage unavailable", "error", err)
 		os.Exit(1)
 	}
+	if files.Enabled() {
+		logger.Info("file storage enabled", "provider", cfg.Storage.Provider, "bucket", cfg.Storage.S3Bucket, "endpoint", cfg.Storage.S3Endpoint)
+	} else {
+		logger.Warn("file storage disabled", "missing", cfg.Storage.MissingFields())
+	}
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           httpapi.NewRouter(repo, db, fuelprices.NewService(), files, cfg.JWTSecret, cfg.CORSAllowedOrigins),

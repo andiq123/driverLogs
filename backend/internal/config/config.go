@@ -109,18 +109,29 @@ func (c StorageConfig) Validate() error {
 	if c.Provider != "s3" {
 		return ValidationError{Field: "STORAGE_PROVIDER", Detail: "supported value is s3"}
 	}
-	required := map[string]string{
-		"S3_ENDPOINT":          c.S3Endpoint,
-		"S3_BUCKET":            c.S3Bucket,
-		"S3_ACCESS_KEY_ID":     c.S3AccessKeyID,
-		"S3_SECRET_ACCESS_KEY": c.S3SecretKey,
-	}
-	for field, value := range required {
-		if strings.TrimSpace(value) == "" {
-			return ValidationError{Field: field, Detail: "required when STORAGE_PROVIDER=s3"}
-		}
+	for _, field := range c.MissingFields() {
+		return ValidationError{Field: field, Detail: "required when STORAGE_PROVIDER=s3"}
 	}
 	return nil
+}
+
+func (c StorageConfig) MissingFields() []string {
+	required := []struct {
+		field string
+		value string
+	}{
+		{field: "S3_ENDPOINT", value: c.S3Endpoint},
+		{field: "S3_BUCKET", value: c.S3Bucket},
+		{field: "S3_ACCESS_KEY_ID", value: c.S3AccessKeyID},
+		{field: "S3_SECRET_ACCESS_KEY", value: c.S3SecretKey},
+	}
+	missing := make([]string, 0)
+	for _, item := range required {
+		if strings.TrimSpace(item.value) == "" {
+			missing = append(missing, item.field)
+		}
+	}
+	return missing
 }
 
 func env(key, fallback string) string {
@@ -151,11 +162,11 @@ func boolEnv(key string, fallback bool) bool {
 func storageConfig() StorageConfig {
 	cfg := StorageConfig{
 		Provider:      strings.ToLower(strings.TrimSpace(firstEnv("STORAGE_PROVIDER"))),
-		S3Endpoint:    firstEnv("S3_ENDPOINT", "ENDPOINT_URL", "BUCKET_ENDPOINT_URL", "RAILWAY_STORAGE_ENDPOINT", "AWS_ENDPOINT_URL_S3", "AWS_S3_ENDPOINT"),
+		S3Endpoint:    firstEnv("S3_ENDPOINT", "ENDPOINT_URL", "ENDPOINT", "BUCKET_ENDPOINT_URL", "RAILWAY_STORAGE_ENDPOINT", "AWS_ENDPOINT_URL_S3", "AWS_S3_ENDPOINT"),
 		S3Region:      env("S3_REGION", env("AWS_REGION", "auto")),
-		S3Bucket:      firstEnv("S3_BUCKET", "S3_BUCKET_NAME", "BUCKET_NAME", "RAILWAY_STORAGE_BUCKET", "AWS_S3_BUCKET"),
-		S3AccessKeyID: firstEnv("S3_ACCESS_KEY_ID", "ACCESS_KEY_ID", "RAILWAY_STORAGE_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID"),
-		S3SecretKey:   firstEnv("S3_SECRET_ACCESS_KEY", "SECRET_ACCESS_KEY", "RAILWAY_STORAGE_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY"),
+		S3Bucket:      firstEnv("S3_BUCKET", "S3_BUCKET_NAME", "BUCKET_NAME", "BUCKET", "RAILWAY_STORAGE_BUCKET", "AWS_S3_BUCKET"),
+		S3AccessKeyID: firstEnv("S3_ACCESS_KEY_ID", "S3_ACCESS_KEY", "ACCESS_KEY_ID", "ACCESS_KEY", "RAILWAY_STORAGE_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID"),
+		S3SecretKey:   firstEnv("S3_SECRET_ACCESS_KEY", "S3_SECRET_KEY", "SECRET_ACCESS_KEY", "SECRET_KEY", "RAILWAY_STORAGE_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY"),
 		S3PathStyle:   boolEnv("S3_FORCE_PATH_STYLE", true),
 	}
 	if cfg.Provider == "" && cfg.S3Endpoint != "" && cfg.S3Bucket != "" && cfg.S3AccessKeyID != "" && cfg.S3SecretKey != "" {

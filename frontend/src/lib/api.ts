@@ -1,4 +1,4 @@
-import type { AppDataResponse, AuthSession, Expense, ExpenseAttachment, FuelComparisonResponse, FuelMarketResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, UserSettings, Vehicle, VinDecode } from "./types";
+import type { AppDataResponse, AuthSession, DocumentAttachment, Expense, ExpenseAttachment, FuelComparisonResponse, FuelMarketResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, UserSettings, Vehicle, VinDecode } from "./types";
 
 export const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:18080").replace(/\/+$/, "");
 let tokenHandler: ((token: string) => void) | undefined;
@@ -154,6 +154,40 @@ export async function deleteExpenseAttachment(token: string, expenseID: string, 
   if (!response.ok) throw await apiError(response, "remove pdf failed");
 }
 
+export async function getUserDocuments(token: string, kind = "") {
+  const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+  return getJSON<DocumentAttachment[]>(`/user/documents${query}`, token);
+}
+
+export async function uploadUserDocument(token: string, kind: DocumentAttachment["kind"], file: File) {
+  return uploadDocument(`/user/documents/${encodeURIComponent(kind)}`, token, file);
+}
+
+export async function getUserDocumentPreview(token: string, documentID: string) {
+  return getPDF(`/user/documents/${encodeURIComponent(documentID)}/preview`, token);
+}
+
+export async function deleteUserDocument(token: string, documentID: string) {
+  return deleteDocument(`/user/documents/${encodeURIComponent(documentID)}`, token);
+}
+
+export async function getVehicleDocuments(token: string, vehicleID: string, kind = "") {
+  const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+  return getJSON<DocumentAttachment[]>(`/vehicles/${encodeURIComponent(vehicleID)}/documents${query}`, token);
+}
+
+export async function uploadVehicleDocument(token: string, vehicleID: string, kind: DocumentAttachment["kind"], file: File) {
+  return uploadDocument(`/vehicles/${encodeURIComponent(vehicleID)}/documents/${encodeURIComponent(kind)}`, token, file);
+}
+
+export async function getVehicleDocumentPreview(token: string, vehicleID: string, documentID: string) {
+  return getPDF(`/vehicles/${encodeURIComponent(vehicleID)}/documents/${encodeURIComponent(documentID)}/preview`, token);
+}
+
+export async function deleteVehicleDocument(token: string, vehicleID: string, documentID: string) {
+  return deleteDocument(`/vehicles/${encodeURIComponent(vehicleID)}/documents/${encodeURIComponent(documentID)}`, token);
+}
+
 export async function deleteVehicle(token: string, id: string) {
   const response = await fetch(`${apiBase}/vehicles/${encodeURIComponent(id)}`, {
     method: "DELETE",
@@ -177,6 +211,37 @@ async function getJSON<T>(path: string, token?: string, timeoutMs?: number) {
   } finally {
     if (timeout) window.clearTimeout(timeout);
   }
+}
+
+async function uploadDocument(path: string, token: string, file: File) {
+  const body = new FormData();
+  body.set("file", file);
+  const response = await fetch(`${apiBase}${path}`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body,
+  });
+  refreshToken(response);
+  if (!response.ok) throw await apiError(response, "upload pdf failed");
+  return response.json() as Promise<DocumentAttachment>;
+}
+
+async function getPDF(path: string, token: string) {
+  const response = await fetch(`${apiBase}${path}`, {
+    headers: authHeaders(token),
+  });
+  refreshToken(response);
+  if (!response.ok) throw await apiError(response, "load pdf failed");
+  return response.blob();
+}
+
+async function deleteDocument(path: string, token: string) {
+  const response = await fetch(`${apiBase}${path}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  refreshToken(response);
+  if (!response.ok) throw await apiError(response, "remove pdf failed");
 }
 
 async function sendJSON<T>(path: string, method: "POST" | "PUT", body: unknown, token?: string) {

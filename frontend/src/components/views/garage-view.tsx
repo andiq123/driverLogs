@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Car, Pencil, Trash2 } from "lucide-react";
+import { Car, FileText, Pencil, Trash2 } from "lucide-react";
+import { deleteVehicleDocument, getVehicleDocumentPreview, getVehicleDocuments, uploadVehicleDocument } from "@/lib/api";
 import type { Vehicle } from "@/lib/types";
 import { palette } from "@/lib/theme";
 import { km, vehicleName } from "@/lib/format";
+import { DocumentManager } from "../document-manager";
 import { ActionButton, EmptyState, Panel } from "../ui";
 import { VehicleForm } from "../forms";
 
-export function GarageView({ vehicles, activeVehicleID, savingVehicle, deletingVehicle, onSelect, onDelete, onCreate, onUpdate }: { vehicles: Vehicle[]; activeVehicleID: string; savingVehicle?: boolean; deletingVehicle?: boolean; onSelect: (id: string) => void; onDelete: (id: string) => void; onCreate: (vehicle: Partial<Vehicle>) => void; onUpdate: (id: string, vehicle: Partial<Vehicle>) => void }) {
+export function GarageView({ token, vehicles, activeVehicleID, savingVehicle, deletingVehicle, onSelect, onDelete, onCreate, onUpdate }: { token: string; vehicles: Vehicle[]; activeVehicleID: string; savingVehicle?: boolean; deletingVehicle?: boolean; onSelect: (id: string) => void; onDelete: (id: string) => void; onCreate: (vehicle: Partial<Vehicle>) => void; onUpdate: (id: string, vehicle: Partial<Vehicle>) => void }) {
   const [editingVehicleID, setEditingVehicleID] = useState("");
   const editingVehicle = vehicles.find((vehicle) => vehicle.id === editingVehicleID);
+  const documentVehicle = editingVehicle ?? vehicles.find((vehicle) => vehicle.id === activeVehicleID);
 
   function updateVehicle(id: string, vehicle: Partial<Vehicle>) {
     onUpdate(id, vehicle);
@@ -29,6 +32,7 @@ export function GarageView({ vehicles, activeVehicleID, savingVehicle, deletingV
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">{vehicleName(vehicle)}</span>
                     <span className="block truncate text-xs text-[#6b7065]">{vehicle.plate_number} · {km(vehicle.odometer ?? 0)}</span>
+                    {vehicle.latest_document ? <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-[#62685e]"><FileText size={12} /> Passport</span> : null}
                   </span>
                 </button>
                 <div className="flex items-center justify-end gap-1">
@@ -44,7 +48,22 @@ export function GarageView({ vehicles, activeVehicleID, savingVehicle, deletingV
           </div>
         )}
       </Panel>
-      <VehicleForm key={editingVehicle?.id ?? "new"} vehicle={editingVehicle} saving={savingVehicle} onCancel={() => setEditingVehicleID("")} onCreate={onCreate} onUpdate={updateVehicle} />
+      <div className="grid content-start gap-4">
+        <VehicleForm key={editingVehicle?.id ?? "new"} vehicle={editingVehicle} saving={savingVehicle} onCancel={() => setEditingVehicleID("")} onCreate={onCreate} onUpdate={updateVehicle} />
+        {documentVehicle ? (
+          <DocumentManager
+            key={`car-passport-${documentVehicle.id}`}
+            title="Car passport"
+            body={`Private PDF linked to ${vehicleName(documentVehicle)}.`}
+            reloadKey={`vehicle-passport-${documentVehicle.id}`}
+            initialDocuments={documentVehicle.latest_document ? [documentVehicle.latest_document] : []}
+            load={() => getVehicleDocuments(token, documentVehicle.id, "car_passport")}
+            upload={(file) => uploadVehicleDocument(token, documentVehicle.id, "car_passport", file)}
+            preview={(documentID) => getVehicleDocumentPreview(token, documentVehicle.id, documentID)}
+            remove={(documentID) => deleteVehicleDocument(token, documentVehicle.id, documentID)}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

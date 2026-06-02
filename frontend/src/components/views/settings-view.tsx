@@ -3,14 +3,16 @@
 import { useState, type FormEvent } from "react";
 import { BadgeDollarSign, Car, Check, Copy, Fuel, Globe2, Save, UserRound, Wrench } from "lucide-react";
 import { motion } from "framer-motion";
+import { deleteUserDocument, getUserDocumentPreview, getUserDocuments, uploadUserDocument } from "@/lib/api";
 import { countries, userCurrencies } from "@/lib/theme";
-import type { UserSettings, Vehicle } from "@/lib/types";
+import type { DocumentAttachment, UserSettings, Vehicle } from "@/lib/types";
 import { fuelTypes, normalizeFuelType } from "@/lib/car-options";
 import { vehicleName } from "@/lib/format";
+import { DocumentManager } from "../document-manager";
 import { CustomSelect } from "../custom-select";
 import { ActionButton, Input, Panel } from "../ui";
 
-export function SettingsView({ settings, loginID, vehicles, activeVehicleID, saving, onCopyLoginID, onOpenGarage, onSelectVehicle, onSave, onUpdateVehicle }: { settings: UserSettings; loginID: string; vehicles: Vehicle[]; activeVehicleID: string; saving?: boolean; onCopyLoginID: () => void; onOpenGarage: () => void; onSelectVehicle: (id: string) => void; onSave: (settings: UserSettings) => Promise<void> | void; onUpdateVehicle: (id: string, vehicle: Partial<Vehicle>) => Promise<void> | void }) {
+export function SettingsView({ token, settings, loginID, vehicles, userDocuments, activeVehicleID, saving, onCopyLoginID, onOpenGarage, onSelectVehicle, onSave, onUpdateVehicle }: { token: string; settings: UserSettings; loginID: string; vehicles: Vehicle[]; userDocuments: DocumentAttachment[]; activeVehicleID: string; saving?: boolean; onCopyLoginID: () => void; onOpenGarage: () => void; onSelectVehicle: (id: string) => void; onSave: (settings: UserSettings) => Promise<void> | void; onUpdateVehicle: (id: string, vehicle: Partial<Vehicle>) => Promise<void> | void }) {
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleID);
   const [currency, setCurrency] = useState(settings.default_currency);
   const [country, setCountry] = useState(settings.country);
@@ -78,6 +80,17 @@ export function SettingsView({ settings, loginID, vehicles, activeVehicleID, sav
               </div>
             </section>
           ) : null}
+          <DocumentManager
+            key={`driver-license-${loginID}`}
+            title="Driver license"
+            body="Private PDF linked to your profile."
+            reloadKey={`user-driver-license-${loginID}`}
+            initialDocuments={userDocuments.filter((document) => document.kind === "driver_license")}
+            load={() => getUserDocuments(token, "driver_license")}
+            upload={(file) => uploadUserDocument(token, "driver_license", file)}
+            preview={(documentID) => getUserDocumentPreview(token, documentID)}
+            remove={(documentID) => deleteUserDocument(token, documentID)}
+          />
           <ActionButton icon={Save} loading={saving} className="mt-2">Save settings</ActionButton>
         </form>
       </Panel>

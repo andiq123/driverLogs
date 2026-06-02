@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"driverlogs/backend/internal/domain"
@@ -91,6 +92,18 @@ CREATE TABLE IF NOT EXISTS expense_attachments (
   content_type text NOT NULL,
   size_bytes bigint NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS document_attachments (
+  id text PRIMARY KEY,
+  user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  owner_type text NOT NULL,
+  owner_id text NOT NULL,
+  kind text NOT NULL,
+  object_key text NOT NULL,
+  file_name text NOT NULL,
+  content_type text NOT NULL,
+  size_bytes bigint NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL
 );`)
 	if err != nil {
 		return fmt.Errorf("migrate postgres store: %w", err)
@@ -105,6 +118,17 @@ CREATE TABLE IF NOT EXISTS expense_attachments (
 	} {
 		if _, err := s.pool.Exec(ctx, statement); err != nil {
 			return fmt.Errorf("migrate expense smart fields: %w", err)
+		}
+	}
+	for _, statement := range []string{
+		`UPDATE expenses SET expires_date=(date::date + INTERVAL '1 year')::date::text WHERE category IN ('Insurance', 'Inspection') AND expires_date='' AND date ~ '^\d{4}-\d{2}-\d{2}$'`,
+		`UPDATE expenses SET service_type='oil_change' WHERE category IN ('Maintenance', 'Repairs') AND service_type='' AND (lower(description) LIKE '%oil%' OR lower(description) LIKE '%ulei%')`,
+		`UPDATE expenses SET service_type='filters' WHERE category IN ('Maintenance', 'Repairs') AND service_type='' AND lower(description) LIKE '%filter%'`,
+		`UPDATE expenses SET service_type='alignment' WHERE category IN ('Maintenance', 'Repairs') AND service_type='' AND lower(description) LIKE '%alignment%'`,
+		`UPDATE expenses SET service_type='regular_service' WHERE category IN ('Maintenance', 'Repairs') AND service_type='' AND description<>''`,
+	} {
+		if _, err := s.pool.Exec(ctx, statement); err != nil {
+			return fmt.Errorf("backfill expense smart fields: %w", err)
 		}
 	}
 	for _, statement := range []string{
@@ -133,7 +157,46 @@ func (s *PostgresStore) UserVehicles(userID string) ([]domain.Vehicle, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanVehicles(rows)
+	vehicles, err := scanVehicles(rows)
+	if err != nil {
+		return nil, err
+	}
+	return s.withVehicleDocumentSummaries(userID, vehicles)
+}
+
+func (s *PostgresStore) withVehicleDocumentSummaries(userID string, vehicles []domain.Vehicle) ([]domain.Vehicle, error) {
+	if len(vehicles) == 0 {
+		return vehicles, nil
+	}
+	args := []any{userID, "vehicle"}
+	placeholders := make([]string, 0, len(vehicles))
+	indexByVehicleID := make(map[string]int, len(vehicles))
+	for index, vehicle := range vehicles {
+		args = append(args, vehicle.ID)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+		indexByVehicleID[vehicle.ID] = index
+	}
+	rows, err := s.pool.Query(context.Background(), documentSelectSQL()+` WHERE user_id=$1 AND owner_type=$2 AND owner_id IN (`+strings.Join(placeholders, ",")+`) ORDER BY owner_id, created_at DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		document, err := scanDocument(rows)
+		if err != nil {
+			return nil, err
+		}
+		index, ok := indexByVehicleID[document.OwnerID]
+		if !ok {
+			continue
+		}
+		vehicles[index].DocumentCount++
+		if vehicles[index].LatestDocument == nil {
+			latest := document
+			vehicles[index].LatestDocument = &latest
+		}
+	}
+	return vehicles, rows.Err()
 }
 
 func (s *PostgresStore) Vehicle(userID, id string) (domain.Vehicle, error) {
@@ -208,7 +271,46 @@ func (s *PostgresStore) UserExpenses(userID, vehicleID string) ([]domain.Expense
 		return nil, err
 	}
 	defer rows.Close()
-	return scanExpenses(rows)
+	expenses, err := scanExpenses(rows)
+	if err != nil {
+		return nil, err
+	}
+	return s.withAttachmentSummaries(userID, expenses)
+}
+
+func (s *PostgresStore) withAttachmentSummaries(userID string, expenses []domain.Expense) ([]domain.Expense, error) {
+	if len(expenses) == 0 {
+		return expenses, nil
+	}
+	args := []any{userID}
+	placeholders := make([]string, 0, len(expenses))
+	indexByExpenseID := make(map[string]int, len(expenses))
+	for index, expense := range expenses {
+		args = append(args, expense.ID)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+		indexByExpenseID[expense.ID] = index
+	}
+	rows, err := s.pool.Query(context.Background(), attachmentSelectSQL()+` WHERE user_id=$1 AND expense_id IN (`+strings.Join(placeholders, ",")+`) ORDER BY expense_id, created_at DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		attachment, err := scanAttachment(rows)
+		if err != nil {
+			return nil, err
+		}
+		index, ok := indexByExpenseID[attachment.ExpenseID]
+		if !ok {
+			continue
+		}
+		expenses[index].AttachmentCount++
+		if expenses[index].LatestAttachment == nil {
+			latest := attachment
+			expenses[index].LatestAttachment = &latest
+		}
+	}
+	return expenses, rows.Err()
 }
 
 func (s *PostgresStore) CreateExpense(userID string, expense domain.Expense) (domain.Expense, error) {
@@ -312,6 +414,77 @@ func (s *PostgresStore) DeleteExpenseAttachment(userID, expenseID, attachmentID 
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (s *PostgresStore) Documents(userID, ownerType, ownerID, kind string) ([]domain.DocumentAttachment, error) {
+	if err := s.requireDocumentOwner(userID, ownerType, ownerID); err != nil {
+		return nil, err
+	}
+	query := documentSelectSQL() + ` WHERE user_id=$1 AND owner_type=$2 AND owner_id=$3`
+	args := []any{userID, ownerType, ownerID}
+	if kind != "" {
+		query += ` AND kind=$4`
+		args = append(args, kind)
+	}
+	query += ` ORDER BY created_at DESC`
+	rows, err := s.pool.Query(context.Background(), query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanDocuments(rows)
+}
+
+func (s *PostgresStore) Document(userID, ownerType, ownerID, documentID string) (domain.DocumentAttachment, error) {
+	row := s.pool.QueryRow(context.Background(), documentSelectSQL()+` WHERE user_id=$1 AND owner_type=$2 AND owner_id=$3 AND id=$4`, userID, ownerType, ownerID, documentID)
+	return scanDocument(row)
+}
+
+func (s *PostgresStore) CreateDocument(userID string, document domain.DocumentAttachment) (domain.DocumentAttachment, error) {
+	if err := s.requireDocumentOwner(userID, document.OwnerType, document.OwnerID); err != nil {
+		return domain.DocumentAttachment{}, err
+	}
+	if document.ID == "" {
+		id, err := newID("doc")
+		if err != nil {
+			return domain.DocumentAttachment{}, err
+		}
+		document.ID = id
+	}
+	document.UserID = userID
+	document.CreatedAt = time.Now().UTC()
+	_, err := s.pool.Exec(context.Background(), `INSERT INTO document_attachments (id, user_id, owner_type, owner_id, kind, object_key, file_name, content_type, size_bytes, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		document.ID, document.UserID, document.OwnerType, document.OwnerID, document.Kind, document.ObjectKey, document.FileName, document.ContentType, document.SizeBytes, document.CreatedAt)
+	if err != nil {
+		return domain.DocumentAttachment{}, err
+	}
+	return document, nil
+}
+
+func (s *PostgresStore) DeleteDocument(userID, ownerType, ownerID, documentID string) error {
+	tag, err := s.pool.Exec(context.Background(), `DELETE FROM document_attachments WHERE user_id=$1 AND owner_type=$2 AND owner_id=$3 AND id=$4`, userID, ownerType, ownerID, documentID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *PostgresStore) requireDocumentOwner(userID, ownerType, ownerID string) error {
+	switch ownerType {
+	case "user":
+		if ownerID == userID {
+			return nil
+		}
+	case "vehicle":
+		if _, err := s.Vehicle(userID, ownerID); err != nil {
+			return err
+		}
+		return nil
+	}
+	return ErrNotFound
 }
 
 func (s *PostgresStore) requireExpense(userID, expenseID string) error {
@@ -446,6 +619,10 @@ func attachmentSelectSQL() string {
 	return `SELECT id, user_id, expense_id, object_key, file_name, content_type, size_bytes, created_at FROM expense_attachments`
 }
 
+func documentSelectSQL() string {
+	return `SELECT id, user_id, owner_type, owner_id, kind, object_key, file_name, content_type, size_bytes, created_at FROM document_attachments`
+}
+
 func scanVehicle(row rowScanner) (domain.Vehicle, error) {
 	var vehicle domain.Vehicle
 	err := row.Scan(&vehicle.ID, &vehicle.UserID, &vehicle.PlateNumber, &vehicle.Nickname, &vehicle.Make, &vehicle.Model, &vehicle.Year, &vehicle.EngineType, &vehicle.VIN, &vehicle.PreferredFuelType, &vehicle.PurchasePrice, &vehicle.PurchaseCurrency, &vehicle.PurchaseDate, &vehicle.Odometer, &vehicle.ImageURL, &vehicle.CreatedAt)
@@ -507,4 +684,25 @@ func scanAttachment(row rowScanner) (domain.ExpenseAttachment, error) {
 		return domain.ExpenseAttachment{}, ErrNotFound
 	}
 	return attachment, err
+}
+
+func scanDocuments(rows pgx.Rows) ([]domain.DocumentAttachment, error) {
+	documents := []domain.DocumentAttachment{}
+	for rows.Next() {
+		document, err := scanDocument(rows)
+		if err != nil {
+			return nil, err
+		}
+		documents = append(documents, document)
+	}
+	return documents, rows.Err()
+}
+
+func scanDocument(row rowScanner) (domain.DocumentAttachment, error) {
+	var document domain.DocumentAttachment
+	err := row.Scan(&document.ID, &document.UserID, &document.OwnerType, &document.OwnerID, &document.Kind, &document.ObjectKey, &document.FileName, &document.ContentType, &document.SizeBytes, &document.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.DocumentAttachment{}, ErrNotFound
+	}
+	return document, err
 }

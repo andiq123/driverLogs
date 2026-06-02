@@ -6,7 +6,7 @@ import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
 import { demoToken, isLocalDemoEnabled } from "./demo-mode";
 import { emptyTotals } from "./theme";
-import type { Expense, UserSettings, Vehicle, View } from "./types";
+import type { DocumentAttachment, Expense, UserSettings, Vehicle, View } from "./types";
 import { useAuthSession } from "./use-auth-session";
 import { useToasts } from "./use-toasts";
 
@@ -18,6 +18,7 @@ export function useDriverLogsApp() {
   const [view, setView] = useState<View>("Dashboard");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [userDocuments, setUserDocuments] = useState<DocumentAttachment[]>([]);
   const [activeVehicleID, setActiveVehicleID] = useState("");
   const [vehicleTotalsByID, setVehicleTotalsByID] = useState<Record<string, typeof emptyTotals>>({});
   const [settings, setSettings] = useState<UserSettings>({ name: "", default_currency: "MDL", country: "MD", compare_country: "RO" });
@@ -28,6 +29,8 @@ export function useDriverLogsApp() {
   const [mounted, setMounted] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const activeVehicleIDRef = useRef("");
+  const tokenRef = useRef("");
+  const appDataLoadedRef = useRef(false);
   const auth = useAuthSession();
   const { authStatus, createLogin, loginID, logout, signIn, token } = auth;
   const toast = useToasts();
@@ -37,15 +40,24 @@ export function useDriverLogsApp() {
   const activeExpenses = useMemo(() => activeVehicle ? expenses.filter((expense) => expense.vehicle_id === activeVehicle.id) : [], [activeVehicle, expenses]);
   const vehicleTotals = activeVehicle?.id ? vehicleTotalsByID[activeVehicle.id] ?? emptyTotals : emptyTotals;
 
+  useEffect(() => {
+    tokenRef.current = token;
+    if (!token) {
+      appDataLoadedRef.current = false;
+    }
+  }, [token]);
+
   const loadData = useCallback(async (showLoading = true) => {
-    if (!token || isDemo) return;
-    const requestToken = readToken() || token;
+    const activeToken = tokenRef.current;
+    if (!activeToken || isDemo) return;
+    const requestToken = readToken() || activeToken;
     if (showLoading) setIsLoadingData(true);
     setStatus("Loading app data...");
     try {
       const data = await getAppData(requestToken);
       setVehicles(data.vehicles);
       setExpenses(data.expenses);
+      setUserDocuments(data.user_documents ?? []);
       setSettings(data.settings);
       setVehicleTotalsByID(data.vehicle_totals);
       const nextActiveID = (() => {
@@ -59,7 +71,7 @@ export function useDriverLogsApp() {
     } catch (error) {
       if (isUnauthorizedError(error)) {
         const detail = errorMessage(error, "unauthorized");
-        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail, context: { state_token_length: token.length, stored_token_length: requestToken.length, api_host: apiBaseHost() } });
+        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail, context: { state_token_length: activeToken.length, stored_token_length: requestToken.length, api_host: apiBaseHost() } });
         setStatus("Session expired. Please sign in again.");
         logout("Session expired. Please sign in again.");
         return;
@@ -70,7 +82,7 @@ export function useDriverLogsApp() {
     } finally {
       if (showLoading) setIsLoadingData(false);
     }
-  }, [isDemo, logout, showToast, token]);
+  }, [isDemo, logout, showToast]);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,11 +106,20 @@ export function useDriverLogsApp() {
 
   useEffect(() => {
     if (!token || isDemo) return;
+    if (appDataLoadedRef.current) return;
+    appDataLoadedRef.current = true;
     const frame = requestAnimationFrame(() => {
       setMounted(true);
       void loadData();
     });
     return () => cancelAnimationFrame(frame);
+  }, [isDemo, loadData, token]);
+
+  useEffect(() => {
+    if (!token || isDemo) return;
+    const reloadDocuments = () => void loadData(false);
+    window.addEventListener("driverlogs:documents-updated", reloadDocuments);
+    return () => window.removeEventListener("driverlogs:documents-updated", reloadDocuments);
   }, [isDemo, loadData, token]);
 
   async function startDemo() {
@@ -112,6 +133,7 @@ export function useDriverLogsApp() {
     setIsLoadingData(false);
     setVehicles(demoAppData.vehicles);
     setExpenses(demoAppData.expenses);
+    setUserDocuments([]);
     setSettings(demoAppData.settings);
     setVehicleTotalsByID(demoAppData.vehicle_totals);
     setActiveVehicleID(demoAppData.vehicles[0]?.id ?? "");
@@ -281,6 +303,7 @@ export function useDriverLogsApp() {
     logout();
     setVehicles([]);
     setExpenses([]);
+    setUserDocuments([]);
     setVehicleTotalsByID({});
     setView("Dashboard");
   }
@@ -331,6 +354,7 @@ export function useDriverLogsApp() {
     settings,
     token: isDemo && isLocalDemoEnabled ? demoToken : token,
     toasts,
+    userDocuments,
     openExpenseFilesID,
     setOpenExpenseFilesID,
     dismissToast,

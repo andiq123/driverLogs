@@ -483,8 +483,11 @@ function expenseDescription(category: ExpenseCategory, description: string, gasS
 }
 
 function addYear(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  date.setFullYear(date.getFullYear() + 1);
-  return date.toISOString().slice(0, 10);
+  const [year, month, day] = value.split("-").map((part) => Number(part));
+  if (!year || !month || !day) return "";
+  const next = new Date(year + 1, month - 1, day);
+  const nextYear = String(next.getFullYear()).padStart(4, "0");
+  const nextMonth = String(next.getMonth() + 1).padStart(2, "0");
+  const nextDay = String(next.getDate()).padStart(2, "0");
+  return `${nextYear}-${nextMonth}-${nextDay}`;
 }

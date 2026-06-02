@@ -247,7 +247,7 @@ func yearlyExpiryInsight(expenses []domain.Expense, category string) map[string]
 	if parsed, ok := parseDate(expiresDate); ok {
 		expires = parsed
 	}
-	daysLeft := int(time.Until(expires).Hours() / 24)
+	daysLeft := calendarDaysLeft(time.Now().UTC(), expires)
 	status := "ok"
 	if daysLeft < 0 {
 		status = "expired"
@@ -255,6 +255,12 @@ func yearlyExpiryInsight(expenses []domain.Expense, category string) map[string]
 		status = "soon"
 	}
 	return map[string]any{"status": status, "confidence": "yearly", "last_date": lastDate, "expires_date": expires.Format("2006-01-02"), "days_left": daysLeft, "interval_days": 365}
+}
+
+func calendarDaysLeft(now time.Time, expires time.Time) int {
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	expiryDay := time.Date(expires.Year(), expires.Month(), expires.Day(), 0, 0, 0, 0, time.UTC)
+	return int(expiryDay.Sub(today).Hours() / 24)
 }
 
 func oilChangeExpenses(expenses []domain.Expense) []domain.Expense {

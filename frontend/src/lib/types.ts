@@ -29,6 +29,8 @@ export type Vehicle = {
   purchase_price?: number;
   purchase_currency?: string;
   odometer?: number;
+  document_count?: number;
+  latest_document?: DocumentAttachment;
 };
 
 export type VinDecode = {
@@ -73,11 +75,24 @@ export type Expense = {
   expires_date?: string;
   date: string;
   description: string;
+  attachment_count?: number;
+  latest_attachment?: ExpenseAttachment;
 };
 
 export type ExpenseAttachment = {
   id: string;
   expense_id: string;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+};
+
+export type DocumentAttachment = {
+  id: string;
+  owner_type: "user" | "vehicle";
+  owner_id: string;
+  kind: "driver_license" | "car_passport";
   file_name: string;
   content_type: string;
   size_bytes: number;
@@ -181,6 +196,7 @@ export type AppDataResponse = {
   vehicles: Vehicle[];
   expenses: Expense[];
   settings: UserSettings;
+  user_documents: DocumentAttachment[];
   vehicle_totals: Record<string, MoneyTotals>;
 };
 

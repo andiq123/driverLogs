@@ -40,6 +40,10 @@ type Store interface {
 	ExpenseAttachment(userID, expenseID, attachmentID string) (domain.ExpenseAttachment, error)
 	CreateExpenseAttachment(userID, expenseID string, attachment domain.ExpenseAttachment) (domain.ExpenseAttachment, error)
 	DeleteExpenseAttachment(userID, expenseID, attachmentID string) error
+	Documents(userID, ownerType, ownerID, kind string) ([]domain.DocumentAttachment, error)
+	Document(userID, ownerType, ownerID, documentID string) (domain.DocumentAttachment, error)
+	CreateDocument(userID string, document domain.DocumentAttachment) (domain.DocumentAttachment, error)
+	DeleteDocument(userID, ownerType, ownerID, documentID string) error
 	Timeline(userID, vehicleID string) ([]domain.TimelineEntry, error)
 	Analytics(userID, vehicleID string) (map[string]any, error)
 	CreateUser(loginID string) (domain.User, error)
@@ -79,6 +83,10 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, files
 	mux.HandleFunc("GET /app-data", h.requireAuth(h.appData))
 	mux.HandleFunc("GET /user/settings", h.requireAuth(h.getSettings))
 	mux.HandleFunc("PUT /user/settings", h.requireAuth(h.updateSettings))
+	mux.HandleFunc("GET /user/documents", h.requireAuth(h.listUserDocuments))
+	mux.HandleFunc("POST /user/documents/{kind}", h.requireAuth(h.uploadUserDocument))
+	mux.HandleFunc("GET /user/documents/{id}/preview", h.requireAuth(h.previewUserDocument))
+	mux.HandleFunc("DELETE /user/documents/{id}", h.requireAuth(h.deleteUserDocument))
 	mux.HandleFunc("GET /vehicle-options/makes", h.vehicleMakes)
 	mux.HandleFunc("GET /vehicle-options/models", h.vehicleModels)
 	mux.HandleFunc("GET /vehicle-options/vin/{vin}", h.vehicleVIN)
@@ -91,6 +99,10 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, files
 	mux.HandleFunc("GET /vehicles/{id}", h.requireAuth(h.getVehicle))
 	mux.HandleFunc("PUT /vehicles/{id}", h.requireAuth(h.updateVehicle))
 	mux.HandleFunc("DELETE /vehicles/{id}", h.requireAuth(h.deleteVehicle))
+	mux.HandleFunc("GET /vehicles/{id}/documents", h.requireAuth(h.listVehicleDocuments))
+	mux.HandleFunc("POST /vehicles/{id}/documents/{kind}", h.requireAuth(h.uploadVehicleDocument))
+	mux.HandleFunc("GET /vehicles/{id}/documents/{document_id}/preview", h.requireAuth(h.previewVehicleDocument))
+	mux.HandleFunc("DELETE /vehicles/{id}/documents/{document_id}", h.requireAuth(h.deleteVehicleDocument))
 	mux.HandleFunc("GET /expenses", h.requireAuth(h.listExpenses))
 	mux.HandleFunc("POST /expenses", h.requireAuth(h.createExpense))
 	mux.HandleFunc("PUT /expenses/{id}", h.requireAuth(h.updateExpense))
@@ -267,6 +279,11 @@ func (h Handler) appData(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings unavailable"})
 		return
 	}
+	userDocuments, err := h.store.Documents(userID, "user", userID, "")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "documents unavailable"})
+		return
+	}
 	totals := make(map[string]any, len(vehicles))
 	for _, vehicle := range vehicles {
 		summary, err := h.store.Analytics(userID, vehicle.ID)
@@ -280,6 +297,7 @@ func (h Handler) appData(w http.ResponseWriter, r *http.Request) {
 		"vehicles":       vehicles,
 		"expenses":       expenses,
 		"settings":       settings,
+		"user_documents": userDocuments,
 		"vehicle_totals": totals,
 	})
 }
@@ -374,12 +392,28 @@ func (h Handler) updateVehicle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) deleteVehicle(w http.ResponseWriter, r *http.Request) {
+	documents, err := h.store.Documents(userID(r), "vehicle", r.PathValue("id"), "")
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		h.logger.Error("list vehicle documents before delete failed", "error", err, "vehicle_id", r.PathValue("id"))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
 	if err := h.store.DeleteVehicle(userID(r), r.PathValue("id")); errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "vehicle not found"})
 		return
 	} else if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
+	}
+	for _, document := range documents {
+		if h.files != nil && h.files.Enabled() {
+			if err := h.files.Delete(context.Background(), document.ObjectKey); err != nil {
+				h.logger.Warn("document object delete failed after vehicle removal", "error", err, "document_id", document.ID)
+			}
+		}
+		if err := h.store.DeleteDocument(userID(r), "vehicle", r.PathValue("id"), document.ID); err != nil && !errors.Is(err, store.ErrNotFound) {
+			h.logger.Warn("document metadata delete failed after vehicle removal", "error", err, "document_id", document.ID)
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -479,7 +513,7 @@ func (h Handler) listExpenseAttachments(w http.ResponseWriter, r *http.Request) 
 
 func (h Handler) uploadExpenseAttachment(w http.ResponseWriter, r *http.Request) {
 	if h.files == nil || !h.files.Enabled() {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "file storage is not configured"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxPDFUploadBytes+1024)
@@ -556,21 +590,7 @@ func (h Handler) previewExpenseAttachment(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
-	object, err := h.files.Get(r.Context(), attachment.ObjectKey)
-	if err != nil {
-		h.logger.Error("attachment preview failed", "error", err, "attachment_id", attachment.ID)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not load pdf"})
-		return
-	}
-	defer object.Body.Close()
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": attachment.FileName}))
-	if object.Size > 0 {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", object.Size))
-	}
-	if _, err := io.Copy(w, object.Body); err != nil {
-		h.logger.Warn("attachment stream interrupted", "error", err, "attachment_id", attachment.ID)
-	}
+	h.streamPDF(w, r, attachment.ObjectKey, attachment.FileName, attachment.ID)
 }
 
 func (h Handler) deleteExpenseAttachment(w http.ResponseWriter, r *http.Request) {
@@ -593,6 +613,170 @@ func (h Handler) deleteExpenseAttachment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h Handler) listUserDocuments(w http.ResponseWriter, r *http.Request) {
+	h.listDocuments(w, r, "user", userID(r), r.URL.Query().Get("kind"))
+}
+
+func (h Handler) uploadUserDocument(w http.ResponseWriter, r *http.Request) {
+	h.uploadDocument(w, r, "user", userID(r), r.PathValue("kind"))
+}
+
+func (h Handler) previewUserDocument(w http.ResponseWriter, r *http.Request) {
+	h.previewDocument(w, r, "user", userID(r), r.PathValue("id"))
+}
+
+func (h Handler) deleteUserDocument(w http.ResponseWriter, r *http.Request) {
+	h.deleteDocument(w, r, "user", userID(r), r.PathValue("id"))
+}
+
+func (h Handler) listVehicleDocuments(w http.ResponseWriter, r *http.Request) {
+	h.listDocuments(w, r, "vehicle", r.PathValue("id"), r.URL.Query().Get("kind"))
+}
+
+func (h Handler) uploadVehicleDocument(w http.ResponseWriter, r *http.Request) {
+	h.uploadDocument(w, r, "vehicle", r.PathValue("id"), r.PathValue("kind"))
+}
+
+func (h Handler) previewVehicleDocument(w http.ResponseWriter, r *http.Request) {
+	h.previewDocument(w, r, "vehicle", r.PathValue("id"), r.PathValue("document_id"))
+}
+
+func (h Handler) deleteVehicleDocument(w http.ResponseWriter, r *http.Request) {
+	h.deleteDocument(w, r, "vehicle", r.PathValue("id"), r.PathValue("document_id"))
+}
+
+func (h Handler) listDocuments(w http.ResponseWriter, r *http.Request, ownerType, ownerID, kind string) {
+	documents, err := h.store.Documents(userID(r), ownerType, ownerID, kind)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document owner not found"})
+		return
+	}
+	if err != nil {
+		h.logger.Error("list documents failed", "error", err, "owner_type", ownerType, "owner_id", ownerID)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, documents)
+}
+
+func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, kind string) {
+	if h.files == nil || !h.files.Enabled() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
+		return
+	}
+	if !validDocumentKind(ownerType, kind) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported document type"})
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxPDFUploadBytes+1024)
+	if err := r.ParseMultipartForm(maxPDFUploadBytes); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf file is required"})
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxPDFUploadBytes+1))
+	if err != nil || int64(len(data)) > maxPDFUploadBytes {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+		return
+	}
+	if !isPDF(data, header.Header.Get("Content-Type")) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only PDF files are supported"})
+		return
+	}
+	documentID, err := randomAttachmentID()
+	if err != nil {
+		h.logger.Error("document id generation failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	objectKey := fmt.Sprintf("documents/%s/%s/%s/%s/%s.pdf", userID(r), ownerType, ownerID, kind, documentID)
+	if err := h.files.Put(r.Context(), objectKey, bytes.NewReader(data), "application/pdf", int64(len(data))); err != nil {
+		h.logger.Error("document upload failed", "error", err, "owner_type", ownerType, "owner_id", ownerID, "kind", kind)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not upload pdf"})
+		return
+	}
+	saved, err := h.store.CreateDocument(userID(r), domain.DocumentAttachment{ID: documentID, OwnerType: ownerType, OwnerID: ownerID, Kind: kind, ObjectKey: objectKey, FileName: cleanPDFName(header.Filename), ContentType: "application/pdf", SizeBytes: int64(len(data))})
+	if errors.Is(err, store.ErrNotFound) {
+		_ = h.files.Delete(context.Background(), objectKey)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document owner not found"})
+		return
+	}
+	if err != nil {
+		_ = h.files.Delete(context.Background(), objectKey)
+		h.logger.Error("document metadata save failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save pdf metadata"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, saved)
+}
+
+func (h Handler) previewDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, documentID string) {
+	document, err := h.store.Document(userID(r), ownerType, ownerID, documentID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pdf not found"})
+		return
+	}
+	if err != nil {
+		h.logger.Error("document metadata lookup failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	h.streamPDF(w, r, document.ObjectKey, document.FileName, document.ID)
+}
+
+func (h Handler) deleteDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, documentID string) {
+	document, err := h.store.Document(userID(r), ownerType, ownerID, documentID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pdf not found"})
+		return
+	}
+	if err != nil {
+		h.logger.Error("document metadata lookup failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	if err := h.files.Delete(r.Context(), document.ObjectKey); err != nil {
+		h.logger.Warn("document object delete failed", "error", err, "document_id", document.ID)
+	}
+	if err := h.store.DeleteDocument(userID(r), ownerType, ownerID, document.ID); err != nil {
+		h.logger.Error("document metadata delete failed", "error", err, "document_id", document.ID)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not remove pdf"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func validDocumentKind(ownerType, kind string) bool {
+	return (ownerType == "user" && kind == "driver_license") || (ownerType == "vehicle" && kind == "car_passport")
+}
+
+func (h Handler) streamPDF(w http.ResponseWriter, r *http.Request, objectKey, fileName, documentID string) {
+	if h.files == nil || !h.files.Enabled() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
+		return
+	}
+	object, err := h.files.Get(r.Context(), objectKey)
+	if err != nil {
+		h.logger.Error("pdf preview failed", "error", err, "document_id", documentID)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not load pdf"})
+		return
+	}
+	defer object.Body.Close()
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": fileName}))
+	if object.Size > 0 {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", object.Size))
+	}
+	if _, err := io.Copy(w, object.Body); err != nil {
+		h.logger.Warn("pdf stream interrupted", "error", err, "document_id", documentID)
+	}
 }
 
 func isPDF(data []byte, contentType string) bool {
