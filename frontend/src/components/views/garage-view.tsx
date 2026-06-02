@@ -21,7 +21,7 @@ export function GarageView({ vehicles, activeVehicleID, savingVehicle, deletingV
         {vehicles.length === 0 ? <EmptyState icon={Car} title="No vehicles yet" body="Create your first vehicle profile. The dashboard, timeline, analytics, and reports will use only your app data." /> : (
           <div className="grid gap-3">
             {vehicles.map((vehicle, index) => (
-              <div key={vehicle.id} className={`grid grid-cols-[1fr_84px] items-center gap-2 rounded-[24px] p-3 transition-[background-color,transform] duration-200 ${activeVehicleID === vehicle.id ? "bg-[#e6f0df]" : "bg-[#f1f4ec] hover:bg-[#e7edde]"}`}>
+              <div key={vehicle.id} className={`grid grid-cols-[1fr_84px] items-center gap-2 rounded-[22px] border p-3 shadow-[0_7px_22px_rgba(31,41,28,0.045)] ring-1 ring-white/70 transition-[background-color,border-color,transform] duration-200 ${activeVehicleID === vehicle.id ? "border-[#a9c79a]/45 bg-[#eef6e9]" : "border-black/[0.045] bg-[#fffffb]/92 hover:bg-[#f8faf5]"}`}>
                 <button onClick={() => onSelect(vehicle.id)} className="flex min-w-0 touch-manipulation items-center gap-3 text-left active:scale-[0.995]">
                   <span className="flex size-12 shrink-0 items-center justify-center rounded-[18px] text-white" style={{ backgroundColor: palette[index % palette.length] }}>
                     <Car size={21} />

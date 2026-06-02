@@ -3,6 +3,37 @@ import type { ExpenseCategory, MoneyTotals, NavItem } from "./types";
 
 export const palette = ["#0f6bff", "#0f8f68", "#d14836", "#b88700", "#6d5dfc", "#151712"];
 
+export const insightTones = {
+  neutral: {
+    card: "border-black/[0.045] bg-[#fffffb]/92 text-[#151712] shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-white/70",
+    wash: "bg-[linear-gradient(135deg,rgba(238,243,232,0.72),transparent_52%),radial-gradient(circle_at_88%_12%,rgba(15,143,104,0.055),transparent_34%)]",
+    meta: "text-[#62685e]",
+    detail: "text-[#62685e]",
+    badge: "bg-[#eef3e8] text-[#62685e]",
+  },
+  good: {
+    card: "border-[#bdd7c0] bg-[#f1f8ed] text-[#142016] shadow-[0_8px_24px_rgba(54,94,58,0.075)] ring-[#ffffff]/80",
+    wash: "bg-[linear-gradient(135deg,rgba(225,241,218,0.86),transparent_50%),radial-gradient(circle_at_88%_12%,rgba(15,143,104,0.18),transparent_34%)]",
+    meta: "text-[#456148]",
+    detail: "text-[#556a54]",
+    badge: "bg-white/82 text-[#24603c]",
+  },
+  warn: {
+    card: "border-[#efd282] bg-[#fff8df] text-[#211b0a] shadow-[0_10px_30px_rgba(173,128,17,0.12)] ring-[#ffffff]/82",
+    wash: "bg-[linear-gradient(135deg,rgba(255,236,165,0.62),transparent_50%),radial-gradient(circle_at_88%_12%,rgba(184,135,0,0.24),transparent_34%)]",
+    meta: "text-[#7b5a12]",
+    detail: "text-[#776224]",
+    badge: "bg-white/88 text-[#8a6200]",
+  },
+  danger: {
+    card: "border-[#f0b2a8] bg-[#fff0ec] text-[#26100d] shadow-[0_10px_32px_rgba(209,72,54,0.14)] ring-[#ffffff]/82",
+    wash: "bg-[linear-gradient(135deg,rgba(255,209,201,0.62),transparent_50%),radial-gradient(circle_at_88%_12%,rgba(209,72,54,0.24),transparent_34%)]",
+    meta: "text-[#9b3226]",
+    detail: "text-[#855047]",
+    badge: "bg-white/88 text-[#a92f22]",
+  },
+} as const;
+
 export const navItems: NavItem[] = [
   { label: "Dashboard", icon: Gauge },
   { label: "Timeline", icon: Activity },

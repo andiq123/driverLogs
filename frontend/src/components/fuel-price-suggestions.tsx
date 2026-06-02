@@ -3,13 +3,13 @@ import type { FuelPriceSuggestion } from "@/lib/types";
 
 export function FuelPriceSuggestions({ suggestions, status, onSelect }: { suggestions: FuelPriceSuggestion[]; status: string; onSelect: (suggestion: FuelPriceSuggestion) => void }) {
   if (status) {
-    return <p className="rounded-[18px] bg-[#eef3e8] px-3 py-2 text-xs font-semibold text-[#62685e]">{status}</p>;
+    return <p className="rounded-[18px] border border-black/[0.04] bg-[#f8faf5] px-3 py-2 text-xs font-semibold text-[#62685e]">{status}</p>;
   }
   if (!suggestions.length) return null;
   return (
     <div className="grid gap-2">
       {suggestions.slice(0, 3).map((suggestion) => (
-        <button key={suggestionKey(suggestion)} type="button" onClick={() => onSelect(suggestion)} className="grid touch-manipulation grid-cols-[1fr_auto] items-center gap-3 rounded-[18px] bg-[#eef3e8] px-3 py-2 text-left transition-[background-color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#dfe7d4] active:scale-[0.985]">
+        <button key={suggestionKey(suggestion)} type="button" onClick={() => onSelect(suggestion)} className="grid touch-manipulation grid-cols-[1fr_auto] items-center gap-3 rounded-[18px] border border-black/[0.045] bg-[#fffffb]/92 px-3 py-2 text-left shadow-[0_6px_18px_rgba(31,41,28,0.045)] transition-[background-color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#f8faf5] active:scale-[0.985]">
           <span className="min-w-0">
             <span className="flex items-center gap-2 text-sm font-bold">
               <MapPin size={15} />

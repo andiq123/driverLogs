@@ -4,30 +4,30 @@ import { controls } from "@/lib/theme";
 
 export function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
   return (
-    <section className="rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_14px_48px_rgba(31,41,28,0.08)] transition-[box-shadow,transform,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#70776a]">{eyebrow}</p>
-      <h2 className="mt-1 text-xl font-semibold">{title}</h2>
-      <div className="mt-5">{children}</div>
+    <section className="rounded-[24px] border border-black/[0.055] bg-[#fffffb]/96 p-3.5 shadow-[0_8px_28px_rgba(31,41,28,0.06)] ring-1 ring-white/70 transition-[box-shadow,transform,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:rounded-[28px] sm:p-5">
+      <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[#70776a] sm:text-xs sm:tracking-[0.16em]">{eyebrow}</p>
+      <h2 className="mt-0.5 text-lg font-semibold sm:mt-1 sm:text-xl">{title}</h2>
+      <div className="mt-3.5 sm:mt-5">{children}</div>
     </section>
   );
 }
 
 export function EmptyState({ icon: Icon = Car, title, body, dark = false }: { icon?: typeof Car; title: string; body: string; dark?: boolean }) {
   return (
-    <div className={`flex min-h-64 flex-col items-center justify-center rounded-[26px] border border-dashed p-5 text-center sm:p-6 ${dark ? "border-white/18 bg-white/8" : "border-black/10 bg-[#f1f4ec]"}`}>
-      <Icon size={34} className={dark ? "text-white" : "text-[#151712]"} />
-      <h3 className="mt-4 text-lg font-semibold">{title}</h3>
-      <p className={`mt-2 max-w-sm text-sm leading-6 ${dark ? "text-white/64" : "text-[#62685e]"}`}>{body}</p>
+    <div className={`flex min-h-44 flex-col items-center justify-center rounded-[22px] border border-dashed p-4 text-center sm:min-h-64 sm:rounded-[26px] sm:p-6 ${dark ? "border-white/18 bg-white/8" : "border-black/[0.08] bg-[#f7faf3]"}`}>
+      <Icon size={28} className={dark ? "text-white" : "text-[#151712]"} />
+      <h3 className="mt-3 text-base font-semibold sm:mt-4 sm:text-lg">{title}</h3>
+      <p className={`mt-1.5 max-w-sm text-xs leading-5 sm:mt-2 sm:text-sm sm:leading-6 ${dark ? "text-white/64" : "text-[#62685e]"}`}>{body}</p>
     </div>
   );
 }
 
 export function ReportCard({ title, value, label }: { title: string; value: string; label: string }) {
   return (
-    <section className="rounded-[26px] bg-[#dfe7d4] p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#62685e]">{title}</p>
-      <p className="mt-3 min-w-0 break-words text-2xl font-semibold leading-tight sm:text-3xl">{value}</p>
-      <p className="mt-1 text-sm text-[#62685e]">{label}</p>
+    <section className="rounded-[20px] border border-black/[0.055] bg-[#fffffb]/94 p-3.5 shadow-[0_8px_26px_rgba(31,41,28,0.055)] ring-1 ring-white/70 sm:rounded-[26px] sm:p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#62685e] sm:text-xs sm:tracking-[0.16em]">{title}</p>
+      <p className="mt-2 min-w-0 break-words text-xl font-semibold leading-tight sm:mt-3 sm:text-3xl">{value}</p>
+      <p className="mt-1 text-xs text-[#62685e] sm:text-sm">{label}</p>
     </section>
   );
 }
@@ -77,7 +77,7 @@ export function Input({ name, label, icon: Icon, type = "text", required = false
 
 export function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="min-w-0 rounded-[16px] bg-white/10 p-2 sm:rounded-[22px] sm:p-3">
+    <div className="min-w-0 rounded-[16px] border border-white/10 bg-white/[0.115] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:rounded-[22px] sm:p-3">
       <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-white/50 sm:text-[11px] sm:tracking-[0.14em]">{label}</p>
       <p className="mt-1 truncate text-sm font-bold sm:mt-2 sm:text-base">{value}</p>
       <p className="mt-0.5 truncate text-[10px] text-white/52 sm:mt-1 sm:text-[11px]">{sub}</p>

@@ -41,7 +41,7 @@ export default function HomePage() {
   if (!app.token) {
     return (
       <>
-        <LoginView savedLoginID={app.loginID} status={app.authStatus} feedback={app.authFeedback} action={app.authAction} onClearStatus={app.clearAuthStatus} onCreate={app.createLogin} onLogin={app.signIn} />
+        <LoginView savedLoginID={app.loginID} status={app.authStatus} feedback={app.authFeedback} action={app.authAction} onClearStatus={app.clearAuthStatus} onCreate={app.createLogin} onDemo={app.startDemo} onLogin={app.signIn} />
         <ToastCenter toasts={app.toasts} onDismiss={app.dismissToast} />
       </>
     );

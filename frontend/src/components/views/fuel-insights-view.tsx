@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Fuel, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import { getFuelMarket } from "@/lib/api";
 import { normalizeFuelType } from "@/lib/car-options";
+import { demoToken, isLocalDemoEnabled } from "@/lib/demo-mode";
 import type { FuelComparisonResponse, FuelMarketResponse, FuelTrendChange, FuelTrendResponse } from "@/lib/types";
 import { EmptyState, Panel, SkeletonLine } from "../ui";
 
@@ -13,7 +14,9 @@ const inFlightMarketRequests = new Map<string, Promise<FuelMarketResponse>>();
 
 export function FuelInsightsView({ token, country, compareCountry, preferredFuelType = "Super 95" }: { token: string; country: string; compareCountry: string; preferredFuelType?: string }) {
   const marketKey = `${country}:${compareCountry}`;
+  const isDemo = isLocalDemoEnabled && token === demoToken;
   const [market, setMarket] = useState<FuelMarketResponse | undefined>(() => marketCache.get(marketKey));
+  const [demoMarket, setDemoMarket] = useState<FuelMarketResponse>();
   const [failed, setFailed] = useState(() => failedMarketKeys.has(marketKey));
   const tokenRef = useRef(token);
 
@@ -22,6 +25,15 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
   }, [token]);
 
   useEffect(() => {
+    if (isDemo) {
+      let cancelled = false;
+      void import("@/lib/demo-data").then(({ demoFuelMarket }) => {
+        if (!cancelled) setDemoMarket(demoFuelMarket);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
     let cancelled = false;
     const cacheKey = `${country}:${compareCountry}`;
     const cached = marketCache.get(cacheKey);
@@ -65,16 +77,17 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
     return () => {
       cancelled = true;
     };
-  }, [compareCountry, country]);
+  }, [compareCountry, country, isDemo]);
 
-  const trends = market?.trends;
-  const comparison = market?.comparison;
+  const activeMarket = isDemo ? demoMarket : market;
+  const trends = activeMarket?.trends;
+  const comparison = activeMarket?.comparison;
   const biggestMove = useMemo(() => trends?.rows.reduce((best, row) => Math.abs(row.year.percent) > Math.abs(best.year.percent) ? row : best, trends.rows[0]), [trends]);
   const preferredFuel = useMemo(() => trends?.rows.find((row) => row.fuel_type === preferredTrendFuel(preferredFuelType)), [preferredFuelType, trends]);
   const comparisonByFuel = useMemo(() => new Map(comparison?.rows.map((row) => [row.fuel_type, row]) ?? []), [comparison]);
 
   if (!trends) {
-    if (failed) {
+    if (!isDemo && failed) {
       return (
         <Panel title="Fuel prices" eyebrow="Real gasoline data">
           <EmptyState icon={Fuel} title="Fuel prices are not available right now." body="Fresh Moldova gasoline data is loaded from Autotraveler when available." />
@@ -107,7 +120,7 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
       <Panel title="Moldova prices" eyebrow="Now vs history">
         <div className="grid gap-2 sm:gap-3">
           {trends.rows.map((row) => (
-            <article key={row.fuel_type} className="rounded-[18px] bg-[#eef3e8] p-2.5 sm:rounded-[24px] sm:p-4">
+            <article key={row.fuel_type} className="rounded-[20px] border border-black/[0.045] bg-[#fffffb]/92 p-3 shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 sm:rounded-[24px] sm:p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold sm:text-base">{row.fuel_type}</p>
@@ -181,7 +194,7 @@ function FuelTileSkeleton() {
 
 function FuelRowSkeleton() {
   return (
-    <article className="rounded-[18px] bg-[#eef3e8] p-2.5 sm:rounded-[24px] sm:p-4">
+    <article className="rounded-[20px] border border-black/[0.045] bg-[#fffffb]/92 p-3 shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 sm:rounded-[24px] sm:p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <SkeletonLine className="h-4 w-24 bg-white/70 sm:h-5" />
@@ -194,7 +207,7 @@ function FuelRowSkeleton() {
       </div>
       <div className="mt-2 grid grid-cols-3 gap-1.5 sm:mt-3 sm:gap-2">
         {Array.from({ length: 3 }, (_, index) => (
-          <div key={index} className="rounded-[14px] bg-white/70 px-2 py-2 sm:rounded-[18px] sm:px-3">
+          <div key={index} className="rounded-[14px] bg-[#f5f8f1] px-2 py-2 sm:rounded-[18px] sm:px-3">
             <SkeletonLine className="h-3 w-12 bg-[#dfe7d4]" />
             <SkeletonLine className="mt-2 h-4 w-14 bg-[#dfe7d4]" />
           </div>
@@ -209,7 +222,7 @@ function ChangeCard({ label, change }: { label: string; change: FuelTrendChange 
   const negative = change.amount < 0;
   const Icon = positive ? TrendingUp : negative ? TrendingDown : RefreshCw;
   return (
-    <div className="grid min-w-0 gap-1 rounded-[14px] bg-white/70 px-2 py-2 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:rounded-[18px] sm:px-3">
+    <div className="grid min-w-0 gap-1 rounded-[14px] border border-black/[0.035] bg-[#f8faf5] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] sm:flex sm:items-center sm:justify-between sm:gap-3 sm:rounded-[18px] sm:px-3">
       <span className="min-w-0">
         <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[#62685e] sm:text-xs">{label}</span>
         <span className="text-xs font-bold sm:text-sm">{changeAmount(change.amount)}</span>

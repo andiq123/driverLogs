@@ -34,7 +34,7 @@ export function SettingsView({ settings, loginID, vehicles, activeVehicleID, sav
           <div className="grid gap-1 text-sm font-semibold">
             <span className="sr-only">Login ID</span>
             <div className="grid grid-cols-[1fr_48px] gap-2">
-              <div className="relative flex h-12 min-w-0 items-center rounded-[18px] border border-black/[0.08] bg-[#f1f4ec] py-0 pl-10 pr-4 font-mono text-sm tracking-wide text-[#30342e]">
+              <div className="relative flex h-12 min-w-0 items-center rounded-[18px] border border-black/[0.055] bg-[#fffffb]/92 py-0 pl-10 pr-4 font-mono text-sm tracking-wide text-[#30342e] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                 <UserRound size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62685e]" />
                 <span className="truncate">{loginID}</span>
               </div>
@@ -62,7 +62,7 @@ export function SettingsView({ settings, loginID, vehicles, activeVehicleID, sav
                 {vehicles.map((vehicle) => {
                   const active = vehicle.id === activeVehicleID;
                   return (
-                    <button key={vehicle.id} type="button" onClick={() => onSelectVehicle(vehicle.id)} className={`relative flex min-w-0 touch-manipulation items-center gap-3 overflow-hidden rounded-[18px] border px-3 py-3 text-left transition-[border-color,color,transform] duration-200 active:scale-[0.985] ${active ? "border-[#151712]/10 text-[#151712]" : "border-black/[0.06] text-[#62685e] hover:text-[#151712]"}`}>
+                    <button key={vehicle.id} type="button" onClick={() => onSelectVehicle(vehicle.id)} className={`relative flex min-w-0 touch-manipulation items-center gap-3 overflow-hidden rounded-[18px] border px-3 py-3 text-left shadow-[0_6px_18px_rgba(31,41,28,0.04)] ring-1 ring-white/70 transition-[border-color,color,transform,background-color] duration-200 active:scale-[0.985] ${active ? "border-[#a9c79a]/45 bg-[#eef6e9] text-[#151712]" : "border-black/[0.045] bg-[#fffffb]/92 text-[#62685e] hover:text-[#151712]"}`}>
                       {active ? <motion.span layoutId="settings-active-car" className="absolute inset-0 bg-[#e6f0df]" transition={{ type: "spring", stiffness: 420, damping: 34 }} /> : null}
                       <span className="relative flex size-10 shrink-0 items-center justify-center rounded-[16px] bg-white">
                         <Car size={18} />

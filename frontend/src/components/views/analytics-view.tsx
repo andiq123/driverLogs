@@ -1,35 +1,121 @@
+"use client";
+
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { BarChart3, Gauge } from "lucide-react";
-import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { MoneyTotals, Vehicle } from "@/lib/types";
+import { Area, AreaChart, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
+import type { ChartDatum, MoneyTotals, TrendDatum, Vehicle } from "@/lib/types";
 import { money, vehicleName } from "@/lib/format";
 import { palette } from "@/lib/theme";
 import { ChartSkeleton, EmptyState, Panel } from "../ui";
 import { SmartInsightsPanel } from "../smart-insights";
 
 export function AnalyticsView({ mounted, vehicle, totals }: { mounted: boolean; vehicle?: Vehicle; totals: MoneyTotals }) {
+  const showCharts = useMinWidth("(min-width: 640px)");
+
   if (!vehicle) {
     return <Panel title="Analytics" eyebrow="Selected vehicle"><EmptyState icon={Gauge} title="No vehicle selected" body="Add a car first. Analytics will focus on the active vehicle only." /></Panel>;
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+    <div className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-[0.85fr_1.15fr]">
       <Panel title="Cost split" eyebrow={vehicleName(vehicle)}>
         {totals.category_totals.length === 0 ? <EmptyState icon={BarChart3} title="No analytics yet" body="Charts become available after you add expenses." /> : (
-          <div className="h-72">
-            {mounted ? <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}><PieChart><Pie data={totals.category_totals} innerRadius={64} outerRadius={96} paddingAngle={4} dataKey="amount_mdl">{totals.category_totals.map((entry, index) => <Cell key={entry.name} fill={palette[index % palette.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer> : <ChartSkeleton />}
-          </div>
+          <>
+            <MobileCategoryList rows={totals.category_totals} total={totals.total_expenses_mdl} />
+            {showCharts ? (
+              <ChartSurface mounted={mounted}>
+                {({ width, height }) => <PieChart width={width} height={height}><Pie data={totals.category_totals} innerRadius={64} outerRadius={96} paddingAngle={4} dataKey="amount_mdl">{totals.category_totals.map((entry, index) => <Cell key={entry.name} fill={palette[index % palette.length]} />)}</Pie><Tooltip /></PieChart>}
+              </ChartSurface>
+            ) : null}
+          </>
         )}
       </Panel>
       <Panel title="Monthly trend" eyebrow={`${money(totals.total_expenses_mdl)} total`}>
         {totals.expense_count === 0 ? <EmptyState icon={Gauge} title="No costs logged" body="Add fuel, service, upgrades, or other expenses to build this car's analytics." /> : (
-          <div className="h-72">
-            {mounted ? <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}><AreaChart data={totals.trends}><XAxis dataKey="month" axisLine={false} tickLine={false} /><YAxis hide /><Tooltip /><Area type="monotone" dataKey="amount_mdl" stroke="#0f8f68" fill="#dfe7d4" strokeWidth={3} /></AreaChart></ResponsiveContainer> : <ChartSkeleton />}
-          </div>
+          <>
+            <MobileTrendList rows={totals.trends} />
+            {showCharts ? (
+              <ChartSurface mounted={mounted}>
+                {({ width, height }) => <AreaChart width={width} height={height} data={totals.trends}><XAxis dataKey="month" axisLine={false} tickLine={false} /><YAxis hide /><Tooltip /><Area type="monotone" dataKey="amount_mdl" stroke="#0f8f68" fill="#dfe7d4" strokeWidth={3} /></AreaChart>}
+              </ChartSurface>
+            ) : null}
+          </>
         )}
       </Panel>
-      <section className="xl:col-span-2">
+      <section className="min-w-0 xl:col-span-2">
         <SmartInsightsPanel insights={totals.insights} />
       </section>
+    </div>
+  );
+}
+
+function ChartSurface({ children, mounted }: { children: (size: { width: number; height: number }) => ReactNode; mounted: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const update = () => setSize({ width: Math.max(0, element.clientWidth), height: Math.max(0, element.clientHeight) });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div ref={ref} className="h-72">{mounted && size.width > 1 && size.height > 1 ? children(size) : <ChartSkeleton />}</div>;
+}
+
+function useMinWidth(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [query]);
+
+  return matches;
+}
+
+function MobileCategoryList({ rows, total }: { rows: ChartDatum[]; total: number }) {
+  return (
+    <div className="grid gap-2 sm:hidden">
+      {rows.slice(0, 5).map((row, index) => {
+        const percent = total ? Math.round((row.amount_mdl / total) * 100) : 0;
+        return (
+          <div key={row.name} className="grid gap-1.5 rounded-[18px] border border-black/[0.045] bg-[#fffffb]/92 p-3 shadow-[0_6px_20px_rgba(31,41,28,0.045)]">
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-sm font-bold">{row.name}</span>
+              <span className="shrink-0 text-sm font-bold">{money(row.amount_mdl)}</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white">
+              <div className="h-full rounded-full" style={{ width: `${Math.max(percent, 4)}%`, backgroundColor: palette[index % palette.length] }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MobileTrendList({ rows }: { rows: TrendDatum[] }) {
+  const latest = rows.slice(-4);
+  if (latest.length === 0) return <EmptyState icon={Gauge} title="No monthly trend yet" body="Add expenses on different dates to see the trend." />;
+  const max = Math.max(...latest.map((row) => row.amount_mdl), 1);
+  return (
+    <div className="grid gap-2 sm:hidden">
+      {latest.map((row) => (
+        <div key={row.month} className="grid grid-cols-[3.75rem_1fr_auto] items-center gap-2 rounded-[18px] border border-black/[0.045] bg-[#fffffb]/92 p-3 shadow-[0_6px_20px_rgba(31,41,28,0.045)]">
+          <span className="text-xs font-bold text-[#62685e]">{row.month}</span>
+          <span className="h-2 overflow-hidden rounded-full bg-white">
+            <span className="block h-full rounded-full bg-[#0f8f68]" style={{ width: `${Math.max((row.amount_mdl / max) * 100, 5)}%` }} />
+          </span>
+          <span className="text-sm font-bold">{money(row.amount_mdl)}</span>
+        </div>
+      ))}
     </div>
   );
 }
