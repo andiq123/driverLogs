@@ -2,6 +2,7 @@
 
 import { Loader2, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { errorMessage } from "@/lib/api";
 
 type FilePreviewModalProps = {
@@ -49,9 +50,10 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
 
-  return (
-    <div className="fixed inset-0 z-50 grid bg-[#151712]/72 p-0 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <section className="flex h-dvh w-dvw flex-col overflow-hidden bg-[#fbfcf8]">
+  const modal = (
+    <div className="fixed inset-0 z-[2000] grid bg-[#151712]/76 p-0 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+      <button type="button" aria-label="Close preview backdrop" onClick={onClose} className="absolute inset-0 cursor-default" />
+      <section className="relative z-[1] flex h-dvh w-dvw flex-col overflow-hidden bg-[#fbfcf8] shadow-[0_28px_96px_rgba(0,0,0,0.28)] sm:m-auto sm:h-[min(92dvh,56rem)] sm:w-[min(94dvw,72rem)] sm:rounded-[28px]">
         <div className="flex min-h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 border-b border-black/[0.06] bg-[#fffffb]/96 px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] shadow-[0_8px_24px_rgba(31,41,28,0.08)] sm:min-h-14 sm:px-4 sm:pt-2">
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">{title}</p>
@@ -93,6 +95,8 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
       </section>
     </div>
   );
+
+  return typeof document === "undefined" ? null : createPortal(modal, document.body);
 }
 
 function filePreviewType(contentType = "", fileName = "") {
