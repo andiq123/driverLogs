@@ -119,12 +119,29 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, files
 
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	status   int
+	body     []byte
+	bodyDone bool
 }
 
 func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(data []byte) (int, error) {
+	if r.status >= http.StatusBadRequest && !r.bodyDone {
+		remaining := 2048 - len(r.body)
+		if remaining > 0 {
+			if len(data) > remaining {
+				r.body = append(r.body, data[:remaining]...)
+				r.bodyDone = true
+			} else {
+				r.body = append(r.body, data...)
+			}
+		}
+	}
+	return r.ResponseWriter.Write(data)
 }
 
 func withRequestLogging(logger *slog.Logger, next http.Handler) http.Handler {
@@ -138,6 +155,7 @@ func withRequestLogging(logger *slog.Logger, next http.Handler) http.Handler {
 			"status", recorder.status,
 			"duration_ms", time.Since(start).Milliseconds(),
 		}
+		fields = append(fields, responseErrorFields(recorder.body)...)
 		switch {
 		case recorder.status >= http.StatusInternalServerError:
 			logger.Error("api request failed", fields...)
@@ -147,6 +165,23 @@ func withRequestLogging(logger *slog.Logger, next http.Handler) http.Handler {
 			logger.Info("api request completed", fields...)
 		}
 	})
+}
+
+func responseErrorFields(body []byte) []any {
+	if len(body) == 0 {
+		return nil
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return []any{"response_error", safeLogValue(string(body), 240)}
+	}
+	fields := []any{}
+	for _, key := range []string{"error", "detail"} {
+		if value, ok := payload[key]; ok {
+			fields = append(fields, "response_"+key, safeLogValue(fmt.Sprint(value), 240))
+		}
+	}
+	return fields
 }
 
 func (h Handler) health(w http.ResponseWriter, r *http.Request) {
@@ -513,6 +548,7 @@ func (h Handler) listExpenseAttachments(w http.ResponseWriter, r *http.Request) 
 
 func (h Handler) uploadExpenseAttachment(w http.ResponseWriter, r *http.Request) {
 	if h.files == nil || !h.files.Enabled() {
+		h.logStorageUnavailable("expense attachment upload", "expense_id", r.PathValue("id"))
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
 		return
 	}
@@ -663,6 +699,7 @@ func (h Handler) listDocuments(w http.ResponseWriter, r *http.Request, ownerType
 
 func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, kind string) {
 	if h.files == nil || !h.files.Enabled() {
+		h.logStorageUnavailable("document upload", "owner_type", ownerType, "owner_id", ownerID, "kind", kind)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
 		return
 	}
@@ -759,6 +796,7 @@ func validDocumentKind(ownerType, kind string) bool {
 
 func (h Handler) streamPDF(w http.ResponseWriter, r *http.Request, objectKey, fileName, documentID string) {
 	if h.files == nil || !h.files.Enabled() {
+		h.logStorageUnavailable("pdf preview", "document_id", documentID)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
 		return
 	}
@@ -777,6 +815,15 @@ func (h Handler) streamPDF(w http.ResponseWriter, r *http.Request, objectKey, fi
 	if _, err := io.Copy(w, object.Body); err != nil {
 		h.logger.Warn("pdf stream interrupted", "error", err, "document_id", documentID)
 	}
+}
+
+func (h Handler) logStorageUnavailable(operation string, fields ...any) {
+	values := []any{"operation", operation, "storage_client_present", h.files != nil}
+	if h.files != nil {
+		values = append(values, "storage_enabled", h.files.Enabled())
+	}
+	values = append(values, fields...)
+	h.logger.Error("file storage unavailable", values...)
 }
 
 func isPDF(data []byte, contentType string) bool {

@@ -89,8 +89,9 @@ export async function getFuelComparison(token: string, country: string, compareC
   return getJSON<FuelComparisonResponse>(`/fuel-comparison?${params.toString()}`, token);
 }
 
-export async function getFuelMarket(token: string, country: string, compareCountry: string) {
+export async function getFuelMarket(token: string, country: string, compareCountry: string, refresh = false) {
   const params = new URLSearchParams({ country, compare_country: compareCountry });
+  if (refresh) params.set("refresh", "true");
   return getJSON<FuelMarketResponse>(`/fuel-market?${params.toString()}`, token);
 }
 

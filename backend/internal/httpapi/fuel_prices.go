@@ -72,6 +72,7 @@ type fuelComparisonRow struct {
 type fuelMarketResponse struct {
 	Trends     fuelprices.TrendResponse `json:"trends"`
 	Comparison fuelComparisonResponse   `json:"comparison"`
+	Cache      fuelprices.CacheInfo     `json:"cache"`
 }
 
 func (h Handler) fuelPriceComparison(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +116,9 @@ func (h Handler) fuelMarket(w http.ResponseWriter, r *http.Request) {
 	}
 	country := queryDefault(r, "country", settings.Country)
 	compareCountry := queryDefault(r, "compare_country", settings.CompareCountry)
+	if parseBoolQuery(r, "refresh") {
+		h.fuelPrices.InvalidateMarket(country, compareCountry)
+	}
 	trends, status, err := h.fuelMarketTrends(r, country)
 	if err != nil {
 		writeJSON(w, status, map[string]string{"error": "fuel market unavailable", "detail": err.Error()})
@@ -128,7 +132,7 @@ func (h Handler) fuelMarket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	writeJSON(w, http.StatusOK, fuelMarketResponse{Trends: trends, Comparison: comparison})
+	writeJSON(w, http.StatusOK, fuelMarketResponse{Trends: trends, Comparison: comparison, Cache: h.fuelPrices.MarketCacheInfo(country, compareCountry, marketFuelTypes(trends))})
 }
 
 func (h Handler) fuelMarketTrends(r *http.Request, country string) (fuelprices.TrendResponse, int, error) {
@@ -182,6 +186,21 @@ func queryDefault(r *http.Request, key string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func parseBoolQuery(r *http.Request, key string) bool {
+	value := r.URL.Query().Get(key)
+	return value == "1" || value == "true" || value == "yes"
+}
+
+func marketFuelTypes(trends fuelprices.TrendResponse) []string {
+	fuelTypes := make([]string, 0, len(trends.Rows))
+	for _, row := range trends.Rows {
+		if row.FuelType != "Premium 95" {
+			fuelTypes = append(fuelTypes, row.FuelType)
+		}
+	}
+	return fuelTypes
 }
 
 func round2(value float64) float64 {

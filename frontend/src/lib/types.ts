@@ -168,6 +168,12 @@ export type FuelComparisonResponse = {
 export type FuelMarketResponse = {
   trends: FuelTrendResponse;
   comparison: FuelComparisonResponse;
+  cache?: CacheInfo;
+};
+
+export type CacheInfo = {
+  expires_at?: string;
+  expires_in_seconds: number;
 };
 
 export type UserSettings = {
