@@ -284,12 +284,19 @@ func oilChangeExpenses(expenses []domain.Expense) []domain.Expense {
 		}
 		serviceType := strings.ToLower(expense.ServiceType)
 		description := strings.ToLower(expense.Description)
-		if serviceType == "oil_change" || (serviceType == "" && (strings.Contains(description, "oil") || strings.Contains(description, "ulei"))) {
+		if serviceType == "oil_change" || hasOilChangeText(description) {
 			matches = append(matches, expense)
 		}
 	}
 	sort.Slice(matches, func(i, j int) bool { return matches[i].Date < matches[j].Date })
 	return matches
+}
+
+func hasOilChangeText(description string) bool {
+	return strings.Contains(description, "oil change") ||
+		strings.Contains(description, "oil service") ||
+		strings.Contains(description, "schimb ulei") ||
+		strings.Contains(description, "ulei")
 }
 
 func oilChangeEstimate(expenses []domain.Expense, currentOdometer, configuredIntervalKM int) map[string]any {

@@ -36,7 +36,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                     {expense.category === "Fuel" && expense.fuel_type ? (
                       <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}{expense.fuel_full_tank ? " · full tank" : ""}</span>
                     ) : null}
-                    {expense.service_type ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceTypeLabel(expense.service_type)}</span> : null}
+                    {serviceDetail(expense) ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceDetail(expense)}</span> : null}
                     {expense.expires_date ? <span className="mt-1 block text-xs text-[#8a6a10]">Expires {dateText(expense.expires_date)}</span> : null}
                     {expense.odometer ? <span className="mt-1 block text-xs text-[#6b7065]">{km(expense.odometer)}</span> : null}
                     {expense.exclude_from_analytics ? <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-[#fff8df] px-2 py-0.5 text-[11px] font-bold text-[#7b5a12]"><EyeOff size={12} /> Excluded</span> : null}
@@ -85,6 +85,17 @@ function serviceTypeLabel(value: string) {
     alignment: "Alignment",
   };
   return labels[value] ?? value;
+}
+
+function serviceDetail(expense: Expense) {
+  if (!expense.service_type) return "";
+  if (hasServicePresetText(expense.description)) return "";
+  return serviceTypeLabel(expense.service_type);
+}
+
+function hasServicePresetText(value: string) {
+  const text = value.toLowerCase();
+  return ["oil change", "regular service", "filters", "alignment"].some((preset) => text.includes(preset));
 }
 
 function fuelPriceLabel(expense: Expense) {
