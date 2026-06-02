@@ -105,7 +105,6 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
           <div className="file-preview-scroll flex flex-1 overflow-auto bg-[#eef3e8] p-3 sm:p-5">
             {previewType === "image" ? (
               <div className="m-auto min-h-full min-w-full touch-pan-x touch-pan-y select-none p-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <motion.img src={url} alt={fileName} draggable={false} onDoubleClick={() => setZoom((value) => value === 1 ? 2 : 1)} style={{ width: `${100 * zoom}%`, maxWidth: "none" }} initial={{ opacity: 0, scale: 0.985, filter: "blur(5px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.34, ease: calmEase }} className="mx-auto block max-h-none origin-center rounded-[12px] bg-white shadow-[0_16px_48px_rgba(31,41,28,0.18)] transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]" />
               </div>
             ) : (
