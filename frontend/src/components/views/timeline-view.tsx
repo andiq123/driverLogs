@@ -8,9 +8,10 @@ import { ActionButton, EmptyState, Panel } from "../ui";
 import { ExpenseForm } from "../forms";
 import { ExpenseAttachments } from "../expense-attachments";
 
-export function TimelineView({ expenses, vehicle, token, baseCurrency, country, savingExpense, onDeleteExpense, onUpdateExpense }: { expenses: Expense[]; vehicle?: Vehicle; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onDeleteExpense: (id: string) => void; onUpdateExpense: (id: string, expense: Partial<Expense>) => void }) {
+export function TimelineView({ expenses, vehicle, token, baseCurrency, country, savingExpense, openExpenseFilesID, onOpenExpenseFiles, onDeleteExpense, onUpdateExpense }: { expenses: Expense[]; vehicle?: Vehicle; token: string; baseCurrency: string; country: string; savingExpense?: boolean; openExpenseFilesID?: string; onOpenExpenseFiles?: (id: string) => void; onDeleteExpense: (id: string) => void; onUpdateExpense: (id: string, expense: Partial<Expense>) => void }) {
   const [editingExpense, setEditingExpense] = useState<Expense>();
-  const [filesExpenseID, setFilesExpenseID] = useState("");
+  const [localFilesExpenseID, setLocalFilesExpenseID] = useState("");
+  const filesExpenseID = openExpenseFilesID ?? localFilesExpenseID;
   const sorted = [...expenses].sort((a, b) => b.date.localeCompare(a.date));
   function updateExpense(id: string, expense: Partial<Expense>) {
     onUpdateExpense(id, expense);
@@ -44,7 +45,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                     <span className="text-xs text-[#6b7065]">{equivalents(expense.amount_eur, expense.amount_usd)}</span>
                     {expense.exchange_rate_source ? <span className="block text-[11px] text-[#8a9085]">{expense.exchange_rate_date}</span> : null}
                     <div className="mt-1 flex justify-end gap-1.5">
-                      <ActionButton type="button" icon={FileText} variant="soft" onClick={() => setFilesExpenseID((current) => current === expense.id ? "" : expense.id)} className="h-8 rounded-[13px] px-2.5 text-xs sm:h-9 sm:rounded-[14px] sm:px-3">PDFs</ActionButton>
+                      <ActionButton type="button" icon={FileText} variant="soft" onClick={() => toggleFiles(expense.id, filesExpenseID, onOpenExpenseFiles, setLocalFilesExpenseID)} className="h-8 rounded-[13px] px-2.5 text-xs sm:h-9 sm:rounded-[14px] sm:px-3">PDFs</ActionButton>
                       <ActionButton type="button" icon={Pencil} variant="soft" onClick={() => setEditingExpense(expense)} className="h-8 rounded-[13px] px-2.5 text-xs sm:h-9 sm:rounded-[14px] sm:px-3">Edit</ActionButton>
                       <ActionButton type="button" icon={Trash2} variant="soft" onClick={() => confirmDelete(expense, onDeleteExpense)} className="h-8 rounded-[13px] bg-[#fff0ec] px-2.5 text-xs text-[#9b3226] hover:bg-[#ffdcd4] sm:h-9 sm:rounded-[14px] sm:px-3">Remove</ActionButton>
                     </div>
@@ -60,6 +61,12 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
       )}
     </Panel>
   );
+}
+
+function toggleFiles(expenseID: string, currentID: string, onOpen: ((id: string) => void) | undefined, setLocal: (id: string) => void) {
+  const nextID = currentID === expenseID ? "" : expenseID;
+  if (onOpen) onOpen(nextID);
+  else setLocal(nextID);
 }
 
 function confirmDelete(expense: Expense, onDelete: (id: string) => void) {

@@ -5,7 +5,7 @@ import { FileText, Loader2, Paperclip, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, deleteExpenseAttachment, errorMessage, getExpenseAttachmentPreview, getExpenseAttachments, uploadExpenseAttachment } from "@/lib/api";
 import type { ExpenseAttachment } from "@/lib/types";
-import { ActionButton, EmptyState } from "./ui";
+import { ActionButton } from "./ui";
 
 export function ExpenseAttachments({ expenseID, token }: { expenseID: string; token: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +103,10 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
         {loading ? (
           <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-xs font-semibold text-[#6b7065]"><Loader2 size={15} className="animate-spin" />Loading PDFs</div>
         ) : attachments.length === 0 ? (
-          <div className="mt-3"><EmptyState icon={FileText} title="No PDFs attached" body="Attach receipts, insurance policies, or inspection papers to this expense." /></div>
+          <button type="button" onClick={() => inputRef.current?.click()} className="mt-3 flex w-full items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-left text-xs font-semibold text-[#6b7065] ring-1 ring-black/[0.04] transition-colors hover:text-[#151712]">
+            <FileText size={16} />
+            No PDFs yet. Attach a receipt, insurance policy, or inspection paper.
+          </button>
         ) : (
           <div className="mt-3 grid gap-2">
             {attachments.map((attachment) => (

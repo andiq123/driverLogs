@@ -24,6 +24,7 @@ export function useDriverLogsApp() {
   const [status, setStatus] = useState("Loading app data...");
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [action, setAction] = useState<"vehicle" | "expense" | "settings" | "delete" | "profile" | "">("");
+  const [openExpenseFilesID, setOpenExpenseFilesID] = useState("");
   const [mounted, setMounted] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const activeVehicleIDRef = useRef("");
@@ -173,10 +174,11 @@ export function useDriverLogsApp() {
     setAction("expense");
     setStatus("Saving expense...");
     try {
-      await createExpense(token, expense);
+      const saved = await createExpense(token, expense);
       await loadData(false);
+      setOpenExpenseFilesID(saved.id);
       setView("Timeline");
-      showToast("success", "Expense saved", "The conversion was stamped for that date.");
+      showToast("success", "Expense saved", "You can attach a PDF now.");
     } catch (error) {
       setStatus("Expense could not be saved. Check the required fields.");
       showToast("error", "Expense was not saved", errorMessage(error, "Check required fields and backend availability."));
@@ -195,6 +197,7 @@ export function useDriverLogsApp() {
     try {
       await updateExpense(token, id, expense);
       await loadData(false);
+      setOpenExpenseFilesID(id);
       showToast("success", "Expense updated", "The conversion was refreshed for that date.");
     } catch (error) {
       setStatus("Expense could not be updated.");
@@ -328,6 +331,8 @@ export function useDriverLogsApp() {
     settings,
     token: isDemo && isLocalDemoEnabled ? demoToken : token,
     toasts,
+    openExpenseFilesID,
+    setOpenExpenseFilesID,
     dismissToast,
     vehicleTotals,
     vehicles,

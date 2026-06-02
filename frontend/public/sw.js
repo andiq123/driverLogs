@@ -1,5 +1,6 @@
-const CACHE_NAME = "driverlogs-shell-v2";
+const CACHE_NAME = "driverlogs-shell-v3";
 const SHELL_ASSETS = ["/logo.svg", "/icons/icon-192.png", "/icons/icon-512.png", "/manifest.webmanifest"];
+const FALLBACK_HTML = "<!doctype html><title>DriverLogs</title><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"font-family:system-ui,sans-serif;background:#f5f7f2;color:#151712;padding:24px\"><h1>DriverLogs</h1><p>The app is updating or offline. Reopen it in a moment.</p></body>";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS)));
@@ -26,11 +27,12 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
+  if (url.origin !== self.location.origin && request.mode !== "navigate") return;
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api") || url.pathname.startsWith("/_next/webpack-hmr")) return;
 
   if (request.mode === "navigate" || request.destination === "document") {
-    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("/")));
+    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => cachedShell()));
     return;
   }
 
@@ -39,9 +41,21 @@ self.addEventListener("fetch", (event) => {
       .then((response) => {
         if (!response || response.status !== 200 || response.type !== "basic") return response;
         const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match("/"))),
+      .catch(() => caches.match(request).then((cached) => cached || offlineResponse())),
   );
 });
+
+function cachedShell() {
+  return caches.match("/").then((cached) => cached || offlineResponse());
+}
+
+function offlineResponse() {
+  return new Response(FALLBACK_HTML, {
+    status: 503,
+    statusText: "Service Unavailable",
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
