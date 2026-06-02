@@ -1,10 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { FileText, Loader2, Paperclip, Trash2, X } from "lucide-react";
+import { FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, deleteExpenseAttachment, errorMessage, getExpenseAttachmentPreview, getExpenseAttachments, uploadExpenseAttachment } from "@/lib/api";
 import type { ExpenseAttachment } from "@/lib/types";
+import { FilePreviewModal } from "./file-preview-modal";
 import { ActionButton } from "./ui";
 
 export function ExpenseAttachments({ expenseID, token }: { expenseID: string; token: string }) {
@@ -13,7 +14,7 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<"upload" | "preview" | "delete" | undefined>();
   const [message, setMessage] = useState("");
-  const [previewURL, setPreviewURL] = useState("");
+  const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment>();
 
   useEffect(() => {
     let active = true;
@@ -22,7 +23,7 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
         if (active) setAttachments(files);
       })
       .catch((error) => {
-        if (active) setMessage(errorMessage(error, "Could not load PDFs."));
+        if (active) setMessage(errorMessage(error, "Could not load files."));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -32,14 +33,10 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
     };
   }, [expenseID, token]);
 
-  useEffect(() => () => {
-    if (previewURL) URL.revokeObjectURL(previewURL);
-  }, [previewURL]);
-
   async function upload(file?: File | null) {
     if (!file) return;
-    if (file.type && file.type !== "application/pdf") {
-      setMessage("Only PDF files are supported.");
+    if (!isAllowedAttachment(file)) {
+      setMessage("Only PDF or image files are supported.");
       return;
     }
     setAction("upload");
@@ -48,7 +45,7 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
       const saved = await uploadExpenseAttachment(token, expenseID, file);
       setAttachments((current) => [saved, ...current]);
     } catch (error) {
-      const fallback = error instanceof ApiError && error.status === 503 ? "File storage is not configured." : "Could not upload PDF.";
+      const fallback = error instanceof ApiError && error.status === 503 ? "File storage is not configured." : "Could not upload file.";
       setMessage(errorMessage(error, fallback));
     } finally {
       setAction(undefined);
@@ -59,15 +56,8 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
   async function preview(attachment: ExpenseAttachment) {
     setAction("preview");
     setMessage("");
-    try {
-      const blob = await getExpenseAttachmentPreview(token, expenseID, attachment.id);
-      if (previewURL) URL.revokeObjectURL(previewURL);
-      setPreviewURL(URL.createObjectURL(blob));
-    } catch (error) {
-      setMessage(errorMessage(error, "Could not open PDF."));
-    } finally {
-      setAction(undefined);
-    }
+    setPreviewAttachment(attachment);
+    setAction(undefined);
   }
 
   async function remove(attachment: ExpenseAttachment) {
@@ -77,12 +67,9 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
     try {
       await deleteExpenseAttachment(token, expenseID, attachment.id);
       setAttachments((current) => current.filter((item) => item.id !== attachment.id));
-      if (previewURL) {
-        URL.revokeObjectURL(previewURL);
-        setPreviewURL("");
-      }
+      if (previewAttachment?.id === attachment.id) setPreviewAttachment(undefined);
     } catch (error) {
-      setMessage(errorMessage(error, "Could not remove PDF."));
+      setMessage(errorMessage(error, "Could not remove file."));
     } finally {
       setAction(undefined);
     }
@@ -93,19 +80,19 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
       <div className="mt-2 rounded-[20px] border border-black/[0.055] bg-[#f7faf3] p-2.5 sm:rounded-[22px] sm:p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-sm font-semibold">PDF files</p>
+            <p className="text-sm font-semibold">Files</p>
             <p className="text-xs text-[#6b7065]">Private receipt or document attachments.</p>
           </div>
-          <input ref={inputRef} className="hidden" type="file" accept="application/pdf" onChange={(event) => void upload(event.target.files?.[0])} />
+          <input ref={inputRef} className="hidden" type="file" accept={attachmentAccept} onChange={(event) => void upload(event.target.files?.[0])} />
           <ActionButton type="button" icon={Paperclip} loading={action === "upload"} variant="soft" onClick={() => inputRef.current?.click()} className="h-9 rounded-[14px] px-3 text-xs">Attach</ActionButton>
         </div>
         {message ? <p className="mt-2 rounded-[14px] bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9b3226]">{message}</p> : null}
         {loading ? (
-          <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-xs font-semibold text-[#6b7065]"><Loader2 size={15} className="animate-spin" />Loading PDFs</div>
+          <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-xs font-semibold text-[#6b7065]"><Loader2 size={15} className="animate-spin" />Loading files</div>
         ) : attachments.length === 0 ? (
           <button type="button" onClick={() => inputRef.current?.click()} className="mt-3 flex w-full items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-left text-xs font-semibold text-[#6b7065] ring-1 ring-black/[0.04] transition-colors hover:text-[#151712]">
             <FileText size={16} />
-            No PDFs yet. Attach a receipt, insurance policy, or inspection paper.
+            No files yet. Attach a receipt, insurance policy, or inspection paper.
           </button>
         ) : (
           <div className="mt-3 grid gap-2">
@@ -124,19 +111,19 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
           </div>
         )}
         <AnimatePresence>
-          {previewURL ? (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="mt-3 overflow-hidden rounded-[18px] border border-black/[0.06] bg-white">
-              <div className="flex items-center justify-between px-3 py-2">
-                <p className="text-sm font-semibold">Preview</p>
-                <button type="button" onClick={() => setPreviewURL("")} className="flex size-8 items-center justify-center rounded-full bg-[#edf4e7]" aria-label="Close preview"><X size={16} /></button>
-              </div>
-              <iframe src={previewURL} title="PDF preview" className="h-[65dvh] w-full bg-white" />
-            </motion.div>
+          {previewAttachment ? (
+            <FilePreviewModal title="File preview" fileName={previewAttachment.file_name} load={() => getExpenseAttachmentPreview(token, expenseID, previewAttachment.id)} onClose={() => setPreviewAttachment(undefined)} />
           ) : null}
         </AnimatePresence>
       </div>
     </motion.div>
   );
+}
+
+const attachmentAccept = "application/pdf,image/jpeg,image/png,image/webp";
+
+function isAllowedAttachment(file: File) {
+  return !file.type || attachmentAccept.split(",").includes(file.type);
 }
 
 function fileSize(bytes: number) {

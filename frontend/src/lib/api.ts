@@ -133,7 +133,7 @@ export async function uploadExpenseAttachment(token: string, expenseID: string, 
     body,
   });
   refreshToken(response);
-  if (!response.ok) throw await apiError(response, "upload pdf failed");
+  if (!response.ok) throw await apiError(response, "upload file failed");
   return response.json() as Promise<ExpenseAttachment>;
 }
 
@@ -142,7 +142,7 @@ export async function getExpenseAttachmentPreview(token: string, expenseID: stri
     headers: authHeaders(token),
   });
   refreshToken(response);
-  if (!response.ok) throw await apiError(response, "load pdf failed");
+  if (!response.ok) throw await apiError(response, "load file failed");
   return response.blob();
 }
 
@@ -152,7 +152,7 @@ export async function deleteExpenseAttachment(token: string, expenseID: string, 
     headers: authHeaders(token),
   });
   refreshToken(response);
-  if (!response.ok) throw await apiError(response, "remove pdf failed");
+  if (!response.ok) throw await apiError(response, "remove file failed");
 }
 
 export async function getUserDocuments(token: string, kind = "") {
@@ -165,7 +165,7 @@ export async function uploadUserDocument(token: string, kind: DocumentAttachment
 }
 
 export async function getUserDocumentPreview(token: string, documentID: string) {
-  return getPDF(`/user/documents/${encodeURIComponent(documentID)}/preview`, token);
+  return getFile(`/user/documents/${encodeURIComponent(documentID)}/preview`, token);
 }
 
 export async function deleteUserDocument(token: string, documentID: string) {
@@ -182,7 +182,7 @@ export async function uploadVehicleDocument(token: string, vehicleID: string, ki
 }
 
 export async function getVehicleDocumentPreview(token: string, vehicleID: string, documentID: string) {
-  return getPDF(`/vehicles/${encodeURIComponent(vehicleID)}/documents/${encodeURIComponent(documentID)}/preview`, token);
+  return getFile(`/vehicles/${encodeURIComponent(vehicleID)}/documents/${encodeURIComponent(documentID)}/preview`, token);
 }
 
 export async function deleteVehicleDocument(token: string, vehicleID: string, documentID: string) {
@@ -223,16 +223,16 @@ async function uploadDocument(path: string, token: string, file: File) {
     body,
   });
   refreshToken(response);
-  if (!response.ok) throw await apiError(response, "upload pdf failed");
+  if (!response.ok) throw await apiError(response, "upload file failed");
   return response.json() as Promise<DocumentAttachment>;
 }
 
-async function getPDF(path: string, token: string) {
+async function getFile(path: string, token: string) {
   const response = await fetch(`${apiBase}${path}`, {
     headers: authHeaders(token),
   });
   refreshToken(response);
-  if (!response.ok) throw await apiError(response, "load pdf failed");
+  if (!response.ok) throw await apiError(response, "load file failed");
   return response.blob();
 }
 
@@ -242,7 +242,7 @@ async function deleteDocument(path: string, token: string) {
     headers: authHeaders(token),
   });
   refreshToken(response);
-  if (!response.ok) throw await apiError(response, "remove pdf failed");
+  if (!response.ok) throw await apiError(response, "remove file failed");
 }
 
 async function sendJSON<T>(path: string, method: "POST" | "PUT", body: unknown, token?: string) {

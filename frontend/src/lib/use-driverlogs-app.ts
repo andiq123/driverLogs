@@ -200,7 +200,7 @@ export function useDriverLogsApp() {
       await loadData(false);
       setOpenExpenseFilesID(saved.id);
       setView("Timeline");
-      showToast("success", "Expense saved", "You can attach a PDF now.");
+      showToast("success", "Expense saved", "You can attach a file now.");
     } catch (error) {
       setStatus("Expense could not be saved. Check the required fields.");
       showToast("error", "Expense was not saved", errorMessage(error, "Check required fields and backend availability."));

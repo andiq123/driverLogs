@@ -83,7 +83,7 @@ export function SettingsView({ token, settings, loginID, vehicles, userDocuments
           <DocumentManager
             key={`driver-license-${loginID}`}
             title="Driver license"
-            body="Private PDF linked to your profile."
+            body="Private document linked to your profile."
             reloadKey={`user-driver-license-${loginID}`}
             initialDocuments={userDocuments.filter((document) => document.kind === "driver_license")}
             load={() => getUserDocuments(token, "driver_license")}

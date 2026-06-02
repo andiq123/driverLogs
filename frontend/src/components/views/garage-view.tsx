@@ -54,7 +54,7 @@ export function GarageView({ token, vehicles, activeVehicleID, savingVehicle, de
           <DocumentManager
             key={`car-passport-${documentVehicle.id}`}
             title="Car passport"
-            body={`Private PDF linked to ${vehicleName(documentVehicle)}.`}
+            body={`Private document linked to ${vehicleName(documentVehicle)}.`}
             reloadKey={`vehicle-passport-${documentVehicle.id}`}
             initialDocuments={documentVehicle.latest_document ? [documentVehicle.latest_document] : []}
             load={() => getVehicleDocuments(token, documentVehicle.id, "car_passport")}

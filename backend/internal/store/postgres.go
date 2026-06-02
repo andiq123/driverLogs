@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   purchase_currency text NOT NULL DEFAULT '',
   purchase_date text NOT NULL DEFAULT '',
   odometer int NOT NULL DEFAULT 0,
+  odometer_base int NOT NULL DEFAULT 0,
   image_url text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL
 );
@@ -145,6 +146,27 @@ CREATE TABLE IF NOT EXISTS document_attachments (
 	if _, err := s.pool.Exec(ctx, `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS preferred_fuel_type text NOT NULL DEFAULT 'Super 95'`); err != nil {
 		return fmt.Errorf("migrate vehicle preferred fuel type: %w", err)
 	}
+	if _, err := s.pool.Exec(ctx, `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_base int NOT NULL DEFAULT 0`); err != nil {
+		return fmt.Errorf("migrate vehicle base odometer: %w", err)
+	}
+	if _, err := s.pool.Exec(ctx, `
+UPDATE vehicles
+SET odometer_base = CASE
+  WHEN odometer_base > 0 THEN odometer_base
+  WHEN EXISTS (SELECT 1 FROM expenses WHERE expenses.user_id=vehicles.user_id AND expenses.vehicle_id=vehicles.id AND expenses.odometer > 0)
+    THEN LEAST(vehicles.odometer, (SELECT MIN(expenses.odometer) FROM expenses WHERE expenses.user_id=vehicles.user_id AND expenses.vehicle_id=vehicles.id AND expenses.odometer > 0))
+  ELSE vehicles.odometer
+END`); err != nil {
+		return fmt.Errorf("backfill vehicle base odometer: %w", err)
+	}
+	if _, err := s.pool.Exec(ctx, `
+UPDATE vehicles
+SET odometer = GREATEST(
+  odometer_base,
+  COALESCE((SELECT MAX(expenses.odometer) FROM expenses WHERE expenses.user_id=vehicles.user_id AND expenses.vehicle_id=vehicles.id AND expenses.odometer > 0), 0)
+)`); err != nil {
+		return fmt.Errorf("recalculate vehicle odometers: %w", err)
+	}
 	if _, err := s.pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS compare_country text NOT NULL DEFAULT 'RO'`); err != nil {
 		return fmt.Errorf("migrate user compare country: %w", err)
 	}
@@ -152,7 +174,7 @@ CREATE TABLE IF NOT EXISTS document_attachments (
 }
 
 func (s *PostgresStore) UserVehicles(userID string) ([]domain.Vehicle, error) {
-	rows, err := s.pool.Query(context.Background(), `SELECT id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, image_url, created_at FROM vehicles WHERE user_id=$1 ORDER BY created_at`, userID)
+	rows, err := s.pool.Query(context.Background(), vehicleSelectSQL()+` WHERE user_id=$1 ORDER BY created_at`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +222,7 @@ func (s *PostgresStore) withVehicleDocumentSummaries(userID string, vehicles []d
 }
 
 func (s *PostgresStore) Vehicle(userID, id string) (domain.Vehicle, error) {
-	row := s.pool.QueryRow(context.Background(), `SELECT id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, image_url, created_at FROM vehicles WHERE user_id=$1 AND id=$2`, userID, id)
+	row := s.pool.QueryRow(context.Background(), vehicleSelectSQL()+` WHERE user_id=$1 AND id=$2`, userID, id)
 	return scanVehicle(row)
 }
 
@@ -222,8 +244,9 @@ func (s *PostgresStore) CreateVehicle(userID string, vehicle domain.Vehicle) (do
 	if vehicle.PreferredFuelType == "" {
 		vehicle.PreferredFuelType = "Super 95"
 	}
-	_, err = s.pool.Exec(context.Background(), `INSERT INTO vehicles (id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, image_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-		vehicle.ID, vehicle.UserID, vehicle.PlateNumber, vehicle.Nickname, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.EngineType, vehicle.VIN, vehicle.PreferredFuelType, vehicle.PurchasePrice, vehicle.PurchaseCurrency, vehicle.PurchaseDate, vehicle.Odometer, vehicle.ImageURL, vehicle.CreatedAt)
+	vehicle.OdometerBase = vehicle.Odometer
+	_, err = s.pool.Exec(context.Background(), `INSERT INTO vehicles (id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+		vehicle.ID, vehicle.UserID, vehicle.PlateNumber, vehicle.Nickname, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.EngineType, vehicle.VIN, vehicle.PreferredFuelType, vehicle.PurchasePrice, vehicle.PurchaseCurrency, vehicle.PurchaseDate, vehicle.Odometer, vehicle.OdometerBase, vehicle.ImageURL, vehicle.CreatedAt)
 	if err != nil {
 		return domain.Vehicle{}, err
 	}
@@ -233,9 +256,9 @@ func (s *PostgresStore) CreateVehicle(userID string, vehicle domain.Vehicle) (do
 func (s *PostgresStore) UpdateVehicle(userID, id string, vehicle domain.Vehicle) (domain.Vehicle, error) {
 	row := s.pool.QueryRow(context.Background(), `
 UPDATE vehicles
-SET plate_number=$1, nickname=$2, make=$3, model=$4, year=$5, engine_type=$6, vin=$7, preferred_fuel_type=$8, purchase_price=$9, purchase_currency=$10, purchase_date=$11, odometer=$12, image_url=$13
+SET plate_number=$1, nickname=$2, make=$3, model=$4, year=$5, engine_type=$6, vin=$7, preferred_fuel_type=$8, purchase_price=$9, purchase_currency=$10, purchase_date=$11, odometer_base=$12, odometer=GREATEST($12, COALESCE((SELECT MAX(odometer) FROM expenses WHERE user_id=$14 AND vehicle_id=$15 AND odometer > 0), 0)), image_url=$13
 WHERE user_id=$14 AND id=$15
-RETURNING id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, image_url, created_at`,
+RETURNING id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at`,
 		vehicle.PlateNumber, vehicle.Nickname, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.EngineType, vehicle.VIN, preferredFuelType(vehicle.PreferredFuelType), vehicle.PurchasePrice, vehicle.PurchaseCurrency, vehicle.PurchaseDate, vehicle.Odometer, vehicle.ImageURL, userID, id)
 	return scanVehicle(row)
 }
@@ -329,14 +352,18 @@ func (s *PostgresStore) CreateExpense(userID string, expense domain.Expense) (do
 	if err != nil {
 		return domain.Expense{}, err
 	}
-	if expense.Odometer > 0 {
-		_, _ = s.pool.Exec(context.Background(), `UPDATE vehicles SET odometer=GREATEST(odometer, $1) WHERE user_id=$2 AND id=$3`, expense.Odometer, userID, expense.VehicleID)
-	}
+	_ = s.refreshVehicleOdometer(userID, expense.VehicleID)
 	return expense, nil
 }
 
 func (s *PostgresStore) UpdateExpense(userID, id string, expense domain.Expense) (domain.Expense, error) {
 	if _, err := s.Vehicle(userID, expense.VehicleID); err != nil {
+		return domain.Expense{}, err
+	}
+	var previousVehicleID string
+	if err := s.pool.QueryRow(context.Background(), `SELECT vehicle_id FROM expenses WHERE user_id=$1 AND id=$2`, userID, id).Scan(&previousVehicleID); errors.Is(err, pgx.ErrNoRows) {
+		return domain.Expense{}, ErrNotFound
+	} else if err != nil {
 		return domain.Expense{}, err
 	}
 	row := s.pool.QueryRow(context.Background(), `
@@ -349,8 +376,9 @@ RETURNING id, user_id, vehicle_id, category, amount_base, base_currency, amount_
 	if err != nil {
 		return domain.Expense{}, err
 	}
-	if updated.Odometer > 0 {
-		_, _ = s.pool.Exec(context.Background(), `UPDATE vehicles SET odometer=GREATEST(odometer, $1) WHERE user_id=$2 AND id=$3`, updated.Odometer, userID, updated.VehicleID)
+	_ = s.refreshVehicleOdometer(userID, updated.VehicleID)
+	if previousVehicleID != updated.VehicleID {
+		_ = s.refreshVehicleOdometer(userID, previousVehicleID)
 	}
 	return updated, nil
 }
@@ -502,7 +530,7 @@ func (s *PostgresStore) requireExpense(userID, expenseID string) error {
 func (s *PostgresStore) refreshVehicleOdometer(userID, vehicleID string) error {
 	_, err := s.pool.Exec(context.Background(), `
 UPDATE vehicles
-SET odometer=COALESCE((SELECT MAX(odometer) FROM expenses WHERE user_id=$1 AND vehicle_id=$2 AND odometer > 0), odometer)
+SET odometer=GREATEST(odometer_base, COALESCE((SELECT MAX(odometer) FROM expenses WHERE user_id=$1 AND vehicle_id=$2 AND odometer > 0), 0))
 WHERE user_id=$1 AND id=$2`, userID, vehicleID)
 	return err
 }
@@ -619,13 +647,17 @@ func attachmentSelectSQL() string {
 	return `SELECT id, user_id, expense_id, object_key, file_name, content_type, size_bytes, created_at FROM expense_attachments`
 }
 
+func vehicleSelectSQL() string {
+	return `SELECT id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at FROM vehicles`
+}
+
 func documentSelectSQL() string {
 	return `SELECT id, user_id, owner_type, owner_id, kind, object_key, file_name, content_type, size_bytes, created_at FROM document_attachments`
 }
 
 func scanVehicle(row rowScanner) (domain.Vehicle, error) {
 	var vehicle domain.Vehicle
-	err := row.Scan(&vehicle.ID, &vehicle.UserID, &vehicle.PlateNumber, &vehicle.Nickname, &vehicle.Make, &vehicle.Model, &vehicle.Year, &vehicle.EngineType, &vehicle.VIN, &vehicle.PreferredFuelType, &vehicle.PurchasePrice, &vehicle.PurchaseCurrency, &vehicle.PurchaseDate, &vehicle.Odometer, &vehicle.ImageURL, &vehicle.CreatedAt)
+	err := row.Scan(&vehicle.ID, &vehicle.UserID, &vehicle.PlateNumber, &vehicle.Nickname, &vehicle.Make, &vehicle.Model, &vehicle.Year, &vehicle.EngineType, &vehicle.VIN, &vehicle.PreferredFuelType, &vehicle.PurchasePrice, &vehicle.PurchaseCurrency, &vehicle.PurchaseDate, &vehicle.Odometer, &vehicle.OdometerBase, &vehicle.ImageURL, &vehicle.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Vehicle{}, ErrNotFound
 	}

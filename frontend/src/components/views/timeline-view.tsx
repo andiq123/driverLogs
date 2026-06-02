@@ -45,7 +45,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                     <span className="text-xs text-[#6b7065]">{equivalents(expense.amount_eur, expense.amount_usd)}</span>
                     {expense.exchange_rate_source ? <span className="block text-[11px] text-[#8a9085]">{expense.exchange_rate_date}</span> : null}
                     <div className="mt-1 flex justify-end gap-1.5">
-                      <ActionButton type="button" icon={FileText} variant="soft" onClick={() => toggleFiles(expense.id, filesExpenseID, onOpenExpenseFiles, setLocalFilesExpenseID)} className="h-8 rounded-[13px] px-2.5 text-xs sm:h-9 sm:rounded-[14px] sm:px-3">PDFs</ActionButton>
+                      <ActionButton type="button" icon={FileText} variant="soft" onClick={() => toggleFiles(expense.id, filesExpenseID, onOpenExpenseFiles, setLocalFilesExpenseID)} className="h-8 rounded-[13px] px-2.5 text-xs sm:h-9 sm:rounded-[14px] sm:px-3">Files</ActionButton>
                       <ActionButton type="button" icon={Pencil} variant="soft" onClick={() => setEditingExpense(expense)} className="h-8 rounded-[13px] px-2.5 text-xs sm:h-9 sm:rounded-[14px] sm:px-3">Edit</ActionButton>
                       <ActionButton type="button" icon={Trash2} variant="soft" onClick={() => confirmDelete(expense, onDeleteExpense)} className="h-8 rounded-[13px] bg-[#fff0ec] px-2.5 text-xs text-[#9b3226] hover:bg-[#ffdcd4] sm:h-9 sm:rounded-[14px] sm:px-3">Remove</ActionButton>
                     </div>

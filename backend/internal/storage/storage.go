@@ -98,7 +98,7 @@ func (c S3Client) Get(ctx context.Context, key string) (Object, error) {
 	if err != nil {
 		return Object{}, fmt.Errorf("get s3 object: %w", err)
 	}
-	contentType := "application/pdf"
+	contentType := "application/octet-stream"
 	if output.ContentType != nil && *output.ContentType != "" {
 		contentType = *output.ContentType
 	}

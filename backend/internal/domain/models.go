@@ -17,6 +17,7 @@ type Vehicle struct {
 	PurchaseCurrency  string              `json:"purchase_currency,omitempty"`
 	PurchaseDate      string              `json:"purchase_date,omitempty"`
 	Odometer          int                 `json:"odometer,omitempty"`
+	OdometerBase      int                 `json:"-"`
 	ImageURL          string              `json:"image_url,omitempty"`
 	DocumentCount     int                 `json:"document_count,omitempty"`
 	LatestDocument    *DocumentAttachment `json:"latest_document,omitempty"`

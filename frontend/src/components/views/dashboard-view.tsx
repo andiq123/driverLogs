@@ -1,11 +1,12 @@
-import { FileText, Car, Loader2, Minus, Plus, X } from "lucide-react";
-import { useEffect, useState } from "react";
-import { errorMessage, getExpenseAttachmentPreview, getUserDocumentPreview, getVehicleDocumentPreview } from "@/lib/api";
+import { FileText, Car } from "lucide-react";
+import { useState } from "react";
+import { getExpenseAttachmentPreview, getUserDocumentPreview, getVehicleDocumentPreview } from "@/lib/api";
 import type { DocumentAttachment, Expense, ExpenseAttachment, ExpenseCategory, MoneyTotals, SmartReminder, Vehicle } from "@/lib/types";
 import { equivalents, km, money, vehicleName } from "@/lib/format";
 import { Badge, EmptyState, Metric } from "../ui";
 import { ExpenseForm } from "../forms";
 import { SmartInsightsPanel } from "../smart-insights";
+import { FilePreviewModal } from "../file-preview-modal";
 
 export function DashboardView({ vehicle, expenses, userDocuments, totals, token, baseCurrency, country, savingExpense, onCreateExpense }: { vehicle?: Vehicle; expenses: Expense[]; userDocuments: DocumentAttachment[]; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onCreateExpense: (expense: Partial<Expense>) => void }) {
   const [intentCategory, setIntentCategory] = useState<ExpenseCategory>();
@@ -38,7 +39,7 @@ export function DashboardView({ vehicle, expenses, userDocuments, totals, token,
         <SmartInsightsPanel insights={totals.insights} />
       </div>
       <ExpenseForm key={vehicle.id} vehicle={vehicle} token={token} baseCurrency={baseCurrency} country={country} saving={savingExpense} odometerSuggestion={odometerSuggestion(vehicle, expenses)} intentCategory={intentCategory} onCreate={onCreateExpense} />
-      {preview ? <DocumentPreviewModal preview={preview} onClose={() => setPreview(undefined)} /> : null}
+      {preview ? <FilePreviewModal title={preview.title} fileName={preview.fileName} load={preview.load} onClose={() => setPreview(undefined)} /> : null}
     </div>
   );
 }
@@ -55,8 +56,8 @@ function DocumentShortcuts({ token, vehicle, expenses, userDocuments, onOpen }: 
   const driverLicense = userDocuments.find((document) => document.kind === "driver_license");
   const carPassport = vehicle.latest_document?.kind === "car_passport" ? vehicle.latest_document : undefined;
   const items = [
-    insurance?.latest_attachment ? expenseDocumentShortcut(token, "Insurance PDF", insurance, insurance.latest_attachment) : undefined,
-    inspection?.latest_attachment ? expenseDocumentShortcut(token, "ITP PDF", inspection, inspection.latest_attachment) : undefined,
+    insurance?.latest_attachment ? expenseDocumentShortcut(token, "Insurance file", insurance, insurance.latest_attachment) : undefined,
+    inspection?.latest_attachment ? expenseDocumentShortcut(token, "ITP file", inspection, inspection.latest_attachment) : undefined,
     driverLicense ? { label: "Driver license", fileName: driverLicense.file_name, load: () => getUserDocumentPreview(token, driverLicense.id) } : undefined,
     vehicle.id && carPassport ? { label: "Car passport", fileName: carPassport.file_name, load: () => getVehicleDocumentPreview(token, vehicle.id, carPassport.id) } : undefined,
   ].filter(Boolean) as DocumentShortcut[];
@@ -88,54 +89,6 @@ function expenseDocumentShortcut(token: string, label: string, expense: Expense,
     fileName: attachment.file_name,
     load: () => getExpenseAttachmentPreview(token, expense.id, attachment.id),
   };
-}
-
-function DocumentPreviewModal({ preview, onClose }: { preview: DocumentPreview; onClose: () => void }) {
-  const [url, setURL] = useState("");
-  const [zoom, setZoom] = useState(1);
-  const [status, setStatus] = useState("Loading PDF...");
-
-  useEffect(() => {
-    let active = true;
-    let objectURL = "";
-    void preview.load()
-      .then((blob) => {
-        if (!active) return;
-        objectURL = URL.createObjectURL(blob);
-        setURL(objectURL);
-        setStatus("");
-      })
-      .catch((error) => setStatus(errorMessage(error, "Could not open PDF.")));
-    return () => {
-      active = false;
-      if (objectURL) URL.revokeObjectURL(objectURL);
-    };
-  }, [preview]);
-
-  return (
-    <div className="fixed inset-0 z-50 grid bg-[#151712]/45 p-2 backdrop-blur-sm sm:p-5">
-      <section className="m-auto flex h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-[24px] bg-[#fbfcf8] shadow-[0_28px_90px_rgba(21,23,18,0.28)] ring-1 ring-black/10">
-        <div className="flex items-center justify-between gap-2 border-b border-black/[0.06] px-3 py-2 sm:px-4">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold">{preview.title}</p>
-            <p className="truncate text-xs text-[#6b7065]">{preview.fileName}</p>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => setZoom((value) => Math.max(0.75, Number((value - 0.1).toFixed(2))))} className="flex size-9 items-center justify-center rounded-[13px] bg-[#edf4e7]" aria-label="Zoom out"><Minus size={16} /></button>
-            <span className="min-w-12 text-center text-xs font-bold">{Math.round(zoom * 100)}%</span>
-            <button type="button" onClick={() => setZoom((value) => Math.min(1.8, Number((value + 0.1).toFixed(2))))} className="flex size-9 items-center justify-center rounded-[13px] bg-[#edf4e7]" aria-label="Zoom in"><Plus size={16} /></button>
-            <button type="button" onClick={onClose} className="flex size-9 items-center justify-center rounded-[13px] bg-[#151712] text-white" aria-label="Close preview"><X size={16} /></button>
-          </div>
-        </div>
-        {status ? <div className="grid flex-1 place-items-center text-sm font-semibold text-[#6b7065]">{status === "Loading PDF..." ? <span className="flex items-center gap-2"><Loader2 size={17} className="animate-spin" />{status}</span> : status}</div> : null}
-        {url ? (
-          <div className="flex-1 overflow-auto bg-[#eef3e8]">
-            <iframe src={url} title={preview.title} style={{ width: `${100 * zoom}%`, height: `${100 * zoom}%`, minHeight: "100%" }} className="origin-top-left bg-white" />
-          </div>
-        ) : null}
-      </section>
-    </div>
-  );
 }
 
 function latestCategoryExpense(expenses: Expense[], category: ExpenseCategory) {

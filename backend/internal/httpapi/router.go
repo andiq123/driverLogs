@@ -24,7 +24,7 @@ import (
 	"driverlogs/backend/internal/store"
 )
 
-const maxPDFUploadBytes = 10 * 1024 * 1024
+const maxUploadBytes = 10 * 1024 * 1024
 
 type Store interface {
 	UserVehicles(userID string) ([]domain.Vehicle, error)
@@ -549,35 +549,36 @@ func (h Handler) listExpenseAttachments(w http.ResponseWriter, r *http.Request) 
 func (h Handler) uploadExpenseAttachment(w http.ResponseWriter, r *http.Request) {
 	if h.files == nil || !h.files.Enabled() {
 		h.logStorageUnavailable("expense attachment upload", "expense_id", r.PathValue("id"))
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "file storage is not configured on the backend"})
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxPDFUploadBytes+1024)
-	if err := r.ParseMultipartForm(maxPDFUploadBytes); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes+1024)
+	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file must be 10 MB or smaller"})
 		return
 	}
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf file is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file is required"})
 		return
 	}
 	defer file.Close()
-	if header.Size <= 0 || header.Size > maxPDFUploadBytes {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+	if header.Size <= 0 || header.Size > maxUploadBytes {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file must be 10 MB or smaller"})
 		return
 	}
-	data, err := io.ReadAll(io.LimitReader(file, maxPDFUploadBytes+1))
+	data, err := io.ReadAll(io.LimitReader(file, maxUploadBytes+1))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not read pdf"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not read file"})
 		return
 	}
-	if int64(len(data)) > maxPDFUploadBytes {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+	if int64(len(data)) > maxUploadBytes {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file must be 10 MB or smaller"})
 		return
 	}
-	if !isPDF(data, header.Header.Get("Content-Type")) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only PDF files are supported"})
+	fileKind, ok := detectUploadFile(data, header.Header.Get("Content-Type"))
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only PDF and image files are supported"})
 		return
 	}
 	attachmentID, err := randomAttachmentID()
@@ -587,17 +588,17 @@ func (h Handler) uploadExpenseAttachment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	expenseID := r.PathValue("id")
-	objectKey := fmt.Sprintf("expenses/%s/%s/%s.pdf", userID(r), expenseID, attachmentID)
-	if err := h.files.Put(r.Context(), objectKey, bytes.NewReader(data), "application/pdf", int64(len(data))); err != nil {
+	objectKey := fmt.Sprintf("expenses/%s/%s/%s%s", userID(r), expenseID, attachmentID, fileKind.Extension)
+	if err := h.files.Put(r.Context(), objectKey, bytes.NewReader(data), fileKind.ContentType, int64(len(data))); err != nil {
 		h.logger.Error("attachment upload failed", "error", err, "expense_id", expenseID)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not upload pdf"})
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not upload file"})
 		return
 	}
 	attachment := domain.ExpenseAttachment{
 		ID:          attachmentID,
 		ObjectKey:   objectKey,
-		FileName:    cleanPDFName(header.Filename),
-		ContentType: "application/pdf",
+		FileName:    cleanUploadName(header.Filename, fileKind.Extension),
+		ContentType: fileKind.ContentType,
 		SizeBytes:   int64(len(data)),
 	}
 	saved, err := h.store.CreateExpenseAttachment(userID(r), expenseID, attachment)
@@ -609,7 +610,7 @@ func (h Handler) uploadExpenseAttachment(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		_ = h.files.Delete(context.Background(), objectKey)
 		h.logger.Error("attachment metadata save failed", "error", err, "expense_id", expenseID)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save pdf metadata"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save file metadata"})
 		return
 	}
 	writeJSON(w, http.StatusCreated, saved)
@@ -618,7 +619,7 @@ func (h Handler) uploadExpenseAttachment(w http.ResponseWriter, r *http.Request)
 func (h Handler) previewExpenseAttachment(w http.ResponseWriter, r *http.Request) {
 	attachment, err := h.store.ExpenseAttachment(userID(r), r.PathValue("id"), r.PathValue("attachment_id"))
 	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pdf not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
 	}
 	if err != nil {
@@ -626,13 +627,13 @@ func (h Handler) previewExpenseAttachment(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
-	h.streamPDF(w, r, attachment.ObjectKey, attachment.FileName, attachment.ID)
+	h.streamFile(w, r, attachment.ObjectKey, attachment.FileName, attachment.ContentType, attachment.ID)
 }
 
 func (h Handler) deleteExpenseAttachment(w http.ResponseWriter, r *http.Request) {
 	attachment, err := h.store.ExpenseAttachment(userID(r), r.PathValue("id"), r.PathValue("attachment_id"))
 	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pdf not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
 	}
 	if err != nil {
@@ -645,7 +646,7 @@ func (h Handler) deleteExpenseAttachment(w http.ResponseWriter, r *http.Request)
 	}
 	if err := h.store.DeleteExpenseAttachment(userID(r), r.PathValue("id"), attachment.ID); err != nil {
 		h.logger.Error("attachment metadata delete failed", "error", err, "attachment_id", attachment.ID)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not remove pdf"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not remove file"})
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -700,31 +701,32 @@ func (h Handler) listDocuments(w http.ResponseWriter, r *http.Request, ownerType
 func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, kind string) {
 	if h.files == nil || !h.files.Enabled() {
 		h.logStorageUnavailable("document upload", "owner_type", ownerType, "owner_id", ownerID, "kind", kind)
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "file storage is not configured on the backend"})
 		return
 	}
 	if !validDocumentKind(ownerType, kind) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported document type"})
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxPDFUploadBytes+1024)
-	if err := r.ParseMultipartForm(maxPDFUploadBytes); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes+1024)
+	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file must be 10 MB or smaller"})
 		return
 	}
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf file is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file is required"})
 		return
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, maxPDFUploadBytes+1))
-	if err != nil || int64(len(data)) > maxPDFUploadBytes {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+	data, err := io.ReadAll(io.LimitReader(file, maxUploadBytes+1))
+	if err != nil || int64(len(data)) > maxUploadBytes {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file must be 10 MB or smaller"})
 		return
 	}
-	if !isPDF(data, header.Header.Get("Content-Type")) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only PDF files are supported"})
+	fileKind, ok := detectUploadFile(data, header.Header.Get("Content-Type"))
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only PDF and image files are supported"})
 		return
 	}
 	documentID, err := randomAttachmentID()
@@ -733,13 +735,13 @@ func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerTyp
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
-	objectKey := fmt.Sprintf("documents/%s/%s/%s/%s/%s.pdf", userID(r), ownerType, ownerID, kind, documentID)
-	if err := h.files.Put(r.Context(), objectKey, bytes.NewReader(data), "application/pdf", int64(len(data))); err != nil {
+	objectKey := fmt.Sprintf("documents/%s/%s/%s/%s/%s%s", userID(r), ownerType, ownerID, kind, documentID, fileKind.Extension)
+	if err := h.files.Put(r.Context(), objectKey, bytes.NewReader(data), fileKind.ContentType, int64(len(data))); err != nil {
 		h.logger.Error("document upload failed", "error", err, "owner_type", ownerType, "owner_id", ownerID, "kind", kind)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not upload pdf"})
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not upload file"})
 		return
 	}
-	saved, err := h.store.CreateDocument(userID(r), domain.DocumentAttachment{ID: documentID, OwnerType: ownerType, OwnerID: ownerID, Kind: kind, ObjectKey: objectKey, FileName: cleanPDFName(header.Filename), ContentType: "application/pdf", SizeBytes: int64(len(data))})
+	saved, err := h.store.CreateDocument(userID(r), domain.DocumentAttachment{ID: documentID, OwnerType: ownerType, OwnerID: ownerID, Kind: kind, ObjectKey: objectKey, FileName: cleanUploadName(header.Filename, fileKind.Extension), ContentType: fileKind.ContentType, SizeBytes: int64(len(data))})
 	if errors.Is(err, store.ErrNotFound) {
 		_ = h.files.Delete(context.Background(), objectKey)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document owner not found"})
@@ -748,7 +750,7 @@ func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerTyp
 	if err != nil {
 		_ = h.files.Delete(context.Background(), objectKey)
 		h.logger.Error("document metadata save failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save pdf metadata"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save file metadata"})
 		return
 	}
 	writeJSON(w, http.StatusCreated, saved)
@@ -757,7 +759,7 @@ func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerTyp
 func (h Handler) previewDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, documentID string) {
 	document, err := h.store.Document(userID(r), ownerType, ownerID, documentID)
 	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pdf not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
 	}
 	if err != nil {
@@ -765,13 +767,13 @@ func (h Handler) previewDocument(w http.ResponseWriter, r *http.Request, ownerTy
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
-	h.streamPDF(w, r, document.ObjectKey, document.FileName, document.ID)
+	h.streamFile(w, r, document.ObjectKey, document.FileName, document.ContentType, document.ID)
 }
 
 func (h Handler) deleteDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, documentID string) {
 	document, err := h.store.Document(userID(r), ownerType, ownerID, documentID)
 	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pdf not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
 	}
 	if err != nil {
@@ -784,7 +786,7 @@ func (h Handler) deleteDocument(w http.ResponseWriter, r *http.Request, ownerTyp
 	}
 	if err := h.store.DeleteDocument(userID(r), ownerType, ownerID, document.ID); err != nil {
 		h.logger.Error("document metadata delete failed", "error", err, "document_id", document.ID)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not remove pdf"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not remove file"})
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -794,26 +796,32 @@ func validDocumentKind(ownerType, kind string) bool {
 	return (ownerType == "user" && kind == "driver_license") || (ownerType == "vehicle" && kind == "car_passport")
 }
 
-func (h Handler) streamPDF(w http.ResponseWriter, r *http.Request, objectKey, fileName, documentID string) {
+func (h Handler) streamFile(w http.ResponseWriter, r *http.Request, objectKey, fileName, contentType, documentID string) {
 	if h.files == nil || !h.files.Enabled() {
-		h.logStorageUnavailable("pdf preview", "document_id", documentID)
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "PDF storage is not configured on the backend"})
+		h.logStorageUnavailable("file preview", "document_id", documentID)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "file storage is not configured on the backend"})
 		return
 	}
 	object, err := h.files.Get(r.Context(), objectKey)
 	if err != nil {
-		h.logger.Error("pdf preview failed", "error", err, "document_id", documentID)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not load pdf"})
+		h.logger.Error("file preview failed", "error", err, "document_id", documentID, "object_key", objectKey)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not load file"})
 		return
 	}
 	defer object.Body.Close()
-	w.Header().Set("Content-Type", "application/pdf")
+	if strings.TrimSpace(contentType) == "" {
+		contentType = object.ContentType
+	}
+	if strings.TrimSpace(contentType) == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": fileName}))
 	if object.Size > 0 {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", object.Size))
 	}
 	if _, err := io.Copy(w, object.Body); err != nil {
-		h.logger.Warn("pdf stream interrupted", "error", err, "document_id", documentID)
+		h.logger.Warn("file stream interrupted", "error", err, "document_id", documentID)
 	}
 }
 
@@ -826,21 +834,42 @@ func (h Handler) logStorageUnavailable(operation string, fields ...any) {
 	h.logger.Error("file storage unavailable", values...)
 }
 
-func isPDF(data []byte, contentType string) bool {
-	if len(data) < 4 || string(data[:4]) != "%PDF" {
-		return false
-	}
-	mediaType, _, err := mime.ParseMediaType(contentType)
-	return err != nil || mediaType == "" || mediaType == "application/pdf" || mediaType == "application/octet-stream"
+type uploadFileKind struct {
+	ContentType string
+	Extension   string
 }
 
-func cleanPDFName(name string) string {
+func detectUploadFile(data []byte, contentType string) (uploadFileKind, bool) {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mediaType = ""
+	}
+	if len(data) >= 4 && string(data[:4]) == "%PDF" && uploadContentTypeAllowed(mediaType, "application/pdf") {
+		return uploadFileKind{ContentType: "application/pdf", Extension: ".pdf"}, true
+	}
+	if len(data) >= 3 && data[0] == 0xff && data[1] == 0xd8 && data[2] == 0xff && (uploadContentTypeAllowed(mediaType, "image/jpeg") || mediaType == "image/jpg") {
+		return uploadFileKind{ContentType: "image/jpeg", Extension: ".jpg"}, true
+	}
+	if len(data) >= 8 && bytes.Equal(data[:8], []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}) && uploadContentTypeAllowed(mediaType, "image/png") {
+		return uploadFileKind{ContentType: "image/png", Extension: ".png"}, true
+	}
+	if len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP" && uploadContentTypeAllowed(mediaType, "image/webp") {
+		return uploadFileKind{ContentType: "image/webp", Extension: ".webp"}, true
+	}
+	return uploadFileKind{}, false
+}
+
+func uploadContentTypeAllowed(actual, expected string) bool {
+	return actual == "" || actual == expected || actual == "application/octet-stream"
+}
+
+func cleanUploadName(name, extension string) string {
 	clean := filepath.Base(strings.TrimSpace(name))
 	if clean == "." || clean == "" {
-		return "receipt.pdf"
+		return "attachment" + extension
 	}
-	if !strings.HasSuffix(strings.ToLower(clean), ".pdf") {
-		clean += ".pdf"
+	if filepath.Ext(clean) == "" {
+		clean += extension
 	}
 	return clean
 }
