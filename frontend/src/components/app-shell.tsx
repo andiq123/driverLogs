@@ -1,4 +1,7 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { CalendarDays } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { View } from "@/lib/types";
 import { mobileNavItems, navItems } from "@/lib/theme";
 import { BrandMark } from "./brand-mark";
@@ -7,9 +10,10 @@ import { UserCard } from "./user-card";
 export function AppShell({ view, userName, onLogout, onViewChange, children }: { view: View; userName?: string; onLogout: () => void; onViewChange: (view: View) => void; children: ReactNode }) {
   const displayName = userName?.trim() || "User";
   const title = view === "Settings" ? "Profile" : view;
+  const today = useTodayLabel();
   return (
-    <main className="min-h-dvh bg-[#f5f7f2] text-[#151712]">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[96rem] gap-4 px-2 pb-[calc(4.35rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:px-6 lg:py-3 xl:gap-6">
+    <main className="min-h-dvh overflow-x-hidden bg-[#f5f7f2] text-[#151712]">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[96rem] gap-4 overflow-x-hidden px-2 pb-[calc(4.35rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:px-6 lg:py-3 xl:gap-6">
         <aside className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-64 flex-col rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_18px_64px_rgba(31,41,28,0.10)] lg:flex">
           <Brand />
           <Nav view={view} onViewChange={onViewChange} />
@@ -24,8 +28,14 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
           <header className="sticky top-0 z-20 -mx-2 border-b border-black/[0.06] bg-[#f5f7f2]/88 px-3 pb-2 pt-[max(0.35rem,env(safe-area-inset-top))] backdrop-blur-xl sm:-mx-5 sm:px-5 sm:pb-3 sm:pt-[max(0.75rem,env(safe-area-inset-top))] lg:relative lg:mx-0 lg:border-none lg:bg-transparent lg:px-0 lg:pt-0 lg:backdrop-blur-none">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#70776a] sm:text-xs">Monday, June 1</p>
-                <h1 className="mt-0.5 truncate text-[28px] font-semibold leading-none tracking-tight sm:mt-1 sm:text-4xl">{title}</h1>
+                <h1 className="truncate text-[30px] font-semibold leading-none tracking-tight sm:text-4xl">{title}</h1>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 rounded-[18px] border border-black/[0.055] bg-[#fffffb]/82 px-2.5 py-2 text-right shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 sm:px-3">
+                <CalendarDays size={17} className="text-[#62685e]" />
+                <span className="grid leading-none">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#70776a] sm:text-[10px]">{today.weekday}</span>
+                  <span className="mt-1 text-xs font-bold text-[#151712] sm:text-sm">{today.monthDay}</span>
+                </span>
               </div>
             </div>
           </header>
@@ -45,6 +55,27 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
       </nav>
     </main>
   );
+}
+
+function useTodayLabel() {
+  const [today, setToday] = useState(formatTodayLabel);
+
+  useEffect(() => {
+    const refresh = () => setToday(formatTodayLabel());
+    refresh();
+    const interval = window.setInterval(refresh, 60 * 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return today;
+}
+
+function formatTodayLabel() {
+  const now = new Date();
+  return {
+    weekday: new Intl.DateTimeFormat("en", { weekday: "long" }).format(now),
+    monthDay: new Intl.DateTimeFormat("en", { month: "long", day: "numeric" }).format(now),
+  };
 }
 
 function Brand() {

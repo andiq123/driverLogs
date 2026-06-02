@@ -4,9 +4,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, deleteExpenseAttachment, errorMessage, getExpenseAttachmentPreview, getExpenseAttachments, uploadExpenseAttachment } from "@/lib/api";
+import { attachmentAccept, fileSize, isAllowedAttachment } from "@/lib/attachments";
 import type { ExpenseAttachment } from "@/lib/types";
 import { FilePreviewModal } from "./file-preview-modal";
-import { ActionButton } from "./ui";
+import { IconButton } from "./ui";
 
 export function ExpenseAttachments({ expenseID, token }: { expenseID: string; token: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +85,7 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
             <p className="text-xs text-[#6b7065]">Private receipt or document attachments.</p>
           </div>
           <input ref={inputRef} className="hidden" type="file" accept={attachmentAccept} onChange={(event) => void upload(event.target.files?.[0])} />
-          <ActionButton type="button" icon={Paperclip} loading={action === "upload"} variant="soft" onClick={() => inputRef.current?.click()} className="h-9 rounded-[14px] px-3 text-xs">Attach</ActionButton>
+          <IconButton type="button" icon={Paperclip} label="Attach file" loading={action === "upload"} onClick={() => inputRef.current?.click()} />
         </div>
         {message ? <p className="mt-2 rounded-[14px] bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9b3226]">{message}</p> : null}
         {loading ? (
@@ -97,15 +98,13 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
         ) : (
           <div className="mt-3 grid gap-2">
             {attachments.map((attachment) => (
-              <div key={attachment.id} className="flex items-center gap-2 rounded-[16px] bg-white p-2 ring-1 ring-black/[0.04]">
+              <div key={attachment.id} className="flex min-w-0 items-center gap-2 rounded-[16px] bg-white p-2 ring-1 ring-black/[0.04]">
                 <span className="flex size-9 items-center justify-center rounded-[13px] bg-[#edf4e7]"><FileText size={16} /></span>
                 <button type="button" onClick={() => void preview(attachment)} className="min-w-0 flex-1 text-left">
                   <span className="block truncate text-sm font-semibold">{attachment.file_name}</span>
                   <span className="text-xs text-[#6b7065]">{fileSize(attachment.size_bytes)}</span>
                 </button>
-                <button type="button" onClick={() => void remove(attachment)} className="flex size-9 items-center justify-center rounded-[13px] text-[#9b3226] transition-colors hover:bg-[#fff0ec]" aria-label={`Remove ${attachment.file_name}`}>
-                  <Trash2 size={16} />
-                </button>
+                <IconButton type="button" icon={Trash2} label={`Remove ${attachment.file_name}`} variant="danger" onClick={() => void remove(attachment)} />
               </div>
             ))}
           </div>
@@ -118,15 +117,4 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
       </div>
     </motion.div>
   );
-}
-
-const attachmentAccept = "application/pdf,image/jpeg,image/png,image/webp";
-
-function isAllowedAttachment(file: File) {
-  return !file.type || attachmentAccept.split(",").includes(file.type);
-}
-
-function fileSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

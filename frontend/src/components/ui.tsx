@@ -4,7 +4,7 @@ import { controls } from "@/lib/theme";
 
 export function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
   return (
-    <section className="rounded-[24px] border border-black/[0.055] bg-[#fffffb]/96 p-3.5 shadow-[0_8px_28px_rgba(31,41,28,0.06)] ring-1 ring-white/70 transition-[box-shadow,transform,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:rounded-[28px] sm:p-5">
+    <section className="min-w-0 overflow-hidden rounded-[24px] border border-black/[0.055] bg-[#fffffb]/96 p-3.5 shadow-[0_8px_28px_rgba(31,41,28,0.06)] ring-1 ring-white/70 transition-[box-shadow,transform,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:rounded-[28px] sm:p-5">
       <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[#70776a] sm:text-xs sm:tracking-[0.16em]">{eyebrow}</p>
       <h2 className="mt-0.5 text-lg font-semibold sm:mt-1 sm:text-xl">{title}</h2>
       <div className="mt-3.5 sm:mt-5">{children}</div>
@@ -49,17 +49,44 @@ export function ActionButton({ loading = false, icon: Icon, children, variant = 
   );
 }
 
+type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  icon: LucideIcon;
+  label: string;
+  loading?: boolean;
+  variant?: "dark" | "soft" | "danger";
+};
+
+export function IconButton({ icon: Icon, label, loading = false, variant = "soft", className = "", disabled, ...props }: IconButtonProps) {
+  const styles = {
+    dark: "bg-[#151712] text-white hover:bg-[#20241d]",
+    soft: "bg-[#dfe7d4] text-[#151712] hover:bg-[#cbd9bf]",
+    danger: "bg-[#fff0ec] text-[#9b3226] hover:bg-[#ffdcd4]",
+  };
+  return (
+    <button
+      disabled={disabled || loading}
+      aria-label={label}
+      title={label}
+      className={`flex size-9 touch-manipulation items-center justify-center rounded-[14px] transition-[background-color,box-shadow,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-70 ${styles[variant]} ${className}`}
+      {...props}
+    >
+      {loading ? <Loader2 size={17} className="animate-spin" /> : <Icon size={17} />}
+    </button>
+  );
+}
+
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   name: string;
   label: string;
   icon?: LucideIcon;
   isAutofilled?: boolean;
+  showLabel?: boolean;
 };
 
-export function Input({ name, label, icon: Icon, type = "text", required = false, isAutofilled = false, placeholder, ...props }: InputProps) {
+export function Input({ name, label, icon: Icon, type = "text", required = false, isAutofilled = false, showLabel = false, placeholder, ...props }: InputProps) {
   return (
     <label className="grid min-w-0 gap-1 text-sm font-semibold">
-      <span className="sr-only">{label}</span>
+      <span className={showLabel ? "px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#70776a]" : "sr-only"}>{label}</span>
       <span className="relative block">
         {Icon ? <Icon size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#62685e]" /> : null}
         <input

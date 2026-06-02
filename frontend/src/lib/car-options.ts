@@ -47,3 +47,12 @@ export function normalizeFuelType(value?: string) {
   if (fuelType === "electric") return "Electric";
   return "Super 95";
 }
+
+export function oilIntervalForVehicle(fuelType?: string, engineType?: string) {
+  const value = `${fuelType ?? ""} ${engineType ?? ""}`.trim().toLowerCase();
+  if (value.includes("diesel")) return 10000;
+  if (value.includes("lpg") || value.includes("gpl")) return 10000;
+  if (value.includes("hybrid")) return 12000;
+  if (value.includes("petrol") || value.includes("gasoline") || value.includes("super 95")) return 12000;
+  return 10000;
+}

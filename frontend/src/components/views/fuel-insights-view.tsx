@@ -169,12 +169,12 @@ function FuelRows({ trends, comparisonByFuel, compareCountry, failed }: { trends
         {!failed && !trends ? Array.from({ length: 4 }, (_, index) => <FuelRowSkeleton key={index} />) : null}
         {!failed && trends ? trends.rows.map((row) => (
           <article key={row.fuel_type} className="rounded-[20px] border border-black/[0.045] bg-[#fffffb]/92 p-3 shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 sm:rounded-[24px] sm:p-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="grid gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold sm:text-base">{row.fuel_type}</p>
                 <p className="text-[11px] text-[#62685e] sm:text-xs">Moldova national reference</p>
               </div>
-              <div className="grid shrink-0 justify-items-end gap-1">
+              <div className="flex min-w-0 flex-wrap gap-1 sm:grid sm:shrink-0 sm:justify-items-end">
                 <p className="rounded-full bg-white px-2.5 py-1 text-xs font-bold sm:px-3 sm:text-sm">MDL {priceOnly(row.now)}</p>
                 {comparisonByFuel.get(row.fuel_type) ? <p className="rounded-full bg-[#151712] px-2.5 py-1 text-[10px] font-bold text-white sm:text-[11px]">{comparisonTag(comparisonByFuel.get(row.fuel_type)!, compareCountry)}</p> : null}
               </div>
@@ -214,12 +214,12 @@ function FuelTileSkeleton() {
 function FuelRowSkeleton() {
   return (
     <article className="rounded-[20px] border border-black/[0.045] bg-[#fffffb]/92 p-3 shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 sm:rounded-[24px] sm:p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="grid gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
         <div className="min-w-0">
           <SkeletonLine className="h-4 w-24 bg-white/70 sm:h-5" />
           <SkeletonLine className="mt-1 h-3 w-36 bg-white/60" />
         </div>
-        <div className="grid shrink-0 justify-items-end gap-1">
+        <div className="flex min-w-0 flex-wrap gap-1 sm:grid sm:shrink-0 sm:justify-items-end">
           <SkeletonLine className="h-7 w-20 bg-white" />
           <SkeletonLine className="h-6 w-28 bg-[#151712]/12" />
         </div>

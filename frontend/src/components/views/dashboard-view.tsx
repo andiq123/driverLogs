@@ -8,7 +8,7 @@ import { ExpenseForm } from "../forms";
 import { SmartInsightsPanel } from "../smart-insights";
 import { FilePreviewModal } from "../file-preview-modal";
 
-export function DashboardView({ vehicle, expenses, userDocuments, totals, token, baseCurrency, country, savingExpense, onCreateExpense }: { vehicle?: Vehicle; expenses: Expense[]; userDocuments: DocumentAttachment[]; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onCreateExpense: (expense: Partial<Expense>) => void }) {
+export function DashboardView({ vehicle, expenses, userDocuments, totals, token, baseCurrency, country, savingExpense, onCreateExpense }: { vehicle?: Vehicle; expenses: Expense[]; userDocuments: DocumentAttachment[]; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onCreateExpense: (expense: Partial<Expense>, files?: File[]) => void }) {
   const [intentCategory, setIntentCategory] = useState<ExpenseCategory>();
   const [preview, setPreview] = useState<DocumentPreview>();
   if (!vehicle) {
@@ -20,7 +20,7 @@ export function DashboardView({ vehicle, expenses, userDocuments, totals, token,
       <div className="grid content-start gap-3 sm:gap-4">
         <section className="relative overflow-hidden rounded-[24px] bg-[#151712] p-4 text-white shadow-[0_22px_72px_rgba(21,23,18,0.22)] sm:min-h-[24rem] sm:rounded-[28px] sm:p-6 xl:min-h-[21rem]">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(223,231,212,0.18),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_42%)]" />
-          <div className="pointer-events-none absolute -bottom-24 -right-20 size-64 rounded-full bg-[#dfe7d4]/12 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-24 -right-20 hidden size-64 rounded-full bg-[#dfe7d4]/12 blur-2xl sm:block" />
           <div className="relative flex flex-wrap gap-1.5 sm:gap-2">
             <Badge>{vehicle.plate_number}</Badge>
             {vehicle.engine_type ? <Badge>{vehicle.engine_type}</Badge> : null}

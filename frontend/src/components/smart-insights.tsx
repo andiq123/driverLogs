@@ -8,7 +8,7 @@ type InsightTone = keyof typeof insightTones;
 export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   const oil = insights.maintenance.oil_change;
   return (
-    <section className="flex w-full max-w-full min-w-0 snap-x gap-2 overflow-x-auto pb-1 pr-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:pr-0 2xl:grid-cols-5">
+    <section className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 2xl:grid-cols-5">
       <InsightTile icon={CalendarClock} title="Oil" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} tone={oilTone(oil.remaining_km, oil.next_odometer)} badge={oilBadge(oil.remaining_km, oil.next_odometer)} />
       <InsightTile icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples, insights.fuel.consumption_confidence)} />
       <InsightTile icon={Wrench} title="Service" value={insights.maintenance.average_mdl ? money(insights.maintenance.average_mdl) : "No service yet"} detail={entryDetail(insights.maintenance.entry_count)} />
@@ -22,7 +22,7 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
 function InsightTile({ icon: Icon, title, value, detail, tone = "neutral", badge }: { icon: LucideIcon; title: string; value: string; detail: string; tone?: InsightTone; badge?: string }) {
   const colors = insightTones[tone];
   return (
-    <div className={`relative min-h-[7.35rem] w-28 shrink-0 snap-start overflow-hidden rounded-[20px] border p-3 ring-1 transition-[background-color,border-color,box-shadow,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:min-h-[8.75rem] sm:w-auto sm:rounded-[24px] sm:p-4 ${colors.card}`}>
+    <div className={`relative min-h-[7rem] min-w-0 overflow-hidden rounded-[20px] border p-3 ring-1 transition-[background-color,border-color,box-shadow,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:min-h-[8.75rem] sm:rounded-[24px] sm:p-4 ${colors.card}`}>
       <div className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${colors.wash}`} />
       <div className={`relative flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] sm:gap-2 sm:text-[11px] sm:tracking-[0.14em] ${colors.meta}`}>
         <Icon size={14} />
@@ -42,10 +42,10 @@ function oilValue(nextOdometer?: number, nextDate?: string) {
 }
 
 function oilDetail(confidence: string, intervalKM = 10000, remainingKM?: number, nextOdometer?: number, intervalDays?: number) {
-  if (nextOdometer && remainingKM === 0) return `Due now. European default is ${km(intervalKM)} or 12 months.`;
-  if (remainingKM) return `${km(remainingKM)} left. European default is ${km(intervalKM)} or 12 months.`;
-  if (confidence === "learned") return `Learned from your km history. Typical interval: ${km(intervalKM)}.`;
-  if (intervalDays) return `First estimate: ${km(intervalKM)} or about ${intervalDays} days.`;
+  if (nextOdometer && remainingKM === 0) return `Next oil change is due now.`;
+  if (remainingKM) return `${km(remainingKM)} left until next oil change.`;
+  if (confidence === "learned") return `Next oil interval: ${km(intervalKM)}.`;
+  if (intervalDays) return `Next oil change after ${km(intervalKM)}.`;
   return "Add Service → Oil change with odometer km.";
 }
 

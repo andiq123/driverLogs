@@ -17,6 +17,13 @@ export function vehicleName(vehicle: Vehicle) {
   return vehicle.nickname || makeModel || vehicle.plate_number;
 }
 
+export function dateText(value?: string) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 export function numberValue(value: FormDataEntryValue | null) {
   const normalized = normalizeDecimal(String(value ?? ""));
   const parsed = Number(normalized);

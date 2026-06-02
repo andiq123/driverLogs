@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   engine_type text NOT NULL DEFAULT '',
   vin text NOT NULL DEFAULT '',
   preferred_fuel_type text NOT NULL DEFAULT 'Super 95',
+  oil_interval_km int NOT NULL DEFAULT 10000,
   purchase_price numeric NOT NULL DEFAULT 0,
   purchase_currency text NOT NULL DEFAULT '',
   purchase_date text NOT NULL DEFAULT '',
@@ -82,6 +83,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   expires_date text NOT NULL DEFAULT '',
   date text NOT NULL,
   description text NOT NULL DEFAULT '',
+  exclude_from_analytics boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL
 );
 CREATE TABLE IF NOT EXISTS expense_attachments (
@@ -116,6 +118,7 @@ CREATE TABLE IF NOT EXISTS document_attachments (
 		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS fuel_full_tank boolean NOT NULL DEFAULT false`,
 		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS service_type text NOT NULL DEFAULT ''`,
 		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS expires_date text NOT NULL DEFAULT ''`,
+		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS exclude_from_analytics boolean NOT NULL DEFAULT false`,
 	} {
 		if _, err := s.pool.Exec(ctx, statement); err != nil {
 			return fmt.Errorf("migrate expense smart fields: %w", err)
@@ -145,6 +148,9 @@ CREATE TABLE IF NOT EXISTS document_attachments (
 	}
 	if _, err := s.pool.Exec(ctx, `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS preferred_fuel_type text NOT NULL DEFAULT 'Super 95'`); err != nil {
 		return fmt.Errorf("migrate vehicle preferred fuel type: %w", err)
+	}
+	if _, err := s.pool.Exec(ctx, `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_interval_km int NOT NULL DEFAULT 10000`); err != nil {
+		return fmt.Errorf("migrate vehicle oil interval: %w", err)
 	}
 	if _, err := s.pool.Exec(ctx, `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_base int NOT NULL DEFAULT 0`); err != nil {
 		return fmt.Errorf("migrate vehicle base odometer: %w", err)
@@ -244,9 +250,10 @@ func (s *PostgresStore) CreateVehicle(userID string, vehicle domain.Vehicle) (do
 	if vehicle.PreferredFuelType == "" {
 		vehicle.PreferredFuelType = "Super 95"
 	}
+	vehicle.OilIntervalKM = vehicleOilIntervalKM(vehicle)
 	vehicle.OdometerBase = vehicle.Odometer
-	_, err = s.pool.Exec(context.Background(), `INSERT INTO vehicles (id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-		vehicle.ID, vehicle.UserID, vehicle.PlateNumber, vehicle.Nickname, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.EngineType, vehicle.VIN, vehicle.PreferredFuelType, vehicle.PurchasePrice, vehicle.PurchaseCurrency, vehicle.PurchaseDate, vehicle.Odometer, vehicle.OdometerBase, vehicle.ImageURL, vehicle.CreatedAt)
+	_, err = s.pool.Exec(context.Background(), `INSERT INTO vehicles (id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, oil_interval_km, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+		vehicle.ID, vehicle.UserID, vehicle.PlateNumber, vehicle.Nickname, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.EngineType, vehicle.VIN, vehicle.PreferredFuelType, vehicle.OilIntervalKM, vehicle.PurchasePrice, vehicle.PurchaseCurrency, vehicle.PurchaseDate, vehicle.Odometer, vehicle.OdometerBase, vehicle.ImageURL, vehicle.CreatedAt)
 	if err != nil {
 		return domain.Vehicle{}, err
 	}
@@ -256,10 +263,10 @@ func (s *PostgresStore) CreateVehicle(userID string, vehicle domain.Vehicle) (do
 func (s *PostgresStore) UpdateVehicle(userID, id string, vehicle domain.Vehicle) (domain.Vehicle, error) {
 	row := s.pool.QueryRow(context.Background(), `
 UPDATE vehicles
-SET plate_number=$1, nickname=$2, make=$3, model=$4, year=$5, engine_type=$6, vin=$7, preferred_fuel_type=$8, purchase_price=$9, purchase_currency=$10, purchase_date=$11, odometer_base=$12, odometer=GREATEST($12, COALESCE((SELECT MAX(odometer) FROM expenses WHERE user_id=$14 AND vehicle_id=$15 AND odometer > 0), 0)), image_url=$13
-WHERE user_id=$14 AND id=$15
-RETURNING id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at`,
-		vehicle.PlateNumber, vehicle.Nickname, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.EngineType, vehicle.VIN, preferredFuelType(vehicle.PreferredFuelType), vehicle.PurchasePrice, vehicle.PurchaseCurrency, vehicle.PurchaseDate, vehicle.Odometer, vehicle.ImageURL, userID, id)
+SET plate_number=$1, nickname=$2, make=$3, model=$4, year=$5, engine_type=$6, vin=$7, preferred_fuel_type=$8, oil_interval_km=$9, purchase_price=$10, purchase_currency=$11, purchase_date=$12, odometer_base=$13, odometer=GREATEST($13, COALESCE((SELECT MAX(odometer) FROM expenses WHERE user_id=$15 AND vehicle_id=$16 AND odometer > 0), 0)), image_url=$14
+WHERE user_id=$15 AND id=$16
+RETURNING id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, oil_interval_km, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at`,
+		vehicle.PlateNumber, vehicle.Nickname, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.EngineType, vehicle.VIN, preferredFuelType(vehicle.PreferredFuelType), vehicleOilIntervalKM(vehicle), vehicle.PurchasePrice, vehicle.PurchaseCurrency, vehicle.PurchaseDate, vehicle.Odometer, vehicle.ImageURL, userID, id)
 	return scanVehicle(row)
 }
 
@@ -268,6 +275,36 @@ func preferredFuelType(value string) string {
 		return "Super 95"
 	}
 	return value
+}
+
+func vehicleOilIntervalKM(vehicle domain.Vehicle) int {
+	if vehicle.OilIntervalKM <= 0 {
+		return inferredOilIntervalKM(vehicle.PreferredFuelType, vehicle.EngineType)
+	}
+	return oilIntervalKM(vehicle.OilIntervalKM)
+}
+
+func oilIntervalKM(value int) int {
+	if value <= 0 {
+		return 10000
+	}
+	return clamp(value, 5000, 30000)
+}
+
+func inferredOilIntervalKM(fuelType, engineType string) int {
+	combined := strings.ToLower(strings.TrimSpace(fuelType + " " + engineType))
+	switch {
+	case strings.Contains(combined, "diesel"):
+		return 10000
+	case strings.Contains(combined, "lpg"), strings.Contains(combined, "gpl"):
+		return 10000
+	case strings.Contains(combined, "hybrid"):
+		return 12000
+	case strings.Contains(combined, "petrol"), strings.Contains(combined, "gasoline"), strings.Contains(combined, "super 95"):
+		return 12000
+	default:
+		return 10000
+	}
 }
 
 func (s *PostgresStore) DeleteVehicle(userID, id string) error {
@@ -347,8 +384,8 @@ func (s *PostgresStore) CreateExpense(userID string, expense domain.Expense) (do
 	expense.ID = id
 	expense.UserID = userID
 	expense.CreatedAt = time.Now().UTC()
-	_, err = s.pool.Exec(context.Background(), `INSERT INTO expenses (id, user_id, vehicle_id, category, amount_base, base_currency, amount_mdl, amount_eur, amount_usd, exchange_rate_eur, exchange_rate_usd, exchange_rate_date, exchange_rate_source, fuel_liters, fuel_price_currency, fuel_price_per_liter_base, fuel_price_per_liter_mdl, fuel_type, fuel_full_tank, odometer, service_type, expires_date, date, description, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
-		expense.ID, expense.UserID, expense.VehicleID, expense.Category, expense.AmountBase, expense.BaseCurrency, expense.AmountMDL, expense.AmountEUR, expense.AmountUSD, expense.ExchangeRateEUR, expense.ExchangeRateUSD, expense.ExchangeRateDate, expense.ExchangeRateSource, expense.FuelLiters, expense.FuelPriceCurrency, expense.FuelPricePerLiterBase, expense.FuelPricePerLiterMDL, expense.FuelType, expense.FuelFullTank, expense.Odometer, expense.ServiceType, expense.ExpiresDate, expense.Date, expense.Description, expense.CreatedAt)
+	_, err = s.pool.Exec(context.Background(), `INSERT INTO expenses (id, user_id, vehicle_id, category, amount_base, base_currency, amount_mdl, amount_eur, amount_usd, exchange_rate_eur, exchange_rate_usd, exchange_rate_date, exchange_rate_source, fuel_liters, fuel_price_currency, fuel_price_per_liter_base, fuel_price_per_liter_mdl, fuel_type, fuel_full_tank, odometer, service_type, expires_date, date, description, exclude_from_analytics, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+		expense.ID, expense.UserID, expense.VehicleID, expense.Category, expense.AmountBase, expense.BaseCurrency, expense.AmountMDL, expense.AmountEUR, expense.AmountUSD, expense.ExchangeRateEUR, expense.ExchangeRateUSD, expense.ExchangeRateDate, expense.ExchangeRateSource, expense.FuelLiters, expense.FuelPriceCurrency, expense.FuelPricePerLiterBase, expense.FuelPricePerLiterMDL, expense.FuelType, expense.FuelFullTank, expense.Odometer, expense.ServiceType, expense.ExpiresDate, expense.Date, expense.Description, expense.ExcludeFromAnalytics, expense.CreatedAt)
 	if err != nil {
 		return domain.Expense{}, err
 	}
@@ -368,10 +405,10 @@ func (s *PostgresStore) UpdateExpense(userID, id string, expense domain.Expense)
 	}
 	row := s.pool.QueryRow(context.Background(), `
 UPDATE expenses
-SET vehicle_id=$1, category=$2, amount_base=$3, base_currency=$4, amount_mdl=$5, amount_eur=$6, amount_usd=$7, exchange_rate_eur=$8, exchange_rate_usd=$9, exchange_rate_date=$10, exchange_rate_source=$11, fuel_liters=$12, fuel_price_currency=$13, fuel_price_per_liter_base=$14, fuel_price_per_liter_mdl=$15, fuel_type=$16, fuel_full_tank=$17, odometer=$18, service_type=$19, expires_date=$20, date=$21, description=$22
-WHERE user_id=$23 AND id=$24
-RETURNING id, user_id, vehicle_id, category, amount_base, base_currency, amount_mdl, amount_eur, amount_usd, exchange_rate_eur, exchange_rate_usd, exchange_rate_date, exchange_rate_source, fuel_liters, fuel_price_currency, fuel_price_per_liter_base, fuel_price_per_liter_mdl, fuel_type, fuel_full_tank, odometer, service_type, expires_date, date, description, created_at`,
-		expense.VehicleID, expense.Category, expense.AmountBase, expense.BaseCurrency, expense.AmountMDL, expense.AmountEUR, expense.AmountUSD, expense.ExchangeRateEUR, expense.ExchangeRateUSD, expense.ExchangeRateDate, expense.ExchangeRateSource, expense.FuelLiters, expense.FuelPriceCurrency, expense.FuelPricePerLiterBase, expense.FuelPricePerLiterMDL, expense.FuelType, expense.FuelFullTank, expense.Odometer, expense.ServiceType, expense.ExpiresDate, expense.Date, expense.Description, userID, id)
+SET vehicle_id=$1, category=$2, amount_base=$3, base_currency=$4, amount_mdl=$5, amount_eur=$6, amount_usd=$7, exchange_rate_eur=$8, exchange_rate_usd=$9, exchange_rate_date=$10, exchange_rate_source=$11, fuel_liters=$12, fuel_price_currency=$13, fuel_price_per_liter_base=$14, fuel_price_per_liter_mdl=$15, fuel_type=$16, fuel_full_tank=$17, odometer=$18, service_type=$19, expires_date=$20, date=$21, description=$22, exclude_from_analytics=$23
+WHERE user_id=$24 AND id=$25
+`+expenseReturningSQL(),
+		expense.VehicleID, expense.Category, expense.AmountBase, expense.BaseCurrency, expense.AmountMDL, expense.AmountEUR, expense.AmountUSD, expense.ExchangeRateEUR, expense.ExchangeRateUSD, expense.ExchangeRateDate, expense.ExchangeRateSource, expense.FuelLiters, expense.FuelPriceCurrency, expense.FuelPricePerLiterBase, expense.FuelPricePerLiterMDL, expense.FuelType, expense.FuelFullTank, expense.Odometer, expense.ServiceType, expense.ExpiresDate, expense.Date, expense.Description, expense.ExcludeFromAnalytics, userID, id)
 	updated, err := scanExpense(row)
 	if err != nil {
 		return domain.Expense{}, err
@@ -381,6 +418,23 @@ RETURNING id, user_id, vehicle_id, category, amount_base, base_currency, amount_
 		_ = s.refreshVehicleOdometer(userID, previousVehicleID)
 	}
 	return updated, nil
+}
+
+func (s *PostgresStore) UpdateExpenseAnalytics(userID, id string, excludeFromAnalytics bool) (domain.Expense, error) {
+	row := s.pool.QueryRow(context.Background(), `
+UPDATE expenses
+SET exclude_from_analytics=$1
+WHERE user_id=$2 AND id=$3
+`+expenseReturningSQL(), excludeFromAnalytics, userID, id)
+	updated, err := scanExpense(row)
+	if err != nil {
+		return domain.Expense{}, err
+	}
+	expenses, err := s.withAttachmentSummaries(userID, []domain.Expense{updated})
+	if err != nil {
+		return domain.Expense{}, err
+	}
+	return expenses[0], nil
 }
 
 func (s *PostgresStore) DeleteExpense(userID, id string) error {
@@ -640,7 +694,11 @@ func userSelectSQL() string {
 }
 
 func expenseSelectSQL() string {
-	return `SELECT id, user_id, vehicle_id, category, amount_base, base_currency, amount_mdl, amount_eur, amount_usd, exchange_rate_eur, exchange_rate_usd, exchange_rate_date, exchange_rate_source, fuel_liters, fuel_price_currency, fuel_price_per_liter_base, fuel_price_per_liter_mdl, fuel_type, fuel_full_tank, odometer, service_type, expires_date, date, description, created_at FROM expenses`
+	return `SELECT id, user_id, vehicle_id, category, amount_base, base_currency, amount_mdl, amount_eur, amount_usd, exchange_rate_eur, exchange_rate_usd, exchange_rate_date, exchange_rate_source, fuel_liters, fuel_price_currency, fuel_price_per_liter_base, fuel_price_per_liter_mdl, fuel_type, fuel_full_tank, odometer, service_type, expires_date, date, description, exclude_from_analytics, created_at FROM expenses`
+}
+
+func expenseReturningSQL() string {
+	return `RETURNING id, user_id, vehicle_id, category, amount_base, base_currency, amount_mdl, amount_eur, amount_usd, exchange_rate_eur, exchange_rate_usd, exchange_rate_date, exchange_rate_source, fuel_liters, fuel_price_currency, fuel_price_per_liter_base, fuel_price_per_liter_mdl, fuel_type, fuel_full_tank, odometer, service_type, expires_date, date, description, exclude_from_analytics, created_at`
 }
 
 func attachmentSelectSQL() string {
@@ -648,7 +706,7 @@ func attachmentSelectSQL() string {
 }
 
 func vehicleSelectSQL() string {
-	return `SELECT id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at FROM vehicles`
+	return `SELECT id, user_id, plate_number, nickname, make, model, year, engine_type, vin, preferred_fuel_type, oil_interval_km, purchase_price, purchase_currency, purchase_date, odometer, odometer_base, image_url, created_at FROM vehicles`
 }
 
 func documentSelectSQL() string {
@@ -657,7 +715,7 @@ func documentSelectSQL() string {
 
 func scanVehicle(row rowScanner) (domain.Vehicle, error) {
 	var vehicle domain.Vehicle
-	err := row.Scan(&vehicle.ID, &vehicle.UserID, &vehicle.PlateNumber, &vehicle.Nickname, &vehicle.Make, &vehicle.Model, &vehicle.Year, &vehicle.EngineType, &vehicle.VIN, &vehicle.PreferredFuelType, &vehicle.PurchasePrice, &vehicle.PurchaseCurrency, &vehicle.PurchaseDate, &vehicle.Odometer, &vehicle.OdometerBase, &vehicle.ImageURL, &vehicle.CreatedAt)
+	err := row.Scan(&vehicle.ID, &vehicle.UserID, &vehicle.PlateNumber, &vehicle.Nickname, &vehicle.Make, &vehicle.Model, &vehicle.Year, &vehicle.EngineType, &vehicle.VIN, &vehicle.PreferredFuelType, &vehicle.OilIntervalKM, &vehicle.PurchasePrice, &vehicle.PurchaseCurrency, &vehicle.PurchaseDate, &vehicle.Odometer, &vehicle.OdometerBase, &vehicle.ImageURL, &vehicle.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Vehicle{}, ErrNotFound
 	}
@@ -690,7 +748,7 @@ func scanExpenses(rows pgx.Rows) ([]domain.Expense, error) {
 
 func scanExpense(row rowScanner) (domain.Expense, error) {
 	var expense domain.Expense
-	err := row.Scan(&expense.ID, &expense.UserID, &expense.VehicleID, &expense.Category, &expense.AmountBase, &expense.BaseCurrency, &expense.AmountMDL, &expense.AmountEUR, &expense.AmountUSD, &expense.ExchangeRateEUR, &expense.ExchangeRateUSD, &expense.ExchangeRateDate, &expense.ExchangeRateSource, &expense.FuelLiters, &expense.FuelPriceCurrency, &expense.FuelPricePerLiterBase, &expense.FuelPricePerLiterMDL, &expense.FuelType, &expense.FuelFullTank, &expense.Odometer, &expense.ServiceType, &expense.ExpiresDate, &expense.Date, &expense.Description, &expense.CreatedAt)
+	err := row.Scan(&expense.ID, &expense.UserID, &expense.VehicleID, &expense.Category, &expense.AmountBase, &expense.BaseCurrency, &expense.AmountMDL, &expense.AmountEUR, &expense.AmountUSD, &expense.ExchangeRateEUR, &expense.ExchangeRateUSD, &expense.ExchangeRateDate, &expense.ExchangeRateSource, &expense.FuelLiters, &expense.FuelPriceCurrency, &expense.FuelPricePerLiterBase, &expense.FuelPricePerLiterMDL, &expense.FuelType, &expense.FuelFullTank, &expense.Odometer, &expense.ServiceType, &expense.ExpiresDate, &expense.Date, &expense.Description, &expense.ExcludeFromAnalytics, &expense.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Expense{}, ErrNotFound
 	}

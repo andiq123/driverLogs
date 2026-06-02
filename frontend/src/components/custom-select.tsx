@@ -12,10 +12,11 @@ type CustomSelectProps = {
   options: readonly string[];
   value: string;
   icon?: LucideIcon;
+  showLabel?: boolean;
   onChange: (value: string) => void;
 };
 
-export function CustomSelect({ label, name, options, value, icon: Icon, onChange }: CustomSelectProps) {
+export function CustomSelect({ label, name, options, value, icon: Icon, showLabel = false, onChange }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(Math.max(0, options.indexOf(value)));
   const [menuRect, setMenuRect] = useState<DOMRect>();
@@ -65,7 +66,7 @@ export function CustomSelect({ label, name, options, value, icon: Icon, onChange
 
   return (
     <label className={`relative grid min-w-0 gap-1 text-sm font-semibold ${isOpen ? "z-50" : "z-0"}`}>
-      <span className="sr-only">{label}</span>
+      <span className={showLabel ? "px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#70776a]" : "sr-only"}>{label}</span>
       <input type="hidden" name={name} value={value} />
       <button
         ref={buttonRef}

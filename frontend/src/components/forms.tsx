@@ -3,7 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { decodeVIN, getVehicleMakes, getVehicleModels } from "@/lib/api";
-import { engineOptions, fuelTypes, gasStationBrands, normalizeFuelType, priceCurrencies } from "@/lib/car-options";
+import { engineOptions, fuelTypes, gasStationBrands, normalizeFuelType, oilIntervalForVehicle, priceCurrencies } from "@/lib/car-options";
+import { attachmentAccept, fileSize, isAllowedAttachment } from "@/lib/attachments";
 import type { Expense, ExpenseCategory, FuelPriceSuggestion, Vehicle, VinDecode } from "@/lib/types";
 import { intValue, km, numberValue, vehicleName } from "@/lib/format";
 import { Autocomplete } from "./autocomplete";
@@ -12,7 +13,7 @@ import { CustomSelect } from "./custom-select";
 import { ExpenseCategoryPicker } from "./expense-category-picker";
 import { FuelPriceSuggestions } from "./fuel-price-suggestions";
 import { ActionButton, Input, Panel } from "./ui";
-import { BadgeCheck, BadgeDollarSign, CalendarDays, CarFront, CheckCircle2, CircleGauge, Droplets, Fuel, Hash, Landmark, MapPin, Milestone, ScanLine, Text, Wrench } from "lucide-react";
+import { BadgeCheck, BadgeDollarSign, CalendarDays, CarFront, CheckCircle2, CircleGauge, Droplets, FileText, Fuel, Hash, Landmark, MapPin, Milestone, Paperclip, ScanLine, Text, Trash2, Wrench } from "lucide-react";
 import { useFuelPriceSuggestions } from "@/lib/use-fuel-price-suggestions";
 import { calmEase } from "@/lib/theme";
 
@@ -80,8 +81,12 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
       purchase_price: numberValue(form.get("purchase_price")),
       purchase_currency: String(form.get("purchase_currency") ?? "MDL"),
     };
-    if (vehicle) onUpdate?.(vehicle.id, payload);
-    else onCreate?.(payload);
+    const payloadWithInterval = {
+      ...payload,
+      oil_interval_km: vehicle?.oil_interval_km || oilIntervalForVehicle(payload.preferred_fuel_type, payload.engine_type),
+    };
+    if (vehicle) onUpdate?.(vehicle.id, payloadWithInterval);
+    else onCreate?.(payloadWithInterval);
     if (vehicle) return;
     event.currentTarget.reset();
     setMakeValue("");
@@ -162,10 +167,10 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
           <Autocomplete name="engine_type" label="Engine" icon={Wrench} options={engineOptions} value={engineValue} maxLength={1600} isAutofilled={autofilled.engine} onChange={(value) => { clearAutofill("engine"); setEngineValue(value); }} />
         </div>
         <CustomSelect name="preferred_fuel_type" label="Preferred fuel" icon={Fuel} options={fuelTypes} value={preferredFuelType} onChange={setPreferredFuelType} />
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(128px,0.78fr)_96px]">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(150px,0.8fr)_minmax(118px,0.36fr)]">
           <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" defaultValue={vehicle?.odometer || ""} />
           <Input name="purchase_price" label="Purchase price" icon={BadgeDollarSign} inputMode="decimal" defaultValue={vehicle?.purchase_price || ""} />
-          <CustomSelect name="purchase_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} onChange={setPurchaseCurrency} />
+          <CustomSelect name="purchase_currency" label="Price currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} showLabel onChange={setPurchaseCurrency} />
         </div>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <ActionButton loading={saving} className="mt-2">{isEditing ? "Save changes" : "Save vehicle"}</ActionButton>
@@ -209,7 +214,7 @@ function engineFromVIN(decoded: VinDecode) {
 
 const draftFuelTypeByVehicle = new Map<string, string>();
 
-export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, expense, odometerSuggestion, intentCategory, onCreate, onUpdate, onCancel }: { vehicle: Vehicle; token: string; baseCurrency: string; country: string; saving?: boolean; expense?: Expense; odometerSuggestion?: number; intentCategory?: ExpenseCategory; onCreate?: (expense: Partial<Expense>) => void; onUpdate?: (id: string, expense: Partial<Expense>) => void; onCancel?: () => void }) {
+export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, expense, odometerSuggestion, intentCategory, onCreate, onUpdate, onCancel }: { vehicle: Vehicle; token: string; baseCurrency: string; country: string; saving?: boolean; expense?: Expense; odometerSuggestion?: number; intentCategory?: ExpenseCategory; onCreate?: (expense: Partial<Expense>, files?: File[]) => void; onUpdate?: (id: string, expense: Partial<Expense>, files?: File[]) => void; onCancel?: () => void }) {
   const isEditing = Boolean(expense);
   const [category, setCategory] = useState<ExpenseCategory>(expense?.category ?? "Fuel");
   const [date, setDate] = useState(expense?.date ?? "");
@@ -223,6 +228,8 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const [serviceType, setServiceType] = useState(expense?.service_type ?? "");
   const [expiresDate, setExpiresDate] = useState(expense?.expires_date ?? "");
   const [odometerValue, setOdometerValue] = useState(expense?.odometer ? String(expense.odometer) : "");
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileMessage, setFileMessage] = useState("");
   const fuelSuggestion = useFuelPriceSuggestions({ category, country, fuelType, token });
 
   useEffect(() => {
@@ -275,9 +282,10 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       expires_date: String(form.get("expires_date") ?? "").trim(),
       date: String(form.get("date") ?? ""),
       description: expenseDescription(category, String(form.get("description") ?? ""), gasStation),
+      exclude_from_analytics: expense?.exclude_from_analytics ?? false,
     };
-    if (expense) onUpdate?.(expense.id, payload);
-    else onCreate?.(payload);
+    if (expense) onUpdate?.(expense.id, payload, files);
+    else onCreate?.(payload, files);
     if (expense) return;
     event.currentTarget.reset();
     setCategory("Fuel");
@@ -294,6 +302,8 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     setServiceType("");
     setExpiresDate("");
     setOdometerValue("");
+    setFiles([]);
+    setFileMessage("");
   }
 
   function applyFuelSuggestion(suggestion: FuelPriceSuggestion) {
@@ -384,6 +394,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
           </div>
           <CalendarField name="date" label="Date" value={date} placeholder="Choose date" onChange={setDate} />
           <Input name="description" label="Description" icon={Text} value={description} onChange={(event) => setDescription(event.currentTarget.value)} placeholder={descriptionPlaceholder(category)} />
+          <ExpenseFilePicker files={files} message={fileMessage} onFilesChange={(nextFiles, nextMessage) => { setFiles(nextFiles); setFileMessage(nextMessage); }} />
         </motion.div>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <ActionButton loading={saving} className="mt-2">{isEditing ? "Save changes" : "Save expense"}</ActionButton>
@@ -392,6 +403,51 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       </form>
     </Panel>
   );
+}
+
+function ExpenseFilePicker({ files, message, onFilesChange }: { files: File[]; message: string; onFilesChange: (files: File[], message: string) => void }) {
+  function addFiles(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const accepted = Array.from(fileList).filter(isAllowedAttachment);
+    const rejected = fileList.length - accepted.length;
+    const unique = [...files, ...accepted].filter((file, index, all) => all.findIndex((item) => fileKey(item) === fileKey(file)) === index);
+    onFilesChange(unique, rejected ? "Only PDF or image files are supported." : "");
+  }
+
+  function removeFile(file: File) {
+    onFilesChange(files.filter((item) => fileKey(item) !== fileKey(file)), "");
+  }
+
+  return (
+    <section className="rounded-[18px] border border-black/[0.055] bg-[#f7faf3] p-2.5">
+      <label className="flex min-h-12 cursor-pointer touch-manipulation items-center justify-between gap-3 rounded-[16px] bg-white px-3 text-sm font-bold text-[#151712] ring-1 ring-black/[0.04] transition-[background-color,transform] duration-300 active:scale-[0.985] hover:bg-[#fffffb]">
+        <span className="flex min-w-0 items-center gap-2 truncate"><Paperclip size={17} className="shrink-0" />Attach receipt or photo</span>
+        <span className="text-xs text-[#62685e]">{files.length ? `${files.length} file${files.length === 1 ? "" : "s"}` : "Optional"}</span>
+        <input className="hidden" type="file" multiple accept={attachmentAccept} onChange={(event) => { addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
+      </label>
+      {message ? <p className="mt-2 rounded-[14px] bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9b3226]">{message}</p> : null}
+      {files.length ? (
+        <div className="mt-2 grid gap-1.5">
+          {files.map((file) => (
+            <div key={fileKey(file)} className="flex min-w-0 items-center gap-2 rounded-[14px] bg-white px-2 py-2 ring-1 ring-black/[0.04]">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-[12px] bg-[#edf4e7]"><FileText size={15} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-bold">{file.name}</span>
+                <span className="block text-[11px] text-[#6b7065]">{fileSize(file.size)}</span>
+              </span>
+              <button type="button" onClick={() => removeFile(file)} className="flex size-8 shrink-0 items-center justify-center rounded-[12px] text-[#9b3226] transition-colors hover:bg-[#fff0ec]" aria-label={`Remove ${file.name}`}>
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function fileKey(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
 function ToggleField({ checked, label, name, onChange }: { checked: boolean; label: string; name: string; onChange: (checked: boolean) => void }) {

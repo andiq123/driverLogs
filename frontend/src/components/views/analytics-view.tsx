@@ -36,7 +36,7 @@ export function AnalyticsView({ mounted, vehicle, totals }: { mounted: boolean; 
             <MobileTrendList rows={totals.trends} />
             {showCharts ? (
               <ChartSurface mounted={mounted}>
-                {({ width, height }) => <AreaChart width={width} height={height} data={totals.trends}><XAxis dataKey="month" axisLine={false} tickLine={false} /><YAxis hide /><Tooltip /><Area type="monotone" dataKey="amount_mdl" stroke="#0f8f68" fill="#dfe7d4" strokeWidth={3} /></AreaChart>}
+                {({ width, height }) => <AreaChart width={width} height={height} data={totals.trends}><XAxis dataKey="month" tickFormatter={monthLabel} axisLine={false} tickLine={false} /><YAxis hide /><Tooltip labelFormatter={(label) => typeof label === "string" ? monthLabel(label) : label} /><Area type="monotone" dataKey="amount_mdl" stroke="#0f8f68" fill="#dfe7d4" strokeWidth={3} /></AreaChart>}
               </ChartSurface>
             ) : null}
           </>
@@ -108,8 +108,8 @@ function MobileTrendList({ rows }: { rows: TrendDatum[] }) {
   return (
     <div className="grid gap-2 sm:hidden">
       {latest.map((row) => (
-        <div key={row.month} className="grid grid-cols-[3.75rem_1fr_auto] items-center gap-2 rounded-[18px] border border-black/[0.045] bg-[#fffffb]/92 p-3 shadow-[0_6px_20px_rgba(31,41,28,0.045)]">
-          <span className="text-xs font-bold text-[#62685e]">{row.month}</span>
+        <div key={row.month} className="grid grid-cols-[5.75rem_1fr_auto] items-center gap-2 rounded-[18px] border border-black/[0.045] bg-[#fffffb]/92 p-3 shadow-[0_6px_20px_rgba(31,41,28,0.045)]">
+          <span className="truncate text-xs font-bold text-[#62685e]">{monthLabel(row.month)}</span>
           <span className="h-2 overflow-hidden rounded-full bg-white">
             <span className="block h-full rounded-full bg-[#0f8f68]" style={{ width: `${Math.max((row.amount_mdl / max) * 100, 5)}%` }} />
           </span>
@@ -118,4 +118,11 @@ function MobileTrendList({ rows }: { rows: TrendDatum[] }) {
       ))}
     </div>
   );
+}
+
+function monthLabel(value: string) {
+  const [year, month] = value.split("-");
+  const monthIndex = Number(month) - 1;
+  if (!year || !Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) return value;
+  return new Intl.DateTimeFormat("en", { month: "long" }).format(new Date(Date.UTC(Number(year), monthIndex, 1)));
 }

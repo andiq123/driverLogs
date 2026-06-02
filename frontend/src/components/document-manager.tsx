@@ -4,9 +4,10 @@ import { AnimatePresence } from "framer-motion";
 import { FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, errorMessage } from "@/lib/api";
+import { attachmentAccept, fileSize, isAllowedAttachment } from "@/lib/attachments";
 import type { DocumentAttachment } from "@/lib/types";
 import { FilePreviewModal } from "./file-preview-modal";
-import { ActionButton } from "./ui";
+import { IconButton } from "./ui";
 
 type DocumentManagerProps = {
   title: string;
@@ -57,7 +58,7 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
 
   async function uploadFile(file?: File | null) {
     if (!file) return;
-    if (!isAllowedDocumentFile(file)) {
+    if (!isAllowedAttachment(file)) {
       setMessage("Only PDF or image files are supported.");
       return;
     }
@@ -106,8 +107,8 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
           <p className="text-sm font-bold">{title}</p>
           <p className="text-xs leading-5 text-[#6b7065]">{body}</p>
         </div>
-        <input ref={inputRef} className="hidden" type="file" accept={documentFileAccept} onChange={(event) => void uploadFile(event.target.files?.[0])} />
-        <ActionButton type="button" icon={Paperclip} loading={action === "upload"} variant="soft" onClick={() => inputRef.current?.click()} className="h-9 shrink-0 rounded-[14px] px-3 text-xs">Attach</ActionButton>
+        <input ref={inputRef} className="hidden" type="file" accept={attachmentAccept} onChange={(event) => void uploadFile(event.target.files?.[0])} />
+        <IconButton type="button" icon={Paperclip} label="Attach file" loading={action === "upload"} onClick={() => inputRef.current?.click()} className="shrink-0" />
       </div>
       {message ? <p className="mt-2 rounded-[14px] bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9b3226]">{message}</p> : null}
       {loading ? (
@@ -120,15 +121,13 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
       ) : (
         <div className="mt-3 grid gap-2">
           {documents.map((document) => (
-            <div key={document.id} className="flex items-center gap-2 rounded-[16px] bg-white p-2 ring-1 ring-black/[0.04]">
+            <div key={document.id} className="flex min-w-0 items-center gap-2 rounded-[16px] bg-white p-2 ring-1 ring-black/[0.04]">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-[13px] bg-[#edf4e7]"><FileText size={16} /></span>
               <button type="button" onClick={() => void openFile(document)} className="min-w-0 flex-1 text-left">
                 <span className="block truncate text-sm font-semibold">{document.file_name}</span>
                 <span className="text-xs text-[#6b7065]">{fileSize(document.size_bytes)}</span>
               </button>
-              <button type="button" onClick={() => void removeFile(document)} className="flex size-9 shrink-0 items-center justify-center rounded-[13px] text-[#9b3226] transition-colors hover:bg-[#fff0ec]" aria-label={`Remove ${document.file_name}`}>
-                <Trash2 size={16} />
-              </button>
+              <IconButton type="button" icon={Trash2} label={`Remove ${document.file_name}`} variant="danger" onClick={() => void removeFile(document)} className="shrink-0" />
             </div>
           ))}
         </div>
@@ -140,15 +139,4 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
       </AnimatePresence>
     </section>
   );
-}
-
-const documentFileAccept = "application/pdf,image/jpeg,image/png,image/webp";
-
-function isAllowedDocumentFile(file: File) {
-  return !file.type || documentFileAccept.split(",").includes(file.type);
-}
-
-function fileSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

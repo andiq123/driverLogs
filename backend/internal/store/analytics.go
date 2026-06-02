@@ -10,6 +10,7 @@ import (
 )
 
 func analyticsFrom(expenses []domain.Expense, vehicles []domain.Vehicle, vehicleID string) map[string]any {
+	expenses = includedAnalyticsExpenses(expenses)
 	var total, fuel, maintenance, insurance float64
 	var totalEUR, totalUSD, fuelEUR, fuelUSD, maintenanceEUR, maintenanceUSD, insuranceEUR, insuranceUSD float64
 	categoryTotals := map[string]float64{}
@@ -46,6 +47,17 @@ func analyticsFrom(expenses []domain.Expense, vehicles []domain.Vehicle, vehicle
 	return analyticsPayload(expenses, vehicles, vehicleID, total, totalEUR, totalUSD, fuel, fuelEUR, fuelUSD, maintenance, maintenanceEUR, maintenanceUSD, insurance, insuranceEUR, insuranceUSD, categoryTotals, categoryTotalsEUR, categoryTotalsUSD, vehicleTotals, vehicleTotalsEUR, vehicleTotalsUSD)
 }
 
+func includedAnalyticsExpenses(expenses []domain.Expense) []domain.Expense {
+	included := make([]domain.Expense, 0, len(expenses))
+	for _, expense := range expenses {
+		if expense.ExcludeFromAnalytics {
+			continue
+		}
+		included = append(included, expense)
+	}
+	return included
+}
+
 func analyticsPayload(expenses []domain.Expense, vehicles []domain.Vehicle, vehicleID string, total, totalEUR, totalUSD, fuel, fuelEUR, fuelUSD, maintenance, maintenanceEUR, maintenanceUSD, insurance, insuranceEUR, insuranceUSD float64, categoryTotals, categoryTotalsEUR, categoryTotalsUSD, vehicleTotals, vehicleTotalsEUR, vehicleTotalsUSD map[string]float64) map[string]any {
 	comparison := make([]map[string]any, 0, len(vehicles))
 	for _, vehicle := range vehicles {
@@ -65,7 +77,8 @@ func analyticsPayload(expenses []domain.Expense, vehicles []domain.Vehicle, vehi
 	for category, amount := range categoryTotals {
 		categoryBreakdown = append(categoryBreakdown, map[string]any{"name": category, "amount_mdl": amount, "amount_eur": categoryTotalsEUR[category], "amount_usd": categoryTotalsUSD[category]})
 	}
-	return map[string]any{"total_expenses_mdl": total, "total_expenses_eur": totalEUR, "total_expenses_usd": totalUSD, "fuel_mdl": fuel, "fuel_eur": fuelEUR, "fuel_usd": fuelUSD, "maintenance_mdl": maintenance, "maintenance_eur": maintenanceEUR, "maintenance_usd": maintenanceUSD, "insurance_mdl": insurance, "insurance_eur": insuranceEUR, "insurance_usd": insuranceUSD, "cost_per_km_mdl": costPerKM(expenses, total), "expense_count": len(expenses), "category_totals": categoryBreakdown, "vehicle_totals": comparison, "trends": trendsFrom(expenses), "insights": insightsFrom(expenses, currentOdometer(vehicles, vehicleID))}
+	vehicle := selectedVehicle(vehicles, vehicleID)
+	return map[string]any{"total_expenses_mdl": total, "total_expenses_eur": totalEUR, "total_expenses_usd": totalUSD, "fuel_mdl": fuel, "fuel_eur": fuelEUR, "fuel_usd": fuelUSD, "maintenance_mdl": maintenance, "maintenance_eur": maintenanceEUR, "maintenance_usd": maintenanceUSD, "insurance_mdl": insurance, "insurance_eur": insuranceEUR, "insurance_usd": insuranceUSD, "cost_per_km_mdl": costPerKM(expenses, total), "expense_count": len(expenses), "category_totals": categoryBreakdown, "vehicle_totals": comparison, "trends": trendsFrom(expenses), "insights": insightsFrom(expenses, vehicle.Odometer, vehicle.OilIntervalKM)}
 }
 
 func trendsFrom(expenses []domain.Expense) []map[string]any {
@@ -89,10 +102,10 @@ func trendsFrom(expenses []domain.Expense) []map[string]any {
 	return trends
 }
 
-func insightsFrom(expenses []domain.Expense, currentOdometer int) map[string]any {
+func insightsFrom(expenses []domain.Expense, currentOdometer, oilIntervalKM int) map[string]any {
 	insights := map[string]any{
 		"fuel":        fuelInsight(expenses),
-		"maintenance": maintenanceInsight(expenses, currentOdometer),
+		"maintenance": maintenanceInsight(expenses, currentOdometer, oilIntervalKM),
 		"insurance":   yearlyExpiryInsight(expenses, "Insurance"),
 		"inspection":  yearlyExpiryInsight(expenses, "Inspection"),
 	}
@@ -179,10 +192,10 @@ func fuelConsumption(expenses []domain.Expense) (float64, int, bool) {
 	return round2(totalConsumption / float64(samples)), samples, fullTankBased
 }
 
-func maintenanceInsight(expenses []domain.Expense, currentOdometer int) map[string]any {
+func maintenanceInsight(expenses []domain.Expense, currentOdometer, oilIntervalKM int) map[string]any {
 	service := serviceInsight(expenses)
 	oilChanges := oilChangeExpenses(expenses)
-	service["oil_change"] = oilChangeEstimate(oilChanges, currentOdometer)
+	service["oil_change"] = oilChangeEstimate(oilChanges, currentOdometer, oilIntervalKM)
 	return service
 }
 
@@ -279,16 +292,16 @@ func oilChangeExpenses(expenses []domain.Expense) []domain.Expense {
 	return matches
 }
 
-func oilChangeEstimate(expenses []domain.Expense, currentOdometer int) map[string]any {
+func oilChangeEstimate(expenses []domain.Expense, currentOdometer, configuredIntervalKM int) map[string]any {
+	intervalKM := oilIntervalKM(configuredIntervalKM)
+	intervalDays := 365
 	if len(expenses) == 0 {
-		return map[string]any{"status": "not_enough_data", "confidence": "none", "recommended_interval_km": 10000}
+		return map[string]any{"status": "not_enough_data", "confidence": "none", "recommended_interval_km": intervalKM, "interval_days": intervalDays}
 	}
 	last, ok := parseDate(expenses[len(expenses)-1].Date)
 	if !ok {
-		return map[string]any{"status": "not_enough_data", "confidence": "none", "recommended_interval_km": 10000}
+		return map[string]any{"status": "not_enough_data", "confidence": "none", "recommended_interval_km": intervalKM, "interval_days": intervalDays}
 	}
-	intervalDays := 180
-	intervalKM := 10000
 	confidence := "low"
 	if len(expenses) >= 2 {
 		var totalDays, intervals int
@@ -450,12 +463,16 @@ func numberFromAny(value any) float64 {
 }
 
 func currentOdometer(vehicles []domain.Vehicle, vehicleID string) int {
+	return selectedVehicle(vehicles, vehicleID).Odometer
+}
+
+func selectedVehicle(vehicles []domain.Vehicle, vehicleID string) domain.Vehicle {
 	for _, vehicle := range vehicles {
 		if vehicle.ID == vehicleID {
-			return vehicle.Odometer
+			return vehicle
 		}
 	}
-	return 0
+	return domain.Vehicle{}
 }
 
 func expenseMonth(date string) string {

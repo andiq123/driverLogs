@@ -111,6 +111,10 @@ export async function updateExpense(token: string, id: string, expense: Partial<
   return sendJSON<Expense>(`/expenses/${encodeURIComponent(id)}`, "PUT", expense, token);
 }
 
+export async function updateExpenseAnalytics(token: string, id: string, excludeFromAnalytics: boolean) {
+  return sendJSON<Expense>(`/expenses/${encodeURIComponent(id)}/analytics`, "PATCH", { exclude_from_analytics: excludeFromAnalytics }, token);
+}
+
 export async function deleteExpense(token: string, id: string) {
   const response = await fetch(`${apiBase}/expenses/${encodeURIComponent(id)}`, {
     method: "DELETE",
@@ -245,7 +249,7 @@ async function deleteDocument(path: string, token: string) {
   if (!response.ok) throw await apiError(response, "remove file failed");
 }
 
-async function sendJSON<T>(path: string, method: "POST" | "PUT", body: unknown, token?: string) {
+async function sendJSON<T>(path: string, method: "POST" | "PUT" | "PATCH", body: unknown, token?: string) {
   const response = await fetch(`${apiBase}${path}`, {
     method,
     headers: { "Content-Type": "application/json", ...authHeaders(token) },

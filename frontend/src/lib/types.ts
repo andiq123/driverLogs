@@ -26,6 +26,7 @@ export type Vehicle = {
   engine_type?: string;
   vin?: string;
   preferred_fuel_type?: string;
+  oil_interval_km?: number;
   purchase_price?: number;
   purchase_currency?: string;
   odometer?: number;
@@ -75,6 +76,7 @@ export type Expense = {
   expires_date?: string;
   date: string;
   description: string;
+  exclude_from_analytics?: boolean;
   attachment_count?: number;
   latest_attachment?: ExpenseAttachment;
 };

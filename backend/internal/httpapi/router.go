@@ -35,6 +35,7 @@ type Store interface {
 	UserExpenses(userID, vehicleID string) ([]domain.Expense, error)
 	CreateExpense(userID string, expense domain.Expense) (domain.Expense, error)
 	UpdateExpense(userID, id string, expense domain.Expense) (domain.Expense, error)
+	UpdateExpenseAnalytics(userID, id string, excludeFromAnalytics bool) (domain.Expense, error)
 	DeleteExpense(userID, id string) error
 	ExpenseAttachments(userID, expenseID string) ([]domain.ExpenseAttachment, error)
 	ExpenseAttachment(userID, expenseID, attachmentID string) (domain.ExpenseAttachment, error)
@@ -106,6 +107,7 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, files
 	mux.HandleFunc("GET /expenses", h.requireAuth(h.listExpenses))
 	mux.HandleFunc("POST /expenses", h.requireAuth(h.createExpense))
 	mux.HandleFunc("PUT /expenses/{id}", h.requireAuth(h.updateExpense))
+	mux.HandleFunc("PATCH /expenses/{id}/analytics", h.requireAuth(h.updateExpenseAnalytics))
 	mux.HandleFunc("DELETE /expenses/{id}", h.requireAuth(h.deleteExpense))
 	mux.HandleFunc("GET /expenses/{id}/attachments", h.requireAuth(h.listExpenseAttachments))
 	mux.HandleFunc("POST /expenses/{id}/attachments", h.requireAuth(h.uploadExpenseAttachment))
@@ -497,6 +499,26 @@ func (h Handler) updateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated, err := h.store.UpdateExpense(userID(r), r.PathValue("id"), normalized)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (h Handler) updateExpenseAnalytics(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		ExcludeFromAnalytics bool `json:"exclude_from_analytics"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid analytics payload"})
+		return
+	}
+	updated, err := h.store.UpdateExpenseAnalytics(userID(r), r.PathValue("id"), payload.ExcludeFromAnalytics)
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
 		return

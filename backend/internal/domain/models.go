@@ -13,6 +13,7 @@ type Vehicle struct {
 	EngineType        string              `json:"engine_type,omitempty"`
 	VIN               string              `json:"vin,omitempty"`
 	PreferredFuelType string              `json:"preferred_fuel_type,omitempty"`
+	OilIntervalKM     int                 `json:"oil_interval_km,omitempty"`
 	PurchasePrice     float64             `json:"purchase_price,omitempty"`
 	PurchaseCurrency  string              `json:"purchase_currency,omitempty"`
 	PurchaseDate      string              `json:"purchase_date,omitempty"`
@@ -49,6 +50,7 @@ type Expense struct {
 	ExpiresDate           string             `json:"expires_date,omitempty"`
 	Date                  string             `json:"date"`
 	Description           string             `json:"description"`
+	ExcludeFromAnalytics  bool               `json:"exclude_from_analytics,omitempty"`
 	AttachmentCount       int                `json:"attachment_count,omitempty"`
 	LatestAttachment      *ExpenseAttachment `json:"latest_attachment,omitempty"`
 	CreatedAt             time.Time          `json:"created_at"`

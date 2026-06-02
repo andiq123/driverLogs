@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiBaseHost, createExpense, createVehicle, deleteExpense, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
+import { apiBaseHost, createExpense, createVehicle, deleteExpense, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateExpenseAnalytics, updateUserSettings, updateVehicle, uploadExpenseAttachment } from "./api";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
 import { demoToken, isLocalDemoEnabled } from "./demo-mode";
@@ -188,7 +188,7 @@ export function useDriverLogsApp() {
     }
   }
 
-  async function saveExpense(expense: Partial<Expense>) {
+  async function saveExpense(expense: Partial<Expense>, files: File[] = []) {
     if (isDemo) {
       showToast("info", "Demo mode", "Register to save real expenses.");
       return;
@@ -197,10 +197,12 @@ export function useDriverLogsApp() {
     setStatus("Saving expense...");
     try {
       const saved = await createExpense(token, expense);
+      const uploadError = await uploadExpenseFiles(saved.id, files);
       await loadData(false);
       setOpenExpenseFilesID(saved.id);
       setView("Timeline");
-      showToast("success", "Expense saved", "You can attach a file now.");
+      showToast("success", "Expense saved", files.length && !uploadError ? `${files.length} file${files.length === 1 ? "" : "s"} attached.` : "You can attach files from the timeline.");
+      if (uploadError) showToast("error", "File upload failed", errorMessage(uploadError, "The expense was saved, but one or more files were not attached."));
     } catch (error) {
       setStatus("Expense could not be saved. Check the required fields.");
       showToast("error", "Expense was not saved", errorMessage(error, "Check required fields and backend availability."));
@@ -209,7 +211,7 @@ export function useDriverLogsApp() {
     }
   }
 
-  async function editExpense(id: string, expense: Partial<Expense>) {
+  async function editExpense(id: string, expense: Partial<Expense>, files: File[] = []) {
     if (isDemo) {
       showToast("info", "Demo mode", "Register to edit real expenses.");
       return;
@@ -218,15 +220,46 @@ export function useDriverLogsApp() {
     setStatus("Saving expense...");
     try {
       await updateExpense(token, id, expense);
+      const uploadError = await uploadExpenseFiles(id, files);
       await loadData(false);
       setOpenExpenseFilesID(id);
-      showToast("success", "Expense updated", "The conversion was refreshed for that date.");
+      showToast("success", "Expense updated", files.length && !uploadError ? `${files.length} file${files.length === 1 ? "" : "s"} attached.` : "The conversion was refreshed for that date.");
+      if (uploadError) showToast("error", "File upload failed", errorMessage(uploadError, "The expense was saved, but one or more files were not attached."));
     } catch (error) {
       setStatus("Expense could not be updated.");
       showToast("error", "Expense was not updated", errorMessage(error, "Check required fields and backend availability."));
     } finally {
       setAction("");
     }
+  }
+
+  async function toggleExpenseAnalytics(expense: Expense, excluded: boolean) {
+    if (isDemo) {
+      setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, exclude_from_analytics: excluded } : item));
+      showToast("info", "Demo mode", excluded ? "This expense is hidden from demo analytics locally." : "This expense is included in demo analytics locally.");
+      return;
+    }
+    setAction("expense");
+    try {
+      await updateExpenseAnalytics(token, expense.id, excluded);
+      await loadData(false);
+      showToast("success", excluded ? "Hidden from analytics" : "Included in analytics", "Totals were recalculated.");
+    } catch (error) {
+      showToast("error", "Analytics setting was not saved", errorMessage(error, "Check backend availability."));
+    } finally {
+      setAction("");
+    }
+  }
+
+  async function uploadExpenseFiles(expenseID: string, files: File[]) {
+    for (const file of files) {
+      try {
+        await uploadExpenseAttachment(token, expenseID, file);
+      } catch (error) {
+        return error;
+      }
+    }
+    return undefined;
   }
 
   async function removeExpense(id: string) {
@@ -339,6 +372,7 @@ export function useDriverLogsApp() {
     removeVehicle,
     removeExpense,
     saveExpense,
+    toggleExpenseAnalytics,
     saveSettings,
     saveProfileName,
     editVehicle,
