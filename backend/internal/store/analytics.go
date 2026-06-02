@@ -284,7 +284,7 @@ func oilChangeExpenses(expenses []domain.Expense) []domain.Expense {
 		}
 		serviceType := strings.ToLower(expense.ServiceType)
 		description := strings.ToLower(expense.Description)
-		if serviceType == "oil_change" || strings.Contains(description, "oil") || strings.Contains(description, "ulei") {
+		if serviceType == "oil_change" || (serviceType == "" && (strings.Contains(description, "oil") || strings.Contains(description, "ulei"))) {
 			matches = append(matches, expense)
 		}
 	}

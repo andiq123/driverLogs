@@ -238,10 +238,6 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     void Promise.resolve().then(() => {
       if (cancelled) return;
       setCategory(intentCategory);
-      if (intentCategory === "Maintenance") {
-        setDescription((current) => current.trim() ? current : "Oil change");
-        setServiceType((current) => current || "oil_change");
-      }
     });
     return () => {
       cancelled = true;
@@ -324,11 +320,6 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   function changeCategory(nextCategory: ExpenseCategory) {
     const previousCategory = category;
     setCategory(nextCategory);
-    if (nextCategory === "Maintenance" && !description.trim()) {
-      setDescription("Oil change");
-      setServiceType("oil_change");
-      return;
-    }
     if (previousCategory === "Maintenance" && nextCategory !== "Maintenance" && isServicePreset(description)) {
       setDescription("");
       setServiceType("");

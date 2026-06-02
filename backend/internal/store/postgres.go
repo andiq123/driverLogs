@@ -130,6 +130,9 @@ CREATE TABLE IF NOT EXISTS document_attachments (
 		`UPDATE expenses SET service_type='filters' WHERE category IN ('Maintenance', 'Repairs') AND service_type='' AND lower(description) LIKE '%filter%'`,
 		`UPDATE expenses SET service_type='alignment' WHERE category IN ('Maintenance', 'Repairs') AND service_type='' AND lower(description) LIKE '%alignment%'`,
 		`UPDATE expenses SET service_type='regular_service' WHERE category IN ('Maintenance', 'Repairs') AND service_type='' AND description<>''`,
+		`UPDATE expenses SET service_type='filters' WHERE category IN ('Maintenance', 'Repairs') AND service_type='oil_change' AND lower(description) NOT LIKE '%oil%' AND lower(description) NOT LIKE '%ulei%' AND lower(description) LIKE '%filter%'`,
+		`UPDATE expenses SET service_type='alignment' WHERE category IN ('Maintenance', 'Repairs') AND service_type='oil_change' AND lower(description) NOT LIKE '%oil%' AND lower(description) NOT LIKE '%ulei%' AND lower(description) LIKE '%alignment%'`,
+		`UPDATE expenses SET service_type='regular_service' WHERE category IN ('Maintenance', 'Repairs') AND service_type='oil_change' AND lower(description) NOT LIKE '%oil%' AND lower(description) NOT LIKE '%ulei%'`,
 	} {
 		if _, err := s.pool.Exec(ctx, statement); err != nil {
 			return fmt.Errorf("backfill expense smart fields: %w", err)
