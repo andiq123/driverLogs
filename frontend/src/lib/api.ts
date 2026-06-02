@@ -1,4 +1,4 @@
-import type { AppDataResponse, AuthSession, Expense, FuelComparisonResponse, FuelMarketResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, UserSettings, Vehicle, VinDecode } from "./types";
+import type { AppDataResponse, AuthSession, Expense, ExpenseAttachment, FuelComparisonResponse, FuelMarketResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, UserSettings, Vehicle, VinDecode } from "./types";
 
 export const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:18080").replace(/\/+$/, "");
 let tokenHandler: ((token: string) => void) | undefined;
@@ -117,6 +117,41 @@ export async function deleteExpense(token: string, id: string) {
   });
   refreshToken(response);
   if (!response.ok) throw await apiError(response, "delete expense failed");
+}
+
+export async function getExpenseAttachments(token: string, expenseID: string) {
+  return getJSON<ExpenseAttachment[]>(`/expenses/${encodeURIComponent(expenseID)}/attachments`, token);
+}
+
+export async function uploadExpenseAttachment(token: string, expenseID: string, file: File) {
+  const body = new FormData();
+  body.set("file", file);
+  const response = await fetch(`${apiBase}/expenses/${encodeURIComponent(expenseID)}/attachments`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body,
+  });
+  refreshToken(response);
+  if (!response.ok) throw await apiError(response, "upload pdf failed");
+  return response.json() as Promise<ExpenseAttachment>;
+}
+
+export async function getExpenseAttachmentPreview(token: string, expenseID: string, attachmentID: string) {
+  const response = await fetch(`${apiBase}/expenses/${encodeURIComponent(expenseID)}/attachments/${encodeURIComponent(attachmentID)}/preview`, {
+    headers: authHeaders(token),
+  });
+  refreshToken(response);
+  if (!response.ok) throw await apiError(response, "load pdf failed");
+  return response.blob();
+}
+
+export async function deleteExpenseAttachment(token: string, expenseID: string, attachmentID: string) {
+  const response = await fetch(`${apiBase}/expenses/${encodeURIComponent(expenseID)}/attachments/${encodeURIComponent(attachmentID)}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  refreshToken(response);
+  if (!response.ok) throw await apiError(response, "remove pdf failed");
 }
 
 export async function deleteVehicle(token: string, id: string) {

@@ -49,6 +49,17 @@ type Expense struct {
 	CreatedAt             time.Time `json:"created_at"`
 }
 
+type ExpenseAttachment struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"-"`
+	ExpenseID   string    `json:"expense_id"`
+	ObjectKey   string    `json:"-"`
+	FileName    string    `json:"file_name"`
+	ContentType string    `json:"content_type"`
+	SizeBytes   int64     `json:"size_bytes"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type User struct {
 	ID              string    `json:"id"`
 	LoginIDHash     []byte    `json:"-"`

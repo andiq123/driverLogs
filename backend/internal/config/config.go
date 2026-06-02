@@ -16,6 +16,17 @@ type Config struct {
 	JWTSecret          string
 	CORSAllowedOrigins []string
 	Production         bool
+	Storage            StorageConfig
+}
+
+type StorageConfig struct {
+	Provider      string
+	S3Endpoint    string
+	S3Region      string
+	S3Bucket      string
+	S3AccessKeyID string
+	S3SecretKey   string
+	S3PathStyle   bool
 }
 
 type ValidationError struct {
@@ -35,6 +46,7 @@ func Load() Config {
 		JWTSecret:          env("JWT_SECRET", localJWTSecret),
 		CORSAllowedOrigins: allowedOrigins(),
 		Production:         isProductionEnvironment(),
+		Storage:            storageConfig(),
 	}
 }
 
@@ -79,9 +91,33 @@ func (c Config) Validate() error {
 	if len(c.CORSAllowedOrigins) == 0 {
 		return ValidationError{Field: "CORS_ALLOWED_ORIGINS", Detail: "set the deployed frontend origin, for example https://driver-logs-two.vercel.app"}
 	}
+	if err := c.Storage.Validate(); err != nil {
+		return err
+	}
 	for _, origin := range c.CORSAllowedOrigins {
 		if !validProductionOrigin(origin) {
 			return ValidationError{Field: "CORS_ALLOWED_ORIGINS", Detail: fmt.Sprintf("%q is not a deployed HTTPS origin", origin)}
+		}
+	}
+	return nil
+}
+
+func (c StorageConfig) Validate() error {
+	if c.Provider == "" {
+		return nil
+	}
+	if c.Provider != "s3" {
+		return ValidationError{Field: "STORAGE_PROVIDER", Detail: "supported value is s3"}
+	}
+	required := map[string]string{
+		"S3_ENDPOINT":          c.S3Endpoint,
+		"S3_BUCKET":            c.S3Bucket,
+		"S3_ACCESS_KEY_ID":     c.S3AccessKeyID,
+		"S3_SECRET_ACCESS_KEY": c.S3SecretKey,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return ValidationError{Field: field, Detail: "required when STORAGE_PROVIDER=s3"}
 		}
 	}
 	return nil
@@ -93,6 +129,35 @@ func env(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func boolEnv(key string, fallback bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if value == "" {
+		return fallback
+	}
+	return value == "true" || value == "1" || value == "yes"
+}
+
+func storageConfig() StorageConfig {
+	return StorageConfig{
+		Provider:      strings.ToLower(strings.TrimSpace(firstEnv("STORAGE_PROVIDER"))),
+		S3Endpoint:    firstEnv("S3_ENDPOINT", "ENDPOINT_URL", "BUCKET_ENDPOINT_URL", "RAILWAY_STORAGE_ENDPOINT", "AWS_ENDPOINT_URL_S3", "AWS_S3_ENDPOINT"),
+		S3Region:      env("S3_REGION", env("AWS_REGION", "auto")),
+		S3Bucket:      firstEnv("S3_BUCKET", "S3_BUCKET_NAME", "BUCKET_NAME", "RAILWAY_STORAGE_BUCKET", "AWS_S3_BUCKET"),
+		S3AccessKeyID: firstEnv("S3_ACCESS_KEY_ID", "ACCESS_KEY_ID", "RAILWAY_STORAGE_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID"),
+		S3SecretKey:   firstEnv("S3_SECRET_ACCESS_KEY", "SECRET_ACCESS_KEY", "RAILWAY_STORAGE_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY"),
+		S3PathStyle:   boolEnv("S3_FORCE_PATH_STYLE", true),
+	}
 }
 
 func databaseURL() string {

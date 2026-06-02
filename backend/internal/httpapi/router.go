@@ -1,11 +1,18 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,8 +20,11 @@ import (
 	"driverlogs/backend/internal/domain"
 	"driverlogs/backend/internal/exchange"
 	"driverlogs/backend/internal/fuelprices"
+	filestorage "driverlogs/backend/internal/storage"
 	"driverlogs/backend/internal/store"
 )
+
+const maxPDFUploadBytes = 10 * 1024 * 1024
 
 type Store interface {
 	UserVehicles(userID string) ([]domain.Vehicle, error)
@@ -26,6 +36,10 @@ type Store interface {
 	CreateExpense(userID string, expense domain.Expense) (domain.Expense, error)
 	UpdateExpense(userID, id string, expense domain.Expense) (domain.Expense, error)
 	DeleteExpense(userID, id string) error
+	ExpenseAttachments(userID, expenseID string) ([]domain.ExpenseAttachment, error)
+	ExpenseAttachment(userID, expenseID, attachmentID string) (domain.ExpenseAttachment, error)
+	CreateExpenseAttachment(userID, expenseID string, attachment domain.ExpenseAttachment) (domain.ExpenseAttachment, error)
+	DeleteExpenseAttachment(userID, expenseID, attachmentID string) error
 	Timeline(userID, vehicleID string) ([]domain.TimelineEntry, error)
 	Analytics(userID, vehicleID string) (map[string]any, error)
 	CreateUser(loginID string) (domain.User, error)
@@ -40,6 +54,7 @@ type Handler struct {
 	db         healthPinger
 	exchange   exchange.BNMClient
 	fuelPrices fuelprices.Service
+	files      filestorage.Client
 	jwtSecret  string
 	logger     *slog.Logger
 	cors       corsPolicy
@@ -53,8 +68,8 @@ type contextKey string
 
 const userIDKey contextKey = "user_id"
 
-func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSecret string, corsAllowedOrigins []string) http.Handler {
-	h := Handler{store: repo, db: db, exchange: exchange.NewBNMClient(), fuelPrices: fuelPrices, jwtSecret: jwtSecret, logger: slog.Default(), cors: newCORSPolicy(corsAllowedOrigins)}
+func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, files filestorage.Client, jwtSecret string, corsAllowedOrigins []string) http.Handler {
+	h := Handler{store: repo, db: db, exchange: exchange.NewBNMClient(), fuelPrices: fuelPrices, files: files, jwtSecret: jwtSecret, logger: slog.Default(), cors: newCORSPolicy(corsAllowedOrigins)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
 	mux.HandleFunc("POST /client-errors", h.clientError)
@@ -80,6 +95,10 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSe
 	mux.HandleFunc("POST /expenses", h.requireAuth(h.createExpense))
 	mux.HandleFunc("PUT /expenses/{id}", h.requireAuth(h.updateExpense))
 	mux.HandleFunc("DELETE /expenses/{id}", h.requireAuth(h.deleteExpense))
+	mux.HandleFunc("GET /expenses/{id}/attachments", h.requireAuth(h.listExpenseAttachments))
+	mux.HandleFunc("POST /expenses/{id}/attachments", h.requireAuth(h.uploadExpenseAttachment))
+	mux.HandleFunc("GET /expenses/{id}/attachments/{attachment_id}/preview", h.requireAuth(h.previewExpenseAttachment))
+	mux.HandleFunc("DELETE /expenses/{id}/attachments/{attachment_id}", h.requireAuth(h.deleteExpenseAttachment))
 	mux.HandleFunc("GET /timeline", h.requireAuth(h.timeline))
 	mux.HandleFunc("GET /analytics", h.requireAuth(h.analytics))
 	mux.HandleFunc("GET /reports", h.requireAuth(h.reports))
@@ -421,6 +440,12 @@ func (h Handler) updateExpense(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) deleteExpense(w http.ResponseWriter, r *http.Request) {
+	attachments, err := h.store.ExpenseAttachments(userID(r), r.PathValue("id"))
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		h.logger.Error("list attachments before expense delete failed", "error", err, "expense_id", r.PathValue("id"))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
 	if err := h.store.DeleteExpense(userID(r), r.PathValue("id")); errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
 		return
@@ -428,7 +453,173 @@ func (h Handler) deleteExpense(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
+	for _, attachment := range attachments {
+		if h.files != nil && h.files.Enabled() {
+			if err := h.files.Delete(context.Background(), attachment.ObjectKey); err != nil {
+				h.logger.Warn("attachment object delete failed after expense removal", "error", err, "attachment_id", attachment.ID)
+			}
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h Handler) listExpenseAttachments(w http.ResponseWriter, r *http.Request) {
+	attachments, err := h.store.ExpenseAttachments(userID(r), r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
+		return
+	}
+	if err != nil {
+		h.logger.Error("list expense attachments failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, attachments)
+}
+
+func (h Handler) uploadExpenseAttachment(w http.ResponseWriter, r *http.Request) {
+	if h.files == nil || !h.files.Enabled() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "file storage is not configured"})
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxPDFUploadBytes+1024)
+	if err := r.ParseMultipartForm(maxPDFUploadBytes); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf file is required"})
+		return
+	}
+	defer file.Close()
+	if header.Size <= 0 || header.Size > maxPDFUploadBytes {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxPDFUploadBytes+1))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not read pdf"})
+		return
+	}
+	if int64(len(data)) > maxPDFUploadBytes {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pdf must be 10 MB or smaller"})
+		return
+	}
+	if !isPDF(data, header.Header.Get("Content-Type")) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only PDF files are supported"})
+		return
+	}
+	attachmentID, err := randomAttachmentID()
+	if err != nil {
+		h.logger.Error("attachment id generation failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	expenseID := r.PathValue("id")
+	objectKey := fmt.Sprintf("expenses/%s/%s/%s.pdf", userID(r), expenseID, attachmentID)
+	if err := h.files.Put(r.Context(), objectKey, bytes.NewReader(data), "application/pdf", int64(len(data))); err != nil {
+		h.logger.Error("attachment upload failed", "error", err, "expense_id", expenseID)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not upload pdf"})
+		return
+	}
+	attachment := domain.ExpenseAttachment{
+		ID:          attachmentID,
+		ObjectKey:   objectKey,
+		FileName:    cleanPDFName(header.Filename),
+		ContentType: "application/pdf",
+		SizeBytes:   int64(len(data)),
+	}
+	saved, err := h.store.CreateExpenseAttachment(userID(r), expenseID, attachment)
+	if errors.Is(err, store.ErrNotFound) {
+		_ = h.files.Delete(context.Background(), objectKey)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
+		return
+	}
+	if err != nil {
+		_ = h.files.Delete(context.Background(), objectKey)
+		h.logger.Error("attachment metadata save failed", "error", err, "expense_id", expenseID)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save pdf metadata"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, saved)
+}
+
+func (h Handler) previewExpenseAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, err := h.store.ExpenseAttachment(userID(r), r.PathValue("id"), r.PathValue("attachment_id"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pdf not found"})
+		return
+	}
+	if err != nil {
+		h.logger.Error("attachment metadata lookup failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	object, err := h.files.Get(r.Context(), attachment.ObjectKey)
+	if err != nil {
+		h.logger.Error("attachment preview failed", "error", err, "attachment_id", attachment.ID)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "could not load pdf"})
+		return
+	}
+	defer object.Body.Close()
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": attachment.FileName}))
+	if object.Size > 0 {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", object.Size))
+	}
+	if _, err := io.Copy(w, object.Body); err != nil {
+		h.logger.Warn("attachment stream interrupted", "error", err, "attachment_id", attachment.ID)
+	}
+}
+
+func (h Handler) deleteExpenseAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, err := h.store.ExpenseAttachment(userID(r), r.PathValue("id"), r.PathValue("attachment_id"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pdf not found"})
+		return
+	}
+	if err != nil {
+		h.logger.Error("attachment metadata lookup failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	if err := h.files.Delete(r.Context(), attachment.ObjectKey); err != nil {
+		h.logger.Warn("attachment object delete failed", "error", err, "attachment_id", attachment.ID)
+	}
+	if err := h.store.DeleteExpenseAttachment(userID(r), r.PathValue("id"), attachment.ID); err != nil {
+		h.logger.Error("attachment metadata delete failed", "error", err, "attachment_id", attachment.ID)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not remove pdf"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func isPDF(data []byte, contentType string) bool {
+	if len(data) < 4 || string(data[:4]) != "%PDF" {
+		return false
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	return err != nil || mediaType == "" || mediaType == "application/pdf" || mediaType == "application/octet-stream"
+}
+
+func cleanPDFName(name string) string {
+	clean := filepath.Base(strings.TrimSpace(name))
+	if clean == "." || clean == "" {
+		return "receipt.pdf"
+	}
+	if !strings.HasSuffix(strings.ToLower(clean), ".pdf") {
+		clean += ".pdf"
+	}
+	return clean
+}
+
+func randomAttachmentID() (string, error) {
+	var data [12]byte
+	if _, err := rand.Read(data[:]); err != nil {
+		return "", err
+	}
+	return "att_" + hex.EncodeToString(data[:]), nil
 }
 
 func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (domain.Expense, int, error) {

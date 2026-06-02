@@ -75,6 +75,15 @@ export type Expense = {
   description: string;
 };
 
+export type ExpenseAttachment = {
+  id: string;
+  expense_id: string;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+};
+
 export type FuelPriceSuggestion = {
   station_name?: string;
   brand?: string;

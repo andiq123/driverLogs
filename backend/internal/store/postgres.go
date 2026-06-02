@@ -81,6 +81,16 @@ CREATE TABLE IF NOT EXISTS expenses (
   date text NOT NULL,
   description text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS expense_attachments (
+  id text PRIMARY KEY,
+  user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expense_id text NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  object_key text NOT NULL,
+  file_name text NOT NULL,
+  content_type text NOT NULL,
+  size_bytes bigint NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL
 );`)
 	if err != nil {
 		return fmt.Errorf("migrate postgres store: %w", err)
@@ -254,6 +264,68 @@ func (s *PostgresStore) DeleteExpense(userID, id string) error {
 	return s.refreshVehicleOdometer(userID, vehicleID)
 }
 
+func (s *PostgresStore) ExpenseAttachments(userID, expenseID string) ([]domain.ExpenseAttachment, error) {
+	if err := s.requireExpense(userID, expenseID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(context.Background(), attachmentSelectSQL()+` WHERE user_id=$1 AND expense_id=$2 ORDER BY created_at DESC`, userID, expenseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanAttachments(rows)
+}
+
+func (s *PostgresStore) ExpenseAttachment(userID, expenseID, attachmentID string) (domain.ExpenseAttachment, error) {
+	row := s.pool.QueryRow(context.Background(), attachmentSelectSQL()+` WHERE user_id=$1 AND expense_id=$2 AND id=$3`, userID, expenseID, attachmentID)
+	return scanAttachment(row)
+}
+
+func (s *PostgresStore) CreateExpenseAttachment(userID, expenseID string, attachment domain.ExpenseAttachment) (domain.ExpenseAttachment, error) {
+	if err := s.requireExpense(userID, expenseID); err != nil {
+		return domain.ExpenseAttachment{}, err
+	}
+	if attachment.ID == "" {
+		id, err := newID("att")
+		if err != nil {
+			return domain.ExpenseAttachment{}, err
+		}
+		attachment.ID = id
+	}
+	attachment.UserID = userID
+	attachment.ExpenseID = expenseID
+	attachment.CreatedAt = time.Now().UTC()
+	_, err := s.pool.Exec(context.Background(), `INSERT INTO expense_attachments (id, user_id, expense_id, object_key, file_name, content_type, size_bytes, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		attachment.ID, attachment.UserID, attachment.ExpenseID, attachment.ObjectKey, attachment.FileName, attachment.ContentType, attachment.SizeBytes, attachment.CreatedAt)
+	if err != nil {
+		return domain.ExpenseAttachment{}, err
+	}
+	return attachment, nil
+}
+
+func (s *PostgresStore) DeleteExpenseAttachment(userID, expenseID, attachmentID string) error {
+	tag, err := s.pool.Exec(context.Background(), `DELETE FROM expense_attachments WHERE user_id=$1 AND expense_id=$2 AND id=$3`, userID, expenseID, attachmentID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *PostgresStore) requireExpense(userID, expenseID string) error {
+	var exists bool
+	err := s.pool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM expenses WHERE user_id=$1 AND id=$2)`, userID, expenseID).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *PostgresStore) refreshVehicleOdometer(userID, vehicleID string) error {
 	_, err := s.pool.Exec(context.Background(), `
 UPDATE vehicles
@@ -370,6 +442,10 @@ func expenseSelectSQL() string {
 	return `SELECT id, user_id, vehicle_id, category, amount_base, base_currency, amount_mdl, amount_eur, amount_usd, exchange_rate_eur, exchange_rate_usd, exchange_rate_date, exchange_rate_source, fuel_liters, fuel_price_currency, fuel_price_per_liter_base, fuel_price_per_liter_mdl, fuel_type, fuel_full_tank, odometer, service_type, expires_date, date, description, created_at FROM expenses`
 }
 
+func attachmentSelectSQL() string {
+	return `SELECT id, user_id, expense_id, object_key, file_name, content_type, size_bytes, created_at FROM expense_attachments`
+}
+
 func scanVehicle(row rowScanner) (domain.Vehicle, error) {
 	var vehicle domain.Vehicle
 	err := row.Scan(&vehicle.ID, &vehicle.UserID, &vehicle.PlateNumber, &vehicle.Nickname, &vehicle.Make, &vehicle.Model, &vehicle.Year, &vehicle.EngineType, &vehicle.VIN, &vehicle.PreferredFuelType, &vehicle.PurchasePrice, &vehicle.PurchaseCurrency, &vehicle.PurchaseDate, &vehicle.Odometer, &vehicle.ImageURL, &vehicle.CreatedAt)
@@ -410,4 +486,25 @@ func scanExpense(row rowScanner) (domain.Expense, error) {
 		return domain.Expense{}, ErrNotFound
 	}
 	return expense, err
+}
+
+func scanAttachments(rows pgx.Rows) ([]domain.ExpenseAttachment, error) {
+	attachments := []domain.ExpenseAttachment{}
+	for rows.Next() {
+		attachment, err := scanAttachment(rows)
+		if err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, attachment)
+	}
+	return attachments, rows.Err()
+}
+
+func scanAttachment(row rowScanner) (domain.ExpenseAttachment, error) {
+	var attachment domain.ExpenseAttachment
+	err := row.Scan(&attachment.ID, &attachment.UserID, &attachment.ExpenseID, &attachment.ObjectKey, &attachment.FileName, &attachment.ContentType, &attachment.SizeBytes, &attachment.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ExpenseAttachment{}, ErrNotFound
+	}
+	return attachment, err
 }

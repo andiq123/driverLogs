@@ -11,6 +11,7 @@ import (
 	"driverlogs/backend/internal/database"
 	"driverlogs/backend/internal/fuelprices"
 	"driverlogs/backend/internal/httpapi"
+	filestorage "driverlogs/backend/internal/storage"
 	"driverlogs/backend/internal/store"
 )
 
@@ -42,9 +43,14 @@ func main() {
 		logger.Error("postgres store unavailable", "error", err)
 		os.Exit(1)
 	}
+	files, err := filestorage.New(ctx, cfg.Storage)
+	if err != nil {
+		logger.Error("file storage unavailable", "error", err)
+		os.Exit(1)
+	}
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(repo, db, fuelprices.NewService(), cfg.JWTSecret, cfg.CORSAllowedOrigins),
+		Handler:           httpapi.NewRouter(repo, db, fuelprices.NewService(), files, cfg.JWTSecret, cfg.CORSAllowedOrigins),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
