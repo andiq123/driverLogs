@@ -149,7 +149,7 @@ func boolEnv(key string, fallback bool) bool {
 }
 
 func storageConfig() StorageConfig {
-	return StorageConfig{
+	cfg := StorageConfig{
 		Provider:      strings.ToLower(strings.TrimSpace(firstEnv("STORAGE_PROVIDER"))),
 		S3Endpoint:    firstEnv("S3_ENDPOINT", "ENDPOINT_URL", "BUCKET_ENDPOINT_URL", "RAILWAY_STORAGE_ENDPOINT", "AWS_ENDPOINT_URL_S3", "AWS_S3_ENDPOINT"),
 		S3Region:      env("S3_REGION", env("AWS_REGION", "auto")),
@@ -158,6 +158,10 @@ func storageConfig() StorageConfig {
 		S3SecretKey:   firstEnv("S3_SECRET_ACCESS_KEY", "SECRET_ACCESS_KEY", "RAILWAY_STORAGE_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY"),
 		S3PathStyle:   boolEnv("S3_FORCE_PATH_STYLE", true),
 	}
+	if cfg.Provider == "" && cfg.S3Endpoint != "" && cfg.S3Bucket != "" && cfg.S3AccessKeyID != "" && cfg.S3SecretKey != "" {
+		cfg.Provider = "s3"
+	}
+	return cfg
 }
 
 func databaseURL() string {
