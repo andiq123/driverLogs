@@ -110,8 +110,17 @@ export async function updateExpense(token: string, id: string, expense: Partial<
   return sendJSON<Expense>(`/expenses/${encodeURIComponent(id)}`, "PUT", expense, token);
 }
 
+export async function deleteExpense(token: string, id: string) {
+  const response = await fetch(`${apiBase}/expenses/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  refreshToken(response);
+  if (!response.ok) throw await apiError(response, "delete expense failed");
+}
+
 export async function deleteVehicle(token: string, id: string) {
-  const response = await fetch(`${apiBase}/vehicles/${id}`, {
+  const response = await fetch(`${apiBase}/vehicles/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: authHeaders(token),
   });

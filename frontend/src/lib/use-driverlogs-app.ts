@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiBaseHost, createExpense, createVehicle, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
+import { apiBaseHost, createExpense, createVehicle, deleteExpense, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
 import { demoToken, isLocalDemoEnabled } from "./demo-mode";
@@ -204,6 +204,25 @@ export function useDriverLogsApp() {
     }
   }
 
+  async function removeExpense(id: string) {
+    if (isDemo) {
+      showToast("info", "Demo mode", "Register to delete real expenses.");
+      return;
+    }
+    setAction("delete");
+    setStatus("Removing expense...");
+    try {
+      await deleteExpense(token, id);
+      await loadData(false);
+      showToast("success", "Expense removed");
+    } catch (error) {
+      setStatus("Expense could not be removed.");
+      showToast("error", "Expense was not removed", errorMessage(error, "Check backend availability."));
+    } finally {
+      setAction("");
+    }
+  }
+
   async function saveSettings(nextSettings: UserSettings) {
     if (isDemo) {
       setSettings(nextSettings);
@@ -292,6 +311,7 @@ export function useDriverLogsApp() {
     logout: logoutApp,
     mounted,
     removeVehicle,
+    removeExpense,
     saveExpense,
     saveSettings,
     saveProfileName,

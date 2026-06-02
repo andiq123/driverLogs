@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, Fuel, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Fuel, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
 import type { SmartInsights, YearlyExpiryInsight } from "@/lib/types";
 import { km, money } from "@/lib/format";
 import { insightTones } from "@/lib/theme";
@@ -10,10 +10,11 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   return (
     <section className="flex w-full max-w-full min-w-0 snap-x gap-2 overflow-x-auto pb-1 pr-3 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:pr-0 2xl:grid-cols-5">
       <InsightTile icon={CalendarClock} title="Oil" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} tone={oilTone(oil.remaining_km, oil.next_odometer)} badge={oilBadge(oil.remaining_km, oil.next_odometer)} />
-      <InsightTile icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples)} />
+      <InsightTile icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples, insights.fuel.consumption_confidence)} />
       <InsightTile icon={Wrench} title="Service" value={insights.maintenance.average_mdl ? money(insights.maintenance.average_mdl) : "No service yet"} detail={entryDetail(insights.maintenance.entry_count)} />
       <InsightTile icon={ShieldCheck} title="Insurance" value={expiryValue(insights.insurance)} detail={expiryDetail("insurance", insights.insurance)} tone={expiryTone(insights.insurance)} badge={expiryBadge(insights.insurance)} />
       <InsightTile icon={CheckCircle2} title="ITP" value={expiryValue(insights.inspection)} detail={expiryDetail("technical inspection", insights.inspection)} tone={expiryTone(insights.inspection)} badge={expiryBadge(insights.inspection)} />
+      {insights.anomalies?.length ? <InsightTile icon={AlertTriangle} title="Check" value={String(insights.anomalies.length)} detail="Unusual records found in this car history." tone="warn" badge="Review" /> : null}
     </section>
   );
 }
@@ -54,9 +55,9 @@ function fuelValue(consumption?: number, averageFill?: number) {
   return "No fuel yet";
 }
 
-function fuelDetail(liters: number, averagePrice: number, consumptionSamples = 0) {
+function fuelDetail(liters: number, averagePrice: number, consumptionSamples = 0, confidence?: string) {
   if (!liters) return "Add fuel records with liters and price.";
-  if (consumptionSamples) return `Learned from ${consumptionSamples} odometer interval${consumptionSamples === 1 ? "" : "s"}.`;
+  if (consumptionSamples) return `${confidence === "rough" ? "Rough" : "Learned"} from ${consumptionSamples} odometer interval${consumptionSamples === 1 ? "" : "s"}.`;
   const price = averagePrice ? `, ${averagePrice} MDL/L avg` : "";
   return `${liters} L logged${price}.`;
 }

@@ -12,7 +12,7 @@ import { CustomSelect } from "./custom-select";
 import { ExpenseCategoryPicker } from "./expense-category-picker";
 import { FuelPriceSuggestions } from "./fuel-price-suggestions";
 import { ActionButton, Input, Panel } from "./ui";
-import { BadgeCheck, BadgeDollarSign, CalendarDays, CarFront, CircleGauge, Droplets, Fuel, Hash, Landmark, MapPin, Milestone, ScanLine, Text, Wrench } from "lucide-react";
+import { BadgeCheck, BadgeDollarSign, CalendarDays, CarFront, CheckCircle2, CircleGauge, Droplets, Fuel, Hash, Landmark, MapPin, Milestone, ScanLine, Text, Wrench } from "lucide-react";
 import { useFuelPriceSuggestions } from "@/lib/use-fuel-price-suggestions";
 import { calmEase } from "@/lib/theme";
 
@@ -163,7 +163,7 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
         </div>
         <CustomSelect name="preferred_fuel_type" label="Preferred fuel" icon={Fuel} options={fuelTypes} value={preferredFuelType} onChange={setPreferredFuelType} />
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(128px,0.78fr)_96px]">
-          <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" min={vehicle?.odometer || undefined} defaultValue={vehicle?.odometer || ""} />
+          <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" defaultValue={vehicle?.odometer || ""} />
           <Input name="purchase_price" label="Purchase price" icon={BadgeDollarSign} inputMode="decimal" defaultValue={vehicle?.purchase_price || ""} />
           <CustomSelect name="purchase_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} onChange={setPurchaseCurrency} />
         </div>
@@ -209,7 +209,7 @@ function engineFromVIN(decoded: VinDecode) {
 
 const draftFuelTypeByVehicle = new Map<string, string>();
 
-export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, expense, odometerSuggestion, onCreate, onUpdate, onCancel }: { vehicle: Vehicle; token: string; baseCurrency: string; country: string; saving?: boolean; expense?: Expense; odometerSuggestion?: number; onCreate?: (expense: Partial<Expense>) => void; onUpdate?: (id: string, expense: Partial<Expense>) => void; onCancel?: () => void }) {
+export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, expense, odometerSuggestion, intentCategory, onCreate, onUpdate, onCancel }: { vehicle: Vehicle; token: string; baseCurrency: string; country: string; saving?: boolean; expense?: Expense; odometerSuggestion?: number; intentCategory?: ExpenseCategory; onCreate?: (expense: Partial<Expense>) => void; onUpdate?: (id: string, expense: Partial<Expense>) => void; onCancel?: () => void }) {
   const isEditing = Boolean(expense);
   const [category, setCategory] = useState<ExpenseCategory>(expense?.category ?? "Fuel");
   const [date, setDate] = useState(expense?.date ?? "");
@@ -219,8 +219,27 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const [fuelPriceEdited, setFuelPriceEdited] = useState(false);
   const [description, setDescription] = useState(expense?.description ?? "");
   const [gasStation, setGasStation] = useState(expense?.category === "Fuel" ? expense.description : "");
+  const [fullTank, setFullTank] = useState(Boolean(expense?.fuel_full_tank));
+  const [serviceType, setServiceType] = useState(expense?.service_type ?? "");
+  const [expiresDate, setExpiresDate] = useState(expense?.expires_date ?? "");
   const [odometerValue, setOdometerValue] = useState(expense?.odometer ? String(expense.odometer) : "");
   const fuelSuggestion = useFuelPriceSuggestions({ category, country, fuelType, token });
+
+  useEffect(() => {
+    if (!intentCategory || isEditing) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      setCategory(intentCategory);
+      if (intentCategory === "Maintenance") {
+        setDescription((current) => current.trim() ? current : "Oil change");
+        setServiceType((current) => current || "oil_change");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [intentCategory, isEditing]);
 
   useEffect(() => {
     if (category !== "Fuel" || fuelPriceEdited) return;
@@ -250,7 +269,10 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       fuel_price_per_liter_base: numberValue(form.get("fuel_price_per_liter_base")),
       fuel_price_currency: String(form.get("fuel_price_currency") ?? baseCurrency),
       fuel_type: String(form.get("fuel_type") ?? "").trim(),
+      fuel_full_tank: form.get("fuel_full_tank") === "true",
       odometer: intValue(form.get("odometer")),
+      service_type: String(form.get("service_type") ?? "").trim(),
+      expires_date: String(form.get("expires_date") ?? "").trim(),
       date: String(form.get("date") ?? ""),
       description: expenseDescription(category, String(form.get("description") ?? ""), gasStation),
     };
@@ -268,6 +290,9 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     setFuelPriceEdited(false);
     setDescription("");
     setGasStation("");
+    setFullTank(false);
+    setServiceType("");
+    setExpiresDate("");
     setOdometerValue("");
   }
 
@@ -291,12 +316,26 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     setCategory(nextCategory);
     if (nextCategory === "Maintenance" && !description.trim()) {
       setDescription("Oil change");
+      setServiceType("oil_change");
       return;
     }
     if (previousCategory === "Maintenance" && nextCategory !== "Maintenance" && isServicePreset(description)) {
       setDescription("");
+      setServiceType("");
     }
   }
+
+  useEffect(() => {
+    if ((category === "Insurance" || category === "Inspection") && date && !expiresDate) {
+      let cancelled = false;
+      void Promise.resolve().then(() => {
+        if (!cancelled) setExpiresDate(addYear(date));
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [category, date, expiresDate]);
 
   return (
     <Panel title="Add expense" eyebrow={vehicleName(vehicle)}>
@@ -314,6 +353,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
                   <CustomSelect name="fuel_price_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={fuelPriceCurrency} onChange={setFuelPriceCurrency} />
                   <CustomSelect name="fuel_type" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} />
                 </div>
+                <ToggleField name="fuel_full_tank" label="Full tank" checked={fullTank} onChange={setFullTank} />
                 <Autocomplete name="gas_station" label="Gas station" icon={MapPin} options={gasStationBrands} value={gasStation} onChange={setGasStation} />
                 <FuelPriceSuggestions suggestions={fuelSuggestion.suggestions} status={fuelSuggestion.status} onSelect={applyFuelSuggestion} />
               </motion.div>
@@ -322,7 +362,15 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
           <AnimatePresence initial={false} mode="popLayout">
             {category === "Maintenance" ? (
               <motion.div key="maintenance-presets" initial={{ opacity: 0, y: 12, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -6, filter: "blur(3px)" }} transition={{ duration: 0.32, ease: calmEase }}>
-                <ServicePresets value={description} onChange={setDescription} />
+                <input type="hidden" name="service_type" value={serviceType} />
+                <ServicePresets value={description} serviceType={serviceType} onChange={(nextDescription, nextType) => { setDescription(nextDescription); setServiceType(nextType); }} />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <AnimatePresence initial={false} mode="popLayout">
+            {(category === "Insurance" || category === "Inspection") ? (
+              <motion.div key="expiry-field" initial={{ opacity: 0, y: 12, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -6, filter: "blur(3px)" }} transition={{ duration: 0.32, ease: calmEase }}>
+                <CalendarField name="expires_date" label="Expires" value={expiresDate} placeholder="Expiry date" onChange={setExpiresDate} />
               </motion.div>
             ) : null}
           </AnimatePresence>
@@ -346,15 +394,25 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   );
 }
 
-function ServicePresets({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function ToggleField({ checked, label, name, onChange }: { checked: boolean; label: string; name: string; onChange: (checked: boolean) => void }) {
+  return (
+    <button type="button" onClick={() => onChange(!checked)} className={`flex h-11 touch-manipulation items-center justify-between rounded-[18px] border px-3 text-sm font-bold transition-[background-color,border-color,transform] duration-300 active:scale-[0.985] ${checked ? "border-[#bdd7c0] bg-[#eef6e9] text-[#24603c]" : "border-black/[0.06] bg-white/88 text-[#62685e]"}`}>
+      <input type="hidden" name={name} value={checked ? "true" : "false"} />
+      <span className="flex items-center gap-2"><CheckCircle2 size={17} />{label}</span>
+      <span className="text-xs">{checked ? "Yes" : "No"}</span>
+    </button>
+  );
+}
+
+function ServicePresets({ value, serviceType, onChange }: { value: string; serviceType: string; onChange: (description: string, serviceType: string) => void }) {
   const options = servicePresetOptions;
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((option) => {
-        const active = selectedServicePresets(value).includes(option);
+        const active = selectedServicePresets(value).includes(option.label);
         return (
-          <button key={option} type="button" onClick={() => onChange(toggleServicePreset(value, option))} className={`h-9 touch-manipulation rounded-full px-3 text-xs font-bold transition-[background-color,color,transform] duration-200 active:scale-[0.985] ${active ? "bg-[#151712] text-white" : "bg-[#eef3e8] text-[#62685e] hover:text-[#151712]"}`}>
-            {option}
+          <button key={option.label} type="button" onClick={() => onChange(toggleServicePreset(value, option.label), active && serviceType === option.value ? "" : option.value)} className={`h-9 touch-manipulation rounded-full px-3 text-xs font-bold transition-[background-color,color,transform] duration-200 active:scale-[0.985] ${active ? "bg-[#151712] text-white" : "bg-[#eef3e8] text-[#62685e] hover:text-[#151712]"}`}>
+            {option.label}
           </button>
         );
       })}
@@ -362,7 +420,12 @@ function ServicePresets({ value, onChange }: { value: string; onChange: (value: 
   );
 }
 
-const servicePresetOptions = ["Oil change", "Regular service", "Filters", "Alignment"];
+const servicePresetOptions = [
+  { label: "Oil change", value: "oil_change" },
+  { label: "Regular service", value: "regular_service" },
+  { label: "Filters", value: "filters" },
+  { label: "Alignment", value: "alignment" },
+];
 
 function isServicePreset(value: string) {
   const selected = selectedServicePresets(value);
@@ -377,7 +440,7 @@ function toggleServicePreset(value: string, option: string) {
 }
 
 function selectedServicePresets(value: string) {
-  return splitServiceDescription(value).filter((part) => servicePresetOptions.some((option) => samePreset(part, option)));
+  return splitServiceDescription(value).filter((part) => servicePresetOptions.some((option) => samePreset(part, option.label)));
 }
 
 function splitServiceDescription(value: string) {
@@ -417,4 +480,11 @@ function expenseDescription(category: ExpenseCategory, description: string, gasS
   if (category !== "Fuel" || !cleanStation) return cleanDescription;
   if (!cleanDescription || cleanDescription === cleanStation) return cleanStation;
   return `${cleanStation} · ${cleanDescription}`;
+}
+
+function addYear(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setFullYear(date.getFullYear() + 1);
+  return date.toISOString().slice(0, 10);
 }

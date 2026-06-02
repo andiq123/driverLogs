@@ -25,6 +25,7 @@ type Store interface {
 	UserExpenses(userID, vehicleID string) ([]domain.Expense, error)
 	CreateExpense(userID string, expense domain.Expense) (domain.Expense, error)
 	UpdateExpense(userID, id string, expense domain.Expense) (domain.Expense, error)
+	DeleteExpense(userID, id string) error
 	Timeline(userID, vehicleID string) ([]domain.TimelineEntry, error)
 	Analytics(userID, vehicleID string) (map[string]any, error)
 	CreateUser(loginID string) (domain.User, error)
@@ -78,6 +79,7 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, jwtSe
 	mux.HandleFunc("GET /expenses", h.requireAuth(h.listExpenses))
 	mux.HandleFunc("POST /expenses", h.requireAuth(h.createExpense))
 	mux.HandleFunc("PUT /expenses/{id}", h.requireAuth(h.updateExpense))
+	mux.HandleFunc("DELETE /expenses/{id}", h.requireAuth(h.deleteExpense))
 	mux.HandleFunc("GET /timeline", h.requireAuth(h.timeline))
 	mux.HandleFunc("GET /analytics", h.requireAuth(h.analytics))
 	mux.HandleFunc("GET /reports", h.requireAuth(h.reports))
@@ -344,19 +346,6 @@ func (h Handler) updateVehicle(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "plate_number is required"})
 		return
 	}
-	current, err := h.store.Vehicle(userID(r), r.PathValue("id"))
-	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "vehicle not found"})
-		return
-	}
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-		return
-	}
-	if vehicle.Odometer > 0 && current.Odometer > 0 && vehicle.Odometer < current.Odometer {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "odometer cannot be lower than the current reading"})
-		return
-	}
 	updated, err := h.store.UpdateVehicle(userID(r), r.PathValue("id"), vehicle)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -431,6 +420,17 @@ func (h Handler) updateExpense(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, updated)
 }
 
+func (h Handler) deleteExpense(w http.ResponseWriter, r *http.Request) {
+	if err := h.store.DeleteExpense(userID(r), r.PathValue("id")); errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
+		return
+	} else if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (domain.Expense, int, error) {
 	settings, err := h.store.UserSettings(userID(r))
 	if err != nil {
@@ -464,6 +464,7 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (doma
 	}
 	if expense.Category == "Fuel" && expense.AmountBase <= 0 && expense.FuelLiters > 0 && expense.FuelPricePerLiterBase > 0 {
 		expense.AmountBase = expense.FuelLiters * expense.FuelPricePerLiterBase
+		expense.BaseCurrency = expense.FuelPriceCurrency
 	}
 	if expense.VehicleID == "" || expense.Category == "" || expense.AmountBase <= 0 || expense.Date == "" {
 		return domain.Expense{}, http.StatusBadRequest, errors.New("vehicle_id, category, amount, and date are required")
@@ -473,6 +474,24 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (doma
 	}
 	if expense.Category == "Maintenance" && expense.Odometer <= 0 {
 		return domain.Expense{}, http.StatusBadRequest, errors.New("odometer is required for service expenses")
+	}
+	if expense.Category != "Fuel" {
+		expense.FuelLiters = 0
+		expense.FuelPricePerLiterBase = 0
+		expense.FuelPricePerLiterMDL = 0
+		expense.FuelType = ""
+		expense.FuelFullTank = false
+	}
+	if expense.Category != "Maintenance" {
+		expense.ServiceType = ""
+	}
+	if expense.Category != "Insurance" && expense.Category != "Inspection" {
+		expense.ExpiresDate = ""
+	}
+	if (expense.Category == "Insurance" || expense.Category == "Inspection") && expense.ExpiresDate == "" {
+		if date, ok := parseAPIDate(expense.Date); ok {
+			expense.ExpiresDate = date.AddDate(1, 0, 0).Format("2006-01-02")
+		}
 	}
 	conversion, err := h.exchange.Convert(r.Context(), expense.AmountBase, expense.BaseCurrency, expense.Date)
 	if err != nil {
@@ -488,6 +507,11 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (doma
 	expense.ExchangeRateDate = conversion.Date
 	expense.ExchangeRateSource = conversion.Source
 	return expense, http.StatusOK, nil
+}
+
+func parseAPIDate(value string) (time.Time, bool) {
+	date, err := time.Parse("2006-01-02", value)
+	return date, err == nil
 }
 
 func (h Handler) timeline(w http.ResponseWriter, r *http.Request) {

@@ -1,13 +1,13 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Activity, Pencil, ReceiptText } from "lucide-react";
+import { Activity, Pencil, ReceiptText, Trash2 } from "lucide-react";
 import type { Expense, Vehicle } from "@/lib/types";
 import { categoryIcon } from "@/lib/theme";
 import { equivalents, km, money, vehicleName } from "@/lib/format";
 import { ActionButton, EmptyState, Panel } from "../ui";
 import { ExpenseForm } from "../forms";
 
-export function TimelineView({ expenses, vehicle, token, baseCurrency, country, savingExpense, onUpdateExpense }: { expenses: Expense[]; vehicle?: Vehicle; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onUpdateExpense: (id: string, expense: Partial<Expense>) => void }) {
+export function TimelineView({ expenses, vehicle, token, baseCurrency, country, savingExpense, onDeleteExpense, onUpdateExpense }: { expenses: Expense[]; vehicle?: Vehicle; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onDeleteExpense: (id: string) => void; onUpdateExpense: (id: string, expense: Partial<Expense>) => void }) {
   const [editingExpense, setEditingExpense] = useState<Expense>();
   const sorted = [...expenses].sort((a, b) => b.date.localeCompare(a.date));
   function updateExpense(id: string, expense: Partial<Expense>) {
@@ -30,15 +30,20 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                   <span className="block truncate text-sm font-semibold">{expense.description || expense.category}</span>
                   <span className="text-xs text-[#6b7065]">{expense.category} · {expense.date}</span>
                   {expense.category === "Fuel" && expense.fuel_type ? (
-                    <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}</span>
+                    <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}{expense.fuel_full_tank ? " · full tank" : ""}</span>
                   ) : null}
+                  {expense.service_type ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceTypeLabel(expense.service_type)}</span> : null}
+                  {expense.expires_date ? <span className="mt-1 block text-xs text-[#8a6a10]">Expires {expense.expires_date}</span> : null}
                   {expense.odometer ? <span className="mt-1 block text-xs text-[#6b7065]">{km(expense.odometer)}</span> : null}
                 </span>
                 <span className="grid justify-items-end gap-1 text-right">
                   <span className="block text-sm font-bold">{money(expense.amount_mdl)}</span>
                   <span className="text-xs text-[#6b7065]">{equivalents(expense.amount_eur, expense.amount_usd)}</span>
                   {expense.exchange_rate_source ? <span className="block text-[11px] text-[#8a9085]">{expense.exchange_rate_date}</span> : null}
-                  <ActionButton type="button" icon={Pencil} variant="soft" onClick={() => setEditingExpense(expense)} className="mt-1 h-8 rounded-[13px] px-2.5 text-xs sm:h-9 sm:rounded-[14px] sm:px-3">Edit</ActionButton>
+                  <div className="mt-1 flex justify-end gap-1.5">
+                    <ActionButton type="button" icon={Pencil} variant="soft" onClick={() => setEditingExpense(expense)} className="h-8 rounded-[13px] px-2.5 text-xs sm:h-9 sm:rounded-[14px] sm:px-3">Edit</ActionButton>
+                    <ActionButton type="button" icon={Trash2} variant="soft" onClick={() => confirmDelete(expense, onDeleteExpense)} className="h-8 rounded-[13px] bg-[#fff0ec] px-2.5 text-xs text-[#9b3226] hover:bg-[#ffdcd4] sm:h-9 sm:rounded-[14px] sm:px-3">Remove</ActionButton>
+                  </div>
                 </span>
               </motion.div>
             );
@@ -47,6 +52,22 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
       )}
     </Panel>
   );
+}
+
+function confirmDelete(expense: Expense, onDelete: (id: string) => void) {
+  if (window.confirm(`Remove ${expense.description || expense.category}?`)) {
+    onDelete(expense.id);
+  }
+}
+
+function serviceTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    oil_change: "Oil change",
+    regular_service: "Regular service",
+    filters: "Filters",
+    alignment: "Alignment",
+  };
+  return labels[value] ?? value;
 }
 
 function fuelPriceLabel(expense: Expense) {

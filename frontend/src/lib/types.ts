@@ -67,7 +67,10 @@ export type Expense = {
   fuel_price_currency?: string;
   fuel_price_per_liter_base?: number;
   fuel_type?: string;
+  fuel_full_tank?: boolean;
   odometer?: number;
+  service_type?: string;
+  expires_date?: string;
   date: string;
   description: string;
 };
@@ -182,6 +185,9 @@ export type SmartInsights = {
   maintenance: MaintenanceInsight;
   insurance: YearlyExpiryInsight;
   inspection: YearlyExpiryInsight;
+  reminders?: SmartReminder[];
+  anomalies?: SmartAnomaly[];
+  forecast?: SmartForecast;
 };
 
 export type FuelInsight = {
@@ -191,7 +197,8 @@ export type FuelInsight = {
   average_price_per_liter_mdl: number;
   average_consumption_l_per_100km?: number;
   consumption_samples?: number;
-  consumption_confidence?: "learned" | "low" | "none";
+  consumption_confidence?: "learned" | "low" | "rough" | "none";
+  full_tank_based?: boolean;
 };
 
 export type CategoryInsight = {
@@ -224,6 +231,30 @@ export type YearlyExpiryInsight = {
   expires_date?: string;
   days_left?: number;
   interval_days?: number;
+};
+
+export type SmartReminder = {
+  kind: "soon" | "expired";
+  title: string;
+  category: ExpenseCategory;
+  date?: string;
+  odometer?: number;
+};
+
+export type SmartAnomaly = {
+  kind: "duplicate" | "fuel_price" | "service_cost";
+  title: string;
+  category?: ExpenseCategory;
+  date?: string;
+  value?: number;
+};
+
+export type SmartForecast = {
+  next_30_days_mdl: number;
+  next_90_days_mdl: number;
+  next_service_mdl?: number;
+  next_insurance_mdl?: number;
+  next_inspection_mdl?: number;
 };
 
 export type ChartDatum = {

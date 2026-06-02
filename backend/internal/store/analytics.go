@@ -2,6 +2,7 @@ package store
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,7 +65,7 @@ func analyticsPayload(expenses []domain.Expense, vehicles []domain.Vehicle, vehi
 	for category, amount := range categoryTotals {
 		categoryBreakdown = append(categoryBreakdown, map[string]any{"name": category, "amount_mdl": amount, "amount_eur": categoryTotalsEUR[category], "amount_usd": categoryTotalsUSD[category]})
 	}
-	return map[string]any{"total_expenses_mdl": total, "total_expenses_eur": totalEUR, "total_expenses_usd": totalUSD, "fuel_mdl": fuel, "fuel_eur": fuelEUR, "fuel_usd": fuelUSD, "maintenance_mdl": maintenance, "maintenance_eur": maintenanceEUR, "maintenance_usd": maintenanceUSD, "insurance_mdl": insurance, "insurance_eur": insuranceEUR, "insurance_usd": insuranceUSD, "cost_per_km_mdl": 0, "expense_count": len(expenses), "category_totals": categoryBreakdown, "vehicle_totals": comparison, "trends": trendsFrom(expenses), "insights": insightsFrom(expenses, currentOdometer(vehicles, vehicleID))}
+	return map[string]any{"total_expenses_mdl": total, "total_expenses_eur": totalEUR, "total_expenses_usd": totalUSD, "fuel_mdl": fuel, "fuel_eur": fuelEUR, "fuel_usd": fuelUSD, "maintenance_mdl": maintenance, "maintenance_eur": maintenanceEUR, "maintenance_usd": maintenanceUSD, "insurance_mdl": insurance, "insurance_eur": insuranceEUR, "insurance_usd": insuranceUSD, "cost_per_km_mdl": costPerKM(expenses, total), "expense_count": len(expenses), "category_totals": categoryBreakdown, "vehicle_totals": comparison, "trends": trendsFrom(expenses), "insights": insightsFrom(expenses, currentOdometer(vehicles, vehicleID))}
 }
 
 func trendsFrom(expenses []domain.Expense) []map[string]any {
@@ -89,12 +90,16 @@ func trendsFrom(expenses []domain.Expense) []map[string]any {
 }
 
 func insightsFrom(expenses []domain.Expense, currentOdometer int) map[string]any {
-	return map[string]any{
+	insights := map[string]any{
 		"fuel":        fuelInsight(expenses),
 		"maintenance": maintenanceInsight(expenses, currentOdometer),
 		"insurance":   yearlyExpiryInsight(expenses, "Insurance"),
 		"inspection":  yearlyExpiryInsight(expenses, "Inspection"),
 	}
+	insights["reminders"] = smartReminders(insights)
+	insights["anomalies"] = smartAnomalies(expenses)
+	insights["forecast"] = smartForecast(expenses, insights)
+	return insights
 }
 
 func fuelInsight(expenses []domain.Expense) map[string]any {
@@ -123,7 +128,7 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 	if pricedCount > 0 {
 		averagePrice = round2(priceTotal / float64(pricedCount))
 	}
-	consumption, consumptionSamples := fuelConsumption(fuelExpenses)
+	consumption, consumptionSamples, fullTankBased := fuelConsumption(fuelExpenses)
 	confidence := "none"
 	if consumptionSamples == 1 {
 		confidence = "low"
@@ -131,21 +136,36 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 	if consumptionSamples >= 2 {
 		confidence = "learned"
 	}
-	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": averageFill, "average_price_per_liter_mdl": averagePrice, "average_consumption_l_per_100km": consumption, "consumption_samples": consumptionSamples, "consumption_confidence": confidence}
+	if consumptionSamples > 0 && !fullTankBased {
+		confidence = "rough"
+	}
+	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": round2(averageFill), "average_price_per_liter_mdl": averagePrice, "average_consumption_l_per_100km": consumption, "consumption_samples": consumptionSamples, "consumption_confidence": confidence, "full_tank_based": fullTankBased}
 }
 
-func fuelConsumption(expenses []domain.Expense) (float64, int) {
+func fuelConsumption(expenses []domain.Expense) (float64, int, bool) {
 	sort.Slice(expenses, func(i, j int) bool {
 		if expenses[i].Date == expenses[j].Date {
 			return expenses[i].CreatedAt.Before(expenses[j].CreatedAt)
 		}
 		return expenses[i].Date < expenses[j].Date
 	})
+	fullTank := make([]domain.Expense, 0)
+	for _, expense := range expenses {
+		if expense.FuelFullTank {
+			fullTank = append(fullTank, expense)
+		}
+	}
+	source := expenses
+	fullTankBased := false
+	if len(fullTank) >= 2 {
+		source = fullTank
+		fullTankBased = true
+	}
 	var totalConsumption float64
 	var samples int
-	for index := 1; index < len(expenses); index++ {
-		previous := expenses[index-1]
-		current := expenses[index]
+	for index := 1; index < len(source); index++ {
+		previous := source[index-1]
+		current := source[index]
 		if previous.Odometer <= 0 || current.Odometer <= previous.Odometer || current.FuelLiters <= 0 {
 			continue
 		}
@@ -154,9 +174,9 @@ func fuelConsumption(expenses []domain.Expense) (float64, int) {
 		samples++
 	}
 	if samples == 0 {
-		return 0, 0
+		return 0, 0, false
 	}
-	return round2(totalConsumption / float64(samples)), samples
+	return round2(totalConsumption / float64(samples)), samples, fullTankBased
 }
 
 func maintenanceInsight(expenses []domain.Expense, currentOdometer int) map[string]any {
@@ -209,10 +229,11 @@ func categoryInsight(expenses []domain.Expense, category string) map[string]any 
 }
 
 func yearlyExpiryInsight(expenses []domain.Expense, category string) map[string]any {
-	var lastDate string
+	var lastDate, expiresDate string
 	for _, expense := range expenses {
 		if expense.Category == category && expense.Date > lastDate {
 			lastDate = expense.Date
+			expiresDate = expense.ExpiresDate
 		}
 	}
 	if lastDate == "" {
@@ -223,6 +244,9 @@ func yearlyExpiryInsight(expenses []domain.Expense, category string) map[string]
 		return map[string]any{"status": "not_logged", "confidence": "none", "interval_days": 365}
 	}
 	expires := last.AddDate(1, 0, 0)
+	if parsed, ok := parseDate(expiresDate); ok {
+		expires = parsed
+	}
 	daysLeft := int(time.Until(expires).Hours() / 24)
 	status := "ok"
 	if daysLeft < 0 {
@@ -239,8 +263,9 @@ func oilChangeExpenses(expenses []domain.Expense) []domain.Expense {
 		if expense.Category != "Maintenance" && expense.Category != "Repairs" {
 			continue
 		}
+		serviceType := strings.ToLower(expense.ServiceType)
 		description := strings.ToLower(expense.Description)
-		if strings.Contains(description, "oil") || strings.Contains(description, "ulei") {
+		if serviceType == "oil_change" || strings.Contains(description, "oil") || strings.Contains(description, "ulei") {
 			matches = append(matches, expense)
 		}
 	}
@@ -294,6 +319,128 @@ func oilChangeEstimate(expenses []domain.Expense, currentOdometer int) map[strin
 		remainingKM = max(0, nextOdometer-currentOdometer)
 	}
 	return map[string]any{"status": "estimated", "last_date": expenses[len(expenses)-1].Date, "next_date": next.Format("2006-01-02"), "last_odometer": lastOdometer, "next_odometer": nextOdometer, "remaining_km": remainingKM, "interval_days": intervalDays, "recommended_interval_km": intervalKM, "confidence": confidence}
+}
+
+func costPerKM(expenses []domain.Expense, total float64) float64 {
+	minOdometer, maxOdometer := 0, 0
+	for _, expense := range expenses {
+		if expense.Odometer <= 0 {
+			continue
+		}
+		if minOdometer == 0 || expense.Odometer < minOdometer {
+			minOdometer = expense.Odometer
+		}
+		if expense.Odometer > maxOdometer {
+			maxOdometer = expense.Odometer
+		}
+	}
+	if minOdometer == 0 || maxOdometer <= minOdometer {
+		return 0
+	}
+	return round2(total / float64(maxOdometer-minOdometer))
+}
+
+func smartReminders(insights map[string]any) []map[string]any {
+	reminders := make([]map[string]any, 0)
+	addExpiryReminder := func(key, title, category string) {
+		insight, _ := insights[key].(map[string]any)
+		status, _ := insight["status"].(string)
+		if status != "soon" && status != "expired" {
+			return
+		}
+		expires, _ := insight["expires_date"].(string)
+		reminders = append(reminders, map[string]any{"kind": status, "title": title, "category": category, "date": expires})
+	}
+	addExpiryReminder("insurance", "Insurance renewal", "Insurance")
+	addExpiryReminder("inspection", "ITP renewal", "Inspection")
+	maintenance, _ := insights["maintenance"].(map[string]any)
+	oil, _ := maintenance["oil_change"].(map[string]any)
+	if oil != nil {
+		remaining, _ := oil["remaining_km"].(int)
+		next, _ := oil["next_odometer"].(int)
+		if next > 0 && remaining <= 1000 {
+			kind := "soon"
+			if remaining <= 0 {
+				kind = "expired"
+			}
+			reminders = append(reminders, map[string]any{"kind": kind, "title": "Oil change", "category": "Maintenance", "odometer": next})
+		}
+	}
+	return reminders
+}
+
+func smartAnomalies(expenses []domain.Expense) []map[string]any {
+	anomalies := make([]map[string]any, 0)
+	fuelPrices := make([]float64, 0)
+	serviceCosts := make([]float64, 0)
+	seen := map[string]bool{}
+	for _, expense := range expenses {
+		key := expense.Category + "|" + expense.Date + "|" + strconv.FormatFloat(round2(expense.AmountMDL), 'f', 2, 64)
+		if seen[key] {
+			anomalies = append(anomalies, map[string]any{"kind": "duplicate", "title": "Possible duplicate expense", "category": expense.Category, "date": expense.Date})
+		}
+		seen[key] = true
+		if expense.Category == "Fuel" && expense.FuelPricePerLiterMDL > 0 {
+			if baseline := average(fuelPrices); baseline > 0 && expense.FuelPricePerLiterMDL > baseline*1.18 {
+				anomalies = append(anomalies, map[string]any{"kind": "fuel_price", "title": "Fuel price looks high", "value": round2(expense.FuelPricePerLiterMDL), "date": expense.Date})
+			}
+			fuelPrices = append(fuelPrices, expense.FuelPricePerLiterMDL)
+		}
+		if expense.Category == "Maintenance" {
+			if baseline := average(serviceCosts); baseline > 0 && expense.AmountMDL > baseline*1.75 {
+				anomalies = append(anomalies, map[string]any{"kind": "service_cost", "title": "Service cost is above usual", "value": round2(expense.AmountMDL), "date": expense.Date})
+			}
+			serviceCosts = append(serviceCosts, expense.AmountMDL)
+		}
+	}
+	return anomalies
+}
+
+func smartForecast(expenses []domain.Expense, insights map[string]any) map[string]any {
+	forecast := map[string]any{"next_30_days_mdl": round2(monthlyAverage(expenses)), "next_90_days_mdl": round2(monthlyAverage(expenses) * 3)}
+	maintenance, _ := insights["maintenance"].(map[string]any)
+	if maintenance != nil {
+		forecast["next_service_mdl"] = round2(numberFromAny(maintenance["average_mdl"]))
+	}
+	insurance := categoryInsight(expenses, "Insurance")
+	inspection := categoryInsight(expenses, "Inspection")
+	forecast["next_insurance_mdl"] = round2(numberFromAny(insurance["average_mdl"]))
+	forecast["next_inspection_mdl"] = round2(numberFromAny(inspection["average_mdl"]))
+	return forecast
+}
+
+func monthlyAverage(expenses []domain.Expense) float64 {
+	trends := trendsFrom(expenses)
+	if len(trends) == 0 {
+		return 0
+	}
+	var total float64
+	for _, trend := range trends {
+		total += numberFromAny(trend["amount_mdl"])
+	}
+	return total / float64(len(trends))
+}
+
+func average(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	var total float64
+	for _, value := range values {
+		total += value
+	}
+	return total / float64(len(values))
+}
+
+func numberFromAny(value any) float64 {
+	switch typed := value.(type) {
+	case float64:
+		return typed
+	case int:
+		return float64(typed)
+	default:
+		return 0
+	}
 }
 
 func currentOdometer(vehicles []domain.Vehicle, vehicleID string) int {
