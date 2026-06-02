@@ -32,8 +32,9 @@ func newMemoryCache() *memoryCache {
 func (c *memoryCache) get(key string) (any, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	now := time.Now()
 	entry, ok := c.entries[key]
-	if !ok || time.Now().After(entry.expiresAt) {
+	if !ok || !now.Before(entry.expiresAt) {
 		delete(c.entries, key)
 		return nil, false
 	}
@@ -43,5 +44,14 @@ func (c *memoryCache) get(key string) (any, bool) {
 func (c *memoryCache) set(key string, value any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[key] = cacheEntry{value: value, expiresAt: time.Now().Add(thirdPartyCacheTTL)}
+	c.entries[key] = cacheEntry{value: value, expiresAt: cacheExpiry(time.Now())}
+}
+
+func cacheExpiry(now time.Time) time.Time {
+	ttlExpiry := now.Add(thirdPartyCacheTTL)
+	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	if ttlExpiry.Before(nextMidnight) {
+		return ttlExpiry
+	}
+	return nextMidnight
 }

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiBaseHost, createExpense, createVehicle, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
-import { authDebugEventName, type AuthDebugEvent } from "./auth-debug";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
 import { emptyTotals } from "./theme";
@@ -40,7 +39,6 @@ export function useDriverLogsApp() {
     const requestToken = readToken() || token;
     if (showLoading) setIsLoadingData(true);
     setStatus("Loading app data...");
-    showToast("info", "Loading app", `Fetching dashboard data from ${apiBaseHost()} with JWT length ${requestToken.length}.`, "auth-flow");
     try {
       const data = await getAppData(requestToken);
       setVehicles(data.vehicles);
@@ -55,13 +53,11 @@ export function useDriverLogsApp() {
       setActiveVehicleID(nextActiveID);
       activeVehicleIDRef.current = nextActiveID;
       setStatus(data.vehicles.length ? "Ready" : "Add your first vehicle to start tracking ownership costs.");
-      showToast("success", "Dashboard ready", `${data.vehicles.length} vehicles, ${data.expenses.length} expenses loaded.`, "auth-flow");
     } catch (error) {
       if (isUnauthorizedError(error)) {
         const detail = errorMessage(error, "unauthorized");
         logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail, context: { state_token_length: token.length, stored_token_length: requestToken.length, api_host: apiBaseHost() } });
         setStatus("Session expired. Please sign in again.");
-        showToast("error", "Redirecting to login", `Backend rejected app data request: ${detail}`, "auth-flow");
         logout("Session expired. Please sign in again.");
         return;
       }
@@ -72,16 +68,6 @@ export function useDriverLogsApp() {
       if (showLoading) setIsLoadingData(false);
     }
   }, [logout, showToast, token]);
-
-  useEffect(() => {
-    const showAuthDebug = (event: Event) => {
-      const detail = (event as CustomEvent<AuthDebugEvent>).detail;
-      if (!detail) return;
-      showToast(detail.kind ?? "info", detail.title, detail.body, "auth-debug");
-    };
-    window.addEventListener(authDebugEventName, showAuthDebug);
-    return () => window.removeEventListener(authDebugEventName, showAuthDebug);
-  }, [showToast]);
 
   useEffect(() => {
     let cancelled = false;
