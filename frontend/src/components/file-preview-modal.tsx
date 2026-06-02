@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Minus, Plus, RotateCcw, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { errorMessage } from "@/lib/api";
 import { calmEase, modalBackdropMotion, modalPanelMotion } from "@/lib/theme";
@@ -17,6 +17,7 @@ type FilePreviewModalProps = {
 export function FilePreviewModal({ title, fileName, load, onClose }: FilePreviewModalProps) {
   const loadRef = useRef(load);
   const closeTimerRef = useRef<number | undefined>(undefined);
+  const pinchRef = useRef<{ distance: number; zoom: number } | undefined>(undefined);
   const [blob, setBlob] = useState<Blob>();
   const [url, setURL] = useState("");
   const [zoom, setZoom] = useState(1);
@@ -69,6 +70,23 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
     closeTimerRef.current = window.setTimeout(onClose, 260);
   }
 
+  function startImageTouch(event: TouchEvent<HTMLDivElement>) {
+    if (event.touches.length !== 2) return;
+    pinchRef.current = { distance: touchDistance(event), zoom };
+  }
+
+  function moveImageTouch(event: TouchEvent<HTMLDivElement>) {
+    const pinch = pinchRef.current;
+    if (!pinch || event.touches.length !== 2) return;
+    event.preventDefault();
+    const nextZoom = clampZoom(pinch.zoom * (touchDistance(event) / pinch.distance));
+    setZoom(Number(nextZoom.toFixed(2)));
+  }
+
+  function endImageTouch(event: TouchEvent<HTMLDivElement>) {
+    if (event.touches.length < 2) pinchRef.current = undefined;
+  }
+
   const modal = (
     <AnimatePresence>
       {!isClosing ? (
@@ -104,8 +122,10 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
         {url ? (
           <div className="file-preview-scroll flex flex-1 overflow-auto bg-[#eef3e8] p-3 sm:p-5">
             {previewType === "image" ? (
-              <div className="m-auto min-h-full min-w-full touch-pan-x touch-pan-y select-none p-2">
-                <motion.img src={url} alt={fileName} draggable={false} onDoubleClick={() => setZoom((value) => value === 1 ? 2 : 1)} style={{ width: `${100 * zoom}%`, maxWidth: "none" }} initial={{ opacity: 0, scale: 0.985, filter: "blur(5px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.34, ease: calmEase }} className="mx-auto block max-h-none origin-center rounded-[12px] bg-white shadow-[0_16px_48px_rgba(31,41,28,0.18)] transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]" />
+              <div onTouchStart={startImageTouch} onTouchMove={moveImageTouch} onTouchEnd={endImageTouch} className="grid min-h-full min-w-full touch-pan-x touch-pan-y select-none place-items-center p-2">
+                <motion.div initial={{ opacity: 0, scale: 0.985, filter: "blur(5px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.34, ease: calmEase }}>
+                  <motion.img src={url} alt={fileName} draggable={false} onDoubleClick={() => setZoom((value) => value === 1 ? 2 : 1)} style={{ transform: `scale(${zoom})` }} className="block max-h-[calc(100dvh-7.5rem)] max-w-full origin-center rounded-[12px] bg-white object-contain shadow-[0_16px_48px_rgba(31,41,28,0.18)] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] sm:max-h-[calc(92dvh-7rem)]" />
+                </motion.div>
               </div>
             ) : (
               <motion.iframe src={url} title={title} style={{ width: `${100 * zoom}%`, height: `${100 * zoom}%`, minHeight: "100%" }} initial={{ opacity: 0, scale: 0.992 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3, ease: calmEase }} className="origin-top-left bg-white shadow-[0_16px_48px_rgba(31,41,28,0.18)]" />
@@ -119,6 +139,15 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
   );
 
   return typeof document === "undefined" ? null : createPortal(modal, document.body);
+}
+
+function touchDistance(event: TouchEvent<HTMLDivElement>) {
+  const [first, second] = [event.touches[0], event.touches[1]];
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+}
+
+function clampZoom(value: number) {
+  return Math.min(3, Math.max(0.7, value));
 }
 
 function filePreviewType(contentType = "", fileName = "") {
