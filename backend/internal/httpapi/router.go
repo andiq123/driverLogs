@@ -33,6 +33,7 @@ type Store interface {
 	UpdateVehicle(userID, id string, vehicle domain.Vehicle) (domain.Vehicle, error)
 	DeleteVehicle(userID, id string) error
 	UserExpenses(userID, vehicleID string) ([]domain.Expense, error)
+	Expense(userID, id string) (domain.Expense, error)
 	CreateExpense(userID string, expense domain.Expense) (domain.Expense, error)
 	UpdateExpense(userID, id string, expense domain.Expense) (domain.Expense, error)
 	UpdateExpenseAnalytics(userID, id string, excludeFromAnalytics bool) (domain.Expense, error)
@@ -470,7 +471,7 @@ func (h Handler) createExpense(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid expense payload"})
 		return
 	}
-	normalized, status, err := h.normalizeExpense(r, expense)
+	normalized, status, err := h.normalizeExpense(r, expense, nil)
 	if err != nil {
 		writeJSON(w, status, map[string]string{"error": err.Error()})
 		return
@@ -493,7 +494,16 @@ func (h Handler) updateExpense(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid expense payload"})
 		return
 	}
-	normalized, status, err := h.normalizeExpense(r, expense)
+	current, err := h.store.Expense(userID(r), r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "expense unavailable"})
+		return
+	}
+	normalized, status, err := h.normalizeExpense(r, expense, &current)
 	if err != nil {
 		writeJSON(w, status, map[string]string{"error": err.Error()})
 		return
@@ -904,7 +914,7 @@ func randomAttachmentID() (string, error) {
 	return "att_" + hex.EncodeToString(data[:]), nil
 }
 
-func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (domain.Expense, int, error) {
+func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense, current *domain.Expense) (domain.Expense, int, error) {
 	settings, err := h.store.UserSettings(userID(r))
 	if err != nil {
 		return domain.Expense{}, http.StatusInternalServerError, errors.New("settings unavailable")
@@ -916,7 +926,7 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (doma
 	if err != nil {
 		return domain.Expense{}, http.StatusInternalServerError, errors.New("vehicle unavailable")
 	}
-	if expense.Odometer > 0 && vehicle.Odometer > 0 && expense.Odometer < vehicle.Odometer {
+	if expense.Odometer > 0 && vehicle.Odometer > 0 && expense.Odometer < vehicle.Odometer && !keepsExistingOdometer(expense, current) {
 		return domain.Expense{}, http.StatusBadRequest, errors.New("odometer cannot be lower than the current reading")
 	}
 	if expense.BaseCurrency == "" {
@@ -980,6 +990,10 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense) (doma
 	expense.ExchangeRateDate = conversion.Date
 	expense.ExchangeRateSource = conversion.Source
 	return expense, http.StatusOK, nil
+}
+
+func keepsExistingOdometer(expense domain.Expense, current *domain.Expense) bool {
+	return current != nil && expense.VehicleID == current.VehicleID && expense.Odometer == current.Odometer
 }
 
 func parseAPIDate(value string) (time.Time, bool) {

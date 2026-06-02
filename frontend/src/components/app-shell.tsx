@@ -13,7 +13,7 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
   const today = useTodayLabel();
   return (
     <main className="min-h-dvh overflow-x-hidden bg-[#f5f7f2] text-[#151712]">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[96rem] gap-4 overflow-x-hidden px-2 pb-[calc(4.35rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:px-6 lg:py-3 xl:gap-6">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[118rem] gap-4 overflow-x-hidden px-2 pb-[calc(4.35rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:px-6 lg:py-3 xl:gap-6">
         <aside className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-64 flex-col rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_18px_64px_rgba(31,41,28,0.10)] lg:flex">
           <Brand />
           <Nav view={view} onViewChange={onViewChange} />

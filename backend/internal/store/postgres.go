@@ -341,6 +341,19 @@ func (s *PostgresStore) UserExpenses(userID, vehicleID string) ([]domain.Expense
 	return s.withAttachmentSummaries(userID, expenses)
 }
 
+func (s *PostgresStore) Expense(userID, id string) (domain.Expense, error) {
+	row := s.pool.QueryRow(context.Background(), expenseSelectSQL()+` WHERE user_id=$1 AND id=$2`, userID, id)
+	expense, err := scanExpense(row)
+	if err != nil {
+		return domain.Expense{}, err
+	}
+	expenses, err := s.withAttachmentSummaries(userID, []domain.Expense{expense})
+	if err != nil {
+		return domain.Expense{}, err
+	}
+	return expenses[0], nil
+}
+
 func (s *PostgresStore) withAttachmentSummaries(userID string, expenses []domain.Expense) ([]domain.Expense, error) {
 	if len(expenses) == 0 {
 		return expenses, nil

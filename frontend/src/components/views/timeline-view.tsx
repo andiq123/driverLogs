@@ -1,18 +1,27 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
-import { Activity, BarChart3, EyeOff, FileText, Pencil, ReceiptText, Trash2 } from "lucide-react";
-import type { Expense, Vehicle } from "@/lib/types";
-import { categoryIcon } from "@/lib/theme";
+import { useMemo, useState } from "react";
+import { Activity, BarChart3, EyeOff, FileText, ListFilter, Pencil, ReceiptText, Trash2 } from "lucide-react";
+import type { Expense, ExpenseCategory, Vehicle } from "@/lib/types";
+import { categories, categoryIcon } from "@/lib/theme";
 import { dateText, equivalents, km, money, vehicleName } from "@/lib/format";
 import { EmptyState, IconButton, Panel } from "../ui";
 import { ExpenseForm } from "../forms";
 import { ExpenseAttachments } from "../expense-attachments";
+import { CustomSelect } from "../custom-select";
+
+const allCategoriesFilter = "All";
+type TimelineFilter = typeof allCategoriesFilter | ExpenseCategory;
 
 export function TimelineView({ expenses, vehicle, token, baseCurrency, country, savingExpense, openExpenseFilesID, onOpenExpenseFiles, onDeleteExpense, onUpdateExpense, onToggleAnalytics }: { expenses: Expense[]; vehicle?: Vehicle; token: string; baseCurrency: string; country: string; savingExpense?: boolean; openExpenseFilesID?: string; onOpenExpenseFiles?: (id: string) => void; onDeleteExpense: (id: string) => void; onUpdateExpense: (id: string, expense: Partial<Expense>, files?: File[]) => void; onToggleAnalytics: (expense: Expense, excluded: boolean) => void }) {
   const [editingExpense, setEditingExpense] = useState<Expense>();
   const [localFilesExpenseID, setLocalFilesExpenseID] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<TimelineFilter>(allCategoriesFilter);
   const filesExpenseID = openExpenseFilesID ?? localFilesExpenseID;
-  const sorted = [...expenses].sort((a, b) => b.date.localeCompare(a.date));
+  const presentCategories = useMemo(() => categoryOptions(expenses), [expenses]);
+  const activeFilter = categoryFilter === allCategoriesFilter || presentCategories.includes(categoryFilter) ? categoryFilter : allCategoriesFilter;
+  const filteredExpenses = activeFilter === allCategoriesFilter ? expenses : expenses.filter((expense) => expense.category === activeFilter);
+  const sorted = [...filteredExpenses].sort((a, b) => b.date.localeCompare(a.date));
+
   function updateExpense(id: string, expense: Partial<Expense>, files?: File[]) {
     onUpdateExpense(id, expense, files);
     setEditingExpense(undefined);
@@ -22,8 +31,16 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
   }
   return (
     <Panel title="Timeline" eyebrow={vehicle ? vehicleName(vehicle) : "Selected vehicle"}>
-      {!vehicle ? <EmptyState icon={Activity} title="No timeline yet" body="Add a vehicle and start logging costs." /> : sorted.length === 0 ? <EmptyState icon={ReceiptText} title="No expenses logged" body="This car's history will appear here as clean chronological records." /> : (
+      {!vehicle ? <EmptyState icon={Activity} title="No timeline yet" body="Add a vehicle and start logging costs." /> : expenses.length === 0 ? <EmptyState icon={ReceiptText} title="No expenses logged" body="This car's history will appear here as clean chronological records." /> : (
         <div className="grid gap-2.5 sm:gap-3">
+          {presentCategories.length > 1 ? (
+            <div className="flex items-center justify-end">
+              <div className="w-full sm:w-56">
+                <CustomSelect label="Filter timeline" name="timeline-category-filter" icon={ListFilter} options={[allCategoriesFilter, ...presentCategories]} value={activeFilter} onChange={(value) => setCategoryFilter(value as TimelineFilter)} />
+              </div>
+            </div>
+          ) : null}
+          {sorted.length === 0 ? <EmptyState icon={ListFilter} title="No matching expenses" body="Choose another category to see more timeline records." /> : null}
           {sorted.map((expense, index) => {
             const Icon = categoryIcon(expense.category);
             return (
@@ -63,6 +80,11 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
       )}
     </Panel>
   );
+}
+
+function categoryOptions(expenses: Expense[]) {
+  const present = new Set(expenses.map((expense) => expense.category));
+  return categories.filter((category) => present.has(category));
 }
 
 function toggleFiles(expenseID: string, currentID: string, onOpen: ((id: string) => void) | undefined, setLocal: (id: string) => void) {

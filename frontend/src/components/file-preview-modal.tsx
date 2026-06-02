@@ -17,13 +17,19 @@ type FilePreviewModalProps = {
 export function FilePreviewModal({ title, fileName, load, onClose }: FilePreviewModalProps) {
   const loadRef = useRef(load);
   const closeTimerRef = useRef<number | undefined>(undefined);
-  const pinchRef = useRef<{ distance: number; zoom: number } | undefined>(undefined);
+  const gestureRef = useRef<ImageGesture | undefined>(undefined);
   const [blob, setBlob] = useState<Blob>();
   const [url, setURL] = useState("");
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [status, setStatus] = useState("Loading file...");
   const [isClosing, setIsClosing] = useState(false);
   const previewType = useMemo(() => filePreviewType(blob?.type, fileName), [blob?.type, fileName]);
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+
+  zoomRef.current = zoom;
+  panRef.current = pan;
 
   useEffect(() => {
     loadRef.current = load;
@@ -71,20 +77,47 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
   }
 
   function startImageTouch(event: TouchEvent<HTMLDivElement>) {
-    if (event.touches.length !== 2) return;
-    pinchRef.current = { distance: touchDistance(event), zoom };
+    if (event.touches.length === 2) {
+      event.preventDefault();
+      gestureRef.current = { mode: "pinch", distance: touchDistance(event), center: touchCenter(event), zoom: zoomRef.current, pan: panRef.current };
+      return;
+    }
+    if (event.touches.length === 1 && zoomRef.current > 1) {
+      const touch = event.touches[0];
+      gestureRef.current = { mode: "pan", point: { x: touch.clientX, y: touch.clientY }, pan: panRef.current };
+    }
   }
 
   function moveImageTouch(event: TouchEvent<HTMLDivElement>) {
-    const pinch = pinchRef.current;
-    if (!pinch || event.touches.length !== 2) return;
+    const gesture = gestureRef.current;
+    if (!gesture) return;
     event.preventDefault();
-    const nextZoom = clampZoom(pinch.zoom * (touchDistance(event) / pinch.distance));
-    setZoom(Number(nextZoom.toFixed(2)));
+    if (gesture.mode === "pinch" && event.touches.length === 2) {
+      const nextZoom = Number(clampZoom(gesture.zoom * (touchDistance(event) / gesture.distance)).toFixed(2));
+      const center = touchCenter(event);
+      setZoom(nextZoom);
+      setPan(clampPan({ x: gesture.pan.x + center.x - gesture.center.x, y: gesture.pan.y + center.y - gesture.center.y }, nextZoom));
+      return;
+    }
+    if (gesture.mode === "pan" && event.touches.length === 1) {
+      const touch = event.touches[0];
+      setPan(clampPan({ x: gesture.pan.x + touch.clientX - gesture.point.x, y: gesture.pan.y + touch.clientY - gesture.point.y }, zoomRef.current));
+    }
   }
 
   function endImageTouch(event: TouchEvent<HTMLDivElement>) {
-    if (event.touches.length < 2) pinchRef.current = undefined;
+    if (event.touches.length === 1 && zoomRef.current > 1) {
+      const touch = event.touches[0];
+      gestureRef.current = { mode: "pan", point: { x: touch.clientX, y: touch.clientY }, pan: panRef.current };
+      return;
+    }
+    gestureRef.current = undefined;
+  }
+
+  function changeImageZoom(nextZoom: number) {
+    const cleanZoom = Number(clampZoom(nextZoom).toFixed(2));
+    setZoom(cleanZoom);
+    setPan((current) => cleanZoom === 1 ? { x: 0, y: 0 } : clampPan(current, cleanZoom));
   }
 
   const modal = (
@@ -99,14 +132,14 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
             <p className="truncate text-xs text-[#6b7065]">{fileName}</p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <button type="button" onClick={() => setZoom((value) => Math.max(0.7, Number((value - 0.1).toFixed(2))))} className="flex size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#edf4e7]" aria-label="Zoom out">
+            <button type="button" onClick={() => changeImageZoom(zoom - 0.1)} className="flex size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#edf4e7]" aria-label="Zoom out">
               <Minus size={16} />
             </button>
             <span className="min-w-12 text-center text-xs font-bold">{Math.round(zoom * 100)}%</span>
-            <button type="button" onClick={() => setZoom((value) => Math.min(3, Number((value + 0.1).toFixed(2))))} className="flex size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#edf4e7]" aria-label="Zoom in">
+            <button type="button" onClick={() => changeImageZoom(zoom + 0.1)} className="flex size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#edf4e7]" aria-label="Zoom in">
               <Plus size={16} />
             </button>
-            <button type="button" onClick={() => setZoom(1)} className="hidden size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#edf4e7] sm:flex" aria-label="Reset zoom">
+            <button type="button" onClick={() => changeImageZoom(1)} className="hidden size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#edf4e7] sm:flex" aria-label="Reset zoom">
               <RotateCcw size={16} />
             </button>
             <button type="button" onClick={close} className="flex size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#151712] text-white transition-transform duration-200 active:scale-[0.985]" aria-label="Close preview">
@@ -120,11 +153,11 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
           </div>
         ) : null}
         {url ? (
-          <div className="file-preview-scroll flex flex-1 overflow-auto bg-[#eef3e8] p-3 sm:p-5">
+          <div className={`file-preview-scroll flex flex-1 bg-[#eef3e8] p-3 sm:p-5 ${previewType === "image" ? "overflow-hidden" : "overflow-auto"}`}>
             {previewType === "image" ? (
-              <div onTouchStart={startImageTouch} onTouchMove={moveImageTouch} onTouchEnd={endImageTouch} className="grid min-h-full min-w-full touch-pan-x touch-pan-y select-none place-items-center p-2">
+              <div onTouchStart={startImageTouch} onTouchMove={moveImageTouch} onTouchEnd={endImageTouch} className="grid min-h-full min-w-full select-none place-items-center p-2" style={{ touchAction: "none" }}>
                 <motion.div initial={{ opacity: 0, scale: 0.985, filter: "blur(5px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.34, ease: calmEase }}>
-                  <motion.img src={url} alt={fileName} draggable={false} onDoubleClick={() => setZoom((value) => value === 1 ? 2 : 1)} style={{ transform: `scale(${zoom})` }} className="block max-h-[calc(100dvh-7.5rem)] max-w-full origin-center rounded-[12px] bg-white object-contain shadow-[0_16px_48px_rgba(31,41,28,0.18)] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] sm:max-h-[calc(92dvh-7rem)]" />
+                  <motion.img src={url} alt={fileName} draggable={false} onDoubleClick={() => changeImageZoom(zoom === 1 ? 2 : 1)} style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})` }} className="block max-h-[calc(100dvh-7.5rem)] max-w-full origin-center rounded-[12px] bg-white object-contain shadow-[0_16px_48px_rgba(31,41,28,0.18)] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] sm:max-h-[calc(92dvh-7rem)]" />
                 </motion.div>
               </div>
             ) : (
@@ -141,13 +174,34 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
   return typeof document === "undefined" ? null : createPortal(modal, document.body);
 }
 
+type Point = { x: number; y: number };
+
+type ImageGesture =
+  | { mode: "pinch"; distance: number; center: Point; zoom: number; pan: Point }
+  | { mode: "pan"; point: Point; pan: Point };
+
 function touchDistance(event: TouchEvent<HTMLDivElement>) {
   const [first, second] = [event.touches[0], event.touches[1]];
   return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 }
 
+function touchCenter(event: TouchEvent<HTMLDivElement>) {
+  const [first, second] = [event.touches[0], event.touches[1]];
+  return { x: (first.clientX + second.clientX) / 2, y: (first.clientY + second.clientY) / 2 };
+}
+
+function clampPan(value: Point, zoom: number) {
+  if (zoom <= 1) return { x: 0, y: 0 };
+  const maxX = window.innerWidth * (zoom - 1);
+  const maxY = window.innerHeight * (zoom - 1);
+  return {
+    x: Math.min(maxX, Math.max(-maxX, value.x)),
+    y: Math.min(maxY, Math.max(-maxY, value.y)),
+  };
+}
+
 function clampZoom(value: number) {
-  return Math.min(3, Math.max(0.7, value));
+  return Math.min(3.5, Math.max(1, value));
 }
 
 function filePreviewType(contentType = "", fileName = "") {

@@ -234,8 +234,9 @@ export function useDriverLogsApp() {
   }
 
   async function toggleExpenseAnalytics(expense: Expense, excluded: boolean) {
+    const previousExpenses = expenses;
+    setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, exclude_from_analytics: excluded } : item));
     if (isDemo) {
-      setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, exclude_from_analytics: excluded } : item));
       showToast("info", "Demo mode", excluded ? "This expense is hidden from demo analytics locally." : "This expense is included in demo analytics locally.");
       return;
     }
@@ -245,6 +246,7 @@ export function useDriverLogsApp() {
       await loadData(false);
       showToast("success", excluded ? "Hidden from analytics" : "Included in analytics", "Totals were recalculated.");
     } catch (error) {
+      setExpenses(previousExpenses);
       showToast("error", "Analytics setting was not saved", errorMessage(error, "Check backend availability."));
     } finally {
       setAction("");

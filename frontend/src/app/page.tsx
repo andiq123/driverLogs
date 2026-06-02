@@ -26,7 +26,7 @@ export default function HomePage() {
   if (!app.isAuthReady) {
     return (
       <main className="min-h-dvh bg-[#f5f7f2] px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-[#151712] sm:px-5">
-        <div className="mx-auto w-full max-w-[96rem]">
+        <div className="mx-auto w-full max-w-[118rem]">
           <header className="pb-3">
             <div className="h-3 w-36 animate-pulse rounded-full bg-[#dfe7d4]" />
             <div className="mt-3 h-9 w-48 animate-pulse rounded-full bg-[#dfe7d4]" />
