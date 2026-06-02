@@ -81,6 +81,20 @@ export const popoverMotion = {
   transition: { duration: 0.28, ease: calmEase },
 } as const;
 
+export const modalBackdropMotion = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.24, ease: calmEase },
+} as const;
+
+export const modalPanelMotion = {
+  initial: { opacity: 0, y: 22, scale: 0.975, filter: "blur(6px)" },
+  animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" },
+  exit: { opacity: 0, y: 16, scale: 0.985, filter: "blur(5px)" },
+  transition: { duration: 0.32, ease: calmEase },
+} as const;
+
 export const softReveal = {
   initial: { opacity: 0, y: 14, filter: "blur(5px)" },
   animate: { opacity: 1, y: 0, filter: "blur(0px)" },

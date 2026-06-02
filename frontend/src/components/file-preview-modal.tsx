@@ -1,9 +1,11 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { errorMessage } from "@/lib/api";
+import { calmEase, modalBackdropMotion, modalPanelMotion } from "@/lib/theme";
 
 type FilePreviewModalProps = {
   title: string;
@@ -14,10 +16,12 @@ type FilePreviewModalProps = {
 
 export function FilePreviewModal({ title, fileName, load, onClose }: FilePreviewModalProps) {
   const loadRef = useRef(load);
+  const closeTimerRef = useRef<number | undefined>(undefined);
   const [blob, setBlob] = useState<Blob>();
   const [url, setURL] = useState("");
   const [zoom, setZoom] = useState(1);
   const [status, setStatus] = useState("Loading file...");
+  const [isClosing, setIsClosing] = useState(false);
   const previewType = useMemo(() => filePreviewType(blob?.type, fileName), [blob?.type, fileName]);
 
   useEffect(() => {
@@ -44,16 +48,33 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") close();
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+  });
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    };
+  }, []);
+
+  function close() {
+    if (isClosing) return;
+    setIsClosing(true);
+    closeTimerRef.current = window.setTimeout(onClose, 260);
+  }
 
   const modal = (
-    <div className="fixed inset-0 z-[2000] grid bg-[#151712]/76 p-0 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" aria-label="Close preview backdrop" onClick={onClose} className="absolute inset-0 cursor-default" />
-      <section className="relative z-[1] flex h-dvh w-dvw flex-col overflow-hidden bg-[#fbfcf8] shadow-[0_28px_96px_rgba(0,0,0,0.28)] sm:m-auto sm:h-[min(92dvh,56rem)] sm:w-[min(94dvw,72rem)] sm:rounded-[28px]">
+    <AnimatePresence>
+      {!isClosing ? (
+        <motion.div className="fixed inset-0 z-[2000] grid bg-[#151712]/76 p-0 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true" aria-label={title} {...modalBackdropMotion}>
+      <button type="button" aria-label="Close preview backdrop" onClick={close} className="absolute inset-0 cursor-default" />
+      <motion.section className="relative z-[1] flex h-dvh w-dvw flex-col overflow-hidden bg-[#fbfcf8] shadow-[0_28px_96px_rgba(0,0,0,0.28)] sm:m-auto sm:h-[min(92dvh,56rem)] sm:w-[min(94dvw,72rem)] sm:rounded-[28px]" {...modalPanelMotion}>
         <div className="flex min-h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 border-b border-black/[0.06] bg-[#fffffb]/96 px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] shadow-[0_8px_24px_rgba(31,41,28,0.08)] sm:min-h-14 sm:px-4 sm:pt-2">
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">{title}</p>
@@ -70,7 +91,7 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
             <button type="button" onClick={() => setZoom(1)} className="hidden size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#edf4e7] sm:flex" aria-label="Reset zoom">
               <RotateCcw size={16} />
             </button>
-            <button type="button" onClick={onClose} className="flex size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#151712] text-white" aria-label="Close preview">
+            <button type="button" onClick={close} className="flex size-9 touch-manipulation items-center justify-center rounded-[13px] bg-[#151712] text-white transition-transform duration-200 active:scale-[0.985]" aria-label="Close preview">
               <X size={16} />
             </button>
           </div>
@@ -85,15 +106,17 @@ export function FilePreviewModal({ title, fileName, load, onClose }: FilePreview
             {previewType === "image" ? (
               <div className="m-auto min-h-full min-w-full touch-pan-x touch-pan-y select-none p-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={fileName} draggable={false} onDoubleClick={() => setZoom((value) => value === 1 ? 2 : 1)} style={{ width: `${100 * zoom}%`, maxWidth: "none" }} className="mx-auto block max-h-none origin-center rounded-[12px] bg-white shadow-[0_16px_48px_rgba(31,41,28,0.18)] transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]" />
+                <motion.img src={url} alt={fileName} draggable={false} onDoubleClick={() => setZoom((value) => value === 1 ? 2 : 1)} style={{ width: `${100 * zoom}%`, maxWidth: "none" }} initial={{ opacity: 0, scale: 0.985, filter: "blur(5px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.34, ease: calmEase }} className="mx-auto block max-h-none origin-center rounded-[12px] bg-white shadow-[0_16px_48px_rgba(31,41,28,0.18)] transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]" />
               </div>
             ) : (
-              <iframe src={url} title={title} style={{ width: `${100 * zoom}%`, height: `${100 * zoom}%`, minHeight: "100%" }} className="origin-top-left bg-white shadow-[0_16px_48px_rgba(31,41,28,0.18)]" />
+              <motion.iframe src={url} title={title} style={{ width: `${100 * zoom}%`, height: `${100 * zoom}%`, minHeight: "100%" }} initial={{ opacity: 0, scale: 0.992 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3, ease: calmEase }} className="origin-top-left bg-white shadow-[0_16px_48px_rgba(31,41,28,0.18)]" />
             )}
           </div>
         ) : null}
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 
   return typeof document === "undefined" ? null : createPortal(modal, document.body);

@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, UserRound, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { BrandMark } from "./brand-mark";
-import { controls, popoverMotion } from "@/lib/theme";
+import { controls, modalBackdropMotion, modalPanelMotion, popoverMotion } from "@/lib/theme";
 
 export function LoginIDModal({ loginID, needsName, onCopy, onClose, onSaveName }: { loginID: string; needsName?: boolean; onCopy: () => void; onClose: () => void; onSaveName: (name: string) => void }) {
   const [step, setStep] = useState<"login" | "name">("login");
@@ -15,8 +15,8 @@ export function LoginIDModal({ loginID, needsName, onCopy, onClose, onSaveName }
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#151712]/45 px-4 backdrop-blur-sm">
-      <section className="w-full max-w-md rounded-[30px] bg-[#fbfcf8] p-5 shadow-[0_30px_100px_rgba(21,23,18,0.28)]">
+    <motion.div className="fixed inset-0 z-50 grid place-items-center bg-[#151712]/45 px-4 backdrop-blur-sm" {...modalBackdropMotion}>
+      <motion.section className="w-full max-w-md rounded-[30px] bg-[#fbfcf8] p-5 shadow-[0_30px_100px_rgba(21,23,18,0.28)]" {...modalPanelMotion}>
         <AnimatePresence mode="wait">
           {step === "login" ? (
             <motion.div key="login" {...popoverMotion}>
@@ -74,7 +74,7 @@ export function LoginIDModal({ loginID, needsName, onCopy, onClose, onSaveName }
             </motion.form>
           )}
         </AnimatePresence>
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   );
 }
