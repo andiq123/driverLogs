@@ -20,7 +20,7 @@ export function LoginView({ savedLoginID, status, feedback, action, onClearStatu
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    onLogin(String(form.get("username") ?? form.get("login_id") ?? ""));
+    onLogin(String(form.get("username") ?? ""));
   }
 
   return (
@@ -46,7 +46,6 @@ export function LoginView({ savedLoginID, status, feedback, action, onClearStatu
 
           <form onSubmit={submit} className="grid gap-3 p-5 sm:p-6" autoComplete="on">
             <Input id="username" name="username" label="Login ID" icon={KeyRound} defaultValue={savedLoginID} inputMode="numeric" pattern="[0-9]*" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required onChange={onClearStatus} />
-            <input type="hidden" name="login_id" value={savedLoginID} autoComplete="off" />
             <button type="submit" disabled={isBusy} className={authTheme.submitButton}>
               {action === "login" ? <Loader2 size={17} className="animate-spin" /> : <ShieldCheck size={17} />}
               Sign in

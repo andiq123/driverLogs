@@ -1,6 +1,6 @@
 import type { AppDataResponse, AuthSession, Expense, FuelComparisonResponse, FuelMarketResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, UserSettings, Vehicle, VinDecode } from "./types";
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:18080";
+export const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:18080").replace(/\/+$/, "");
 let tokenHandler: ((token: string) => void) | undefined;
 
 export class ApiError extends Error {
@@ -11,6 +11,14 @@ export class ApiError extends Error {
 
 export function onTokenRefresh(handler: (token: string) => void) {
   tokenHandler = handler;
+}
+
+export function apiBaseHost() {
+  try {
+    return new URL(apiBase).host;
+  } catch {
+    return apiBase;
+  }
 }
 
 export async function register() {

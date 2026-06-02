@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { errorMessage, getSession, isUnauthorizedError, logClientError, login, onTokenRefresh, register } from "./api";
+import { apiBaseHost, errorMessage, getSession, isUnauthorizedError, logClientError, login, onTokenRefresh, register } from "./api";
 import { emitAuthDebug } from "./auth-debug";
 import { clearAuth, readLoginID, readToken, saveLoginID, saveToken } from "./auth-storage";
 import type { LoginNotice } from "./types";
@@ -29,7 +29,7 @@ export function useAuthSession() {
     setToken(savedToken);
     try {
       await getSession(savedToken);
-      emitAuthDebug({ title: "Auth restored", body: "Saved JWT accepted.", kind: "success" });
+      emitAuthDebug({ title: "Auth restored", body: `Saved JWT accepted by ${apiBaseHost()}.`, kind: "success" });
     } catch (error) {
       if (isUnauthorizedError(error)) {
         logClientError({ level: "warn", area: "auth.restore.token", message: "Stored token was rejected", detail: errorMessage(error, "unauthorized"), context: { had_saved_token: true } });
@@ -63,7 +63,23 @@ export function useAuthSession() {
     setAuthStatus("Creating login...");
     try {
       const session = await register();
-      await getSession(session.token);
+      emitAuthDebug({ title: "Register response", body: `JWT length ${session.token?.length ?? 0} from ${apiBaseHost()}.`, kind: session.token ? "info" : "error" });
+      if (!session.token) {
+        setAuthStatus("Backend did not return a JWT.");
+        setAuthFeedback("error");
+        logClientError({ level: "error", area: "auth.register.token", message: "Register response did not include token" });
+        return;
+      }
+      try {
+        await getSession(session.token);
+      } catch (error) {
+        const detail = errorMessage(error, "unknown error");
+        logClientError({ level: "error", area: "auth.register.session", message: "Registered token was rejected by session endpoint", detail, context: { token_length: session.token.length, api_host: apiBaseHost() } });
+        setAuthStatus(`Login was created, but the JWT was rejected: ${detail}.`);
+        setAuthFeedback("error");
+        emitAuthDebug({ title: "JWT verification failed", body: `${apiBaseHost()} rejected JWT length ${session.token.length}: ${detail}.`, kind: "error" });
+        return;
+      }
       if (!saveToken(session.token)) {
         setAuthStatus("Browser storage is blocked. Enable website storage and try again.");
         setAuthFeedback("error");
@@ -101,9 +117,36 @@ export function useAuthSession() {
     setAuthAction("login");
     setAuthFeedback("loading");
     setAuthStatus("Signing in...");
+    emitAuthDebug({ title: "Login attempt", body: `Sending login ID ${maskLoginID(cleanLoginID)} (${cleanLoginID.length} digits).`, kind: "info" });
     try {
-      const session = await login(cleanLoginID);
-      await getSession(session.token);
+      let session;
+      try {
+        session = await login(cleanLoginID);
+      } catch (error) {
+        const detail = errorMessage(error, "unknown error");
+        logClientError({ level: "error", area: "auth.login", message: "Login request failed", detail, context: { login_length: cleanLoginID.length, login_tail: cleanLoginID.slice(-4), api_host: apiBaseHost() } });
+        setAuthStatus(`Incorrect login ID: ${maskLoginID(cleanLoginID)}.`);
+        setAuthFeedback("error");
+        emitAuthDebug({ title: "Login failed", body: `${apiBaseHost()} rejected ${maskLoginID(cleanLoginID)}: ${detail}.`, kind: "error" });
+        return;
+      }
+      emitAuthDebug({ title: "Login response", body: `JWT length ${session.token?.length ?? 0} from ${apiBaseHost()}.`, kind: session.token ? "info" : "error" });
+      if (!session.token) {
+        setAuthStatus("Backend accepted the login ID but did not return a JWT.");
+        setAuthFeedback("error");
+        logClientError({ level: "error", area: "auth.login.token", message: "Login response did not include token", context: { login_length: cleanLoginID.length, login_tail: cleanLoginID.slice(-4), api_host: apiBaseHost() } });
+        return;
+      }
+      try {
+        await getSession(session.token);
+      } catch (error) {
+        const detail = errorMessage(error, "unknown error");
+        logClientError({ level: "error", area: "auth.login.session", message: "Logged-in token was rejected by session endpoint", detail, context: { token_length: session.token.length, login_length: cleanLoginID.length, login_tail: cleanLoginID.slice(-4), api_host: apiBaseHost() } });
+        setAuthStatus(`Login ID is valid, but the JWT was rejected: ${detail}.`);
+        setAuthFeedback("error");
+        emitAuthDebug({ title: "JWT verification failed", body: `${apiBaseHost()} rejected JWT length ${session.token.length}: ${detail}.`, kind: "error" });
+        return;
+      }
       if (!saveToken(session.token)) {
         setAuthStatus("Browser storage is blocked. Enable website storage and try again.");
         setAuthFeedback("error");
@@ -117,11 +160,6 @@ export function useAuthSession() {
       setAuthStatus("");
       setAuthFeedback("idle");
       emitAuthDebug({ title: "Login success", body: "JWT saved. Loading dashboard.", kind: "success" });
-    } catch (error) {
-      logClientError({ level: "error", area: "auth.login", message: "Login request failed", detail: errorMessage(error, "unknown error"), context: { login_length: cleanLoginID.length } });
-      setAuthStatus("Incorrect login ID.");
-      setAuthFeedback("error");
-      emitAuthDebug({ title: "Login failed", body: errorMessage(error, "Request failed."), kind: "error" });
     } finally {
       setAuthAction("");
     }
@@ -167,5 +205,18 @@ export function useAuthSession() {
 }
 
 function cleanNumericLoginID(value: string) {
-  return value.replace(/\D/g, "");
+  return Array.from(value.normalize("NFKC"))
+    .map((char) => {
+      if (char >= "0" && char <= "9") return char;
+      const code = char.charCodeAt(0);
+      if (code >= 0x0660 && code <= 0x0669) return String(code - 0x0660);
+      if (code >= 0x06f0 && code <= 0x06f9) return String(code - 0x06f0);
+      return "";
+    })
+    .join("");
+}
+
+function maskLoginID(value: string) {
+  if (value.length <= 4) return value;
+  return `${value.slice(0, 3)}...${value.slice(-4)}`;
 }

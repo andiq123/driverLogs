@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createExpense, createVehicle, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
+import { apiBaseHost, createExpense, createVehicle, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateUserSettings, updateVehicle } from "./api";
 import { authDebugEventName, type AuthDebugEvent } from "./auth-debug";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
@@ -40,7 +40,7 @@ export function useDriverLogsApp() {
     const requestToken = readToken() || token;
     if (showLoading) setIsLoadingData(true);
     setStatus("Loading app data...");
-    showToast("info", "Loading app", `Fetching dashboard data with JWT length ${requestToken.length}.`, "auth-flow");
+    showToast("info", "Loading app", `Fetching dashboard data from ${apiBaseHost()} with JWT length ${requestToken.length}.`, "auth-flow");
     try {
       const data = await getAppData(requestToken);
       setVehicles(data.vehicles);
@@ -59,7 +59,7 @@ export function useDriverLogsApp() {
     } catch (error) {
       if (isUnauthorizedError(error)) {
         const detail = errorMessage(error, "unauthorized");
-        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail, context: { state_token_length: token.length, stored_token_length: requestToken.length } });
+        logClientError({ level: "warn", area: "app.load", message: "Authenticated data load returned unauthorized", detail, context: { state_token_length: token.length, stored_token_length: requestToken.length, api_host: apiBaseHost() } });
         setStatus("Session expired. Please sign in again.");
         showToast("error", "Redirecting to login", `Backend rejected app data request: ${detail}`, "auth-flow");
         logout("Session expired. Please sign in again.");
