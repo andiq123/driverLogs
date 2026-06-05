@@ -8,6 +8,7 @@ import { EmptyState, IconButton, Panel } from "../ui";
 import { ExpenseForm } from "../forms";
 import { ExpenseAttachments } from "../expense-attachments";
 import { CustomSelect } from "../custom-select";
+import { FuelFillupWin } from "../fuel-fillup-win";
 
 const allCategoriesFilter = "All";
 type TimelineFilter = typeof allCategoriesFilter | ExpenseCategory;
@@ -43,37 +44,41 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
           {sorted.length === 0 ? <EmptyState icon={ListFilter} title="No matching expenses" body="Choose another category to see more timeline records." /> : null}
           {sorted.map((expense, index) => {
             const Icon = categoryIcon(expense.category);
+            const previousFuelExpense = expense.category === "Fuel" ? sorted.slice(index + 1).find((entry) => entry.category === "Fuel") : undefined;
             return (
-              <motion.div key={expense.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.025, 0.18), duration: 0.18 }} className="min-w-0 overflow-hidden rounded-[20px] border border-black/[0.045] bg-[#fffffb]/92 p-2.5 shadow-[0_7px_22px_rgba(31,41,28,0.05)] ring-1 ring-white/70 sm:rounded-[24px] sm:p-3">
-                <div className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-start gap-2.5 sm:flex sm:items-center sm:gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-[14px] bg-white sm:size-11 sm:rounded-[16px]"><Icon size={18} /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{expense.description || expense.category}</span>
-                    <span className="text-xs text-[#6b7065]">{expense.category} · {dateText(expense.date)}</span>
-                    {expense.category === "Fuel" && expense.fuel_type ? (
-                      <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}{expense.fuel_full_tank ? " · full tank" : ""}</span>
-                    ) : null}
-                    {serviceDetail(expense) ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceDetail(expense)}</span> : null}
-                    {expense.expires_date ? <span className="mt-1 block text-xs text-[#8a6a10]">Expires {dateText(expense.expires_date)}</span> : null}
-                    {expense.odometer ? <span className="mt-1 block text-xs text-[#6b7065]">{km(expense.odometer)}</span> : null}
-                    {expense.exclude_from_analytics ? <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-[#fff8df] px-2 py-0.5 text-[11px] font-bold text-[#7b5a12]"><EyeOff size={12} /> Excluded</span> : null}
-                  </span>
-                  <span className="grid min-w-0 justify-items-end gap-1 text-right sm:ml-auto">
-                    <span className="block max-w-[7.25rem] truncate text-sm font-bold sm:max-w-none">{money(expense.amount_mdl)}</span>
-                    <span className="hidden max-w-[8rem] truncate text-xs text-[#6b7065] min-[430px]:block sm:max-w-none">{equivalents(expense.amount_eur, expense.amount_usd)}</span>
-                    {expense.exchange_rate_source ? <span className="hidden truncate text-[11px] text-[#8a9085] sm:block">Rate {dateText(expense.exchange_rate_date)}</span> : null}
-                    <div className="mt-1 grid grid-cols-2 justify-end gap-1.5 sm:flex sm:flex-wrap">
-                      <IconButton type="button" icon={expense.exclude_from_analytics ? EyeOff : BarChart3} label={expense.exclude_from_analytics ? "Include in analytics" : "Exclude from analytics"} variant={expense.exclude_from_analytics ? "dark" : "soft"} onClick={() => onToggleAnalytics(expense, !expense.exclude_from_analytics)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
-                      <IconButton type="button" icon={FileText} label="Files" variant={filesExpenseID === expense.id ? "dark" : "soft"} onClick={() => toggleFiles(expense.id, filesExpenseID, onOpenExpenseFiles, setLocalFilesExpenseID)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
-                      <IconButton type="button" icon={Pencil} label="Edit" onClick={() => setEditingExpense(expense)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
-                      <IconButton type="button" icon={Trash2} label="Remove" variant="danger" onClick={() => confirmDelete(expense, onDeleteExpense)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
-                    </div>
-                  </span>
-                </div>
-                <AnimatePresence>
-                  {filesExpenseID === expense.id ? <ExpenseAttachments expenseID={expense.id} token={token} /> : null}
-                </AnimatePresence>
-              </motion.div>
+              <div key={expense.id} className="grid gap-2.5 sm:gap-3">
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.025, 0.18), duration: 0.18 }} className="min-w-0 overflow-hidden rounded-[20px] border border-black/[0.045] bg-[#fffffb]/92 p-2.5 shadow-[0_7px_22px_rgba(31,41,28,0.05)] ring-1 ring-white/70 sm:rounded-[24px] sm:p-3">
+                  <div className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-start gap-2.5 sm:flex sm:items-center sm:gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-[14px] bg-white sm:size-11 sm:rounded-[16px]"><Icon size={18} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{expense.description || expense.category}</span>
+                      <span className="text-xs text-[#6b7065]">{expense.category} · {dateText(expense.date)}</span>
+                      {expense.category === "Fuel" && expense.fuel_type ? (
+                        <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}{expense.fuel_full_tank ? " · full tank" : ""}</span>
+                      ) : null}
+                      {serviceDetail(expense) ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceDetail(expense)}</span> : null}
+                      {expense.expires_date ? <span className="mt-1 block text-xs text-[#8a6a10]">Expires {dateText(expense.expires_date)}</span> : null}
+                      {expense.odometer ? <span className="mt-1 block text-xs text-[#6b7065]">{km(expense.odometer)}</span> : null}
+                      {expense.exclude_from_analytics ? <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-[#fff8df] px-2 py-0.5 text-[11px] font-bold text-[#7b5a12]"><EyeOff size={12} /> Excluded</span> : null}
+                    </span>
+                    <span className="grid min-w-0 justify-items-end gap-1 text-right sm:ml-auto">
+                      <span className="block max-w-[7.25rem] truncate text-sm font-bold sm:max-w-none">{money(expense.amount_mdl)}</span>
+                      <span className="hidden max-w-[8rem] truncate text-xs text-[#6b7065] min-[430px]:block sm:max-w-none">{equivalents(expense.amount_eur, expense.amount_usd)}</span>
+                      {expense.exchange_rate_source ? <span className="hidden truncate text-[11px] text-[#8a9085] sm:block">Rate {dateText(expense.exchange_rate_date)}</span> : null}
+                      <div className="mt-1 grid grid-cols-2 justify-end gap-1.5 sm:flex sm:flex-wrap">
+                        <IconButton type="button" icon={expense.exclude_from_analytics ? EyeOff : BarChart3} label={expense.exclude_from_analytics ? "Include in analytics" : "Exclude from analytics"} variant={expense.exclude_from_analytics ? "dark" : "soft"} onClick={() => onToggleAnalytics(expense, !expense.exclude_from_analytics)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
+                        <IconButton type="button" icon={FileText} label="Files" variant={filesExpenseID === expense.id ? "dark" : "soft"} onClick={() => toggleFiles(expense.id, filesExpenseID, onOpenExpenseFiles, setLocalFilesExpenseID)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
+                        <IconButton type="button" icon={Pencil} label="Edit" onClick={() => setEditingExpense(expense)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
+                        <IconButton type="button" icon={Trash2} label="Remove" variant="danger" onClick={() => confirmDelete(expense, onDeleteExpense)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
+                      </div>
+                    </span>
+                  </div>
+                  <AnimatePresence>
+                    {filesExpenseID === expense.id ? <ExpenseAttachments expenseID={expense.id} token={token} /> : null}
+                  </AnimatePresence>
+                </motion.div>
+                {expense.category === "Fuel" && previousFuelExpense ? <FuelFillupWin current={expense} previous={previousFuelExpense} /> : null}
+              </div>
             );
           })}
         </div>
