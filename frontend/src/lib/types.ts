@@ -230,6 +230,25 @@ export type FuelInsight = {
   average_consumption_l_per_100km?: number;
   consumption_samples?: number;
   consumption_confidence?: "learned" | "low" | "none";
+  consumption_breakdown?: FuelConsumptionBreakdown;
+};
+
+export type FuelConsumptionInterval = {
+  from_date: string;
+  to_date: string;
+  from_odometer: number;
+  to_odometer: number;
+  distance_km: number;
+  liters: number;
+  l_per_100km: number;
+  station?: string;
+};
+
+export type FuelConsumptionBreakdown = {
+  intervals: FuelConsumptionInterval[];
+  total_liters: number;
+  total_distance_km: number;
+  average_l_per_100km: number;
 };
 
 export type CategoryInsight = {

@@ -1,19 +1,24 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, CalendarClock, CheckCircle2, Fuel, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, Fuel, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
+import { useState } from "react";
 import type { OilChangeInsight, SmartInsights, YearlyExpiryInsight } from "@/lib/types";
 import { km, money } from "@/lib/format";
 import { insightTones } from "@/lib/theme";
+import { FuelBreakdownSheet } from "./fuel-breakdown-sheet";
 
 type InsightTone = keyof typeof insightTones;
 
 export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   const oil = insights.maintenance.oil_change;
+  const fuelBreakdown = insights.fuel.consumption_breakdown;
+  const [showFuelMath, setShowFuelMath] = useState(false);
   return (
     <section className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 2xl:grid-cols-5">
       <InsightTile index={0} icon={CalendarClock} title="Oil" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} tone={oilTone(oil.remaining_km, oil.next_odometer)} badge={oilBadge(oil.remaining_km, oil.next_odometer)} progress={oilProgress(oil)} />
-      <InsightTile index={1} icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples)} />
+      <InsightTile index={1} icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples)} onClick={fuelBreakdown ? () => setShowFuelMath(true) : undefined} />
+      <FuelBreakdownSheet breakdown={showFuelMath ? fuelBreakdown : undefined} confidence={insights.fuel.consumption_confidence} onClose={() => setShowFuelMath(false)} />
       <InsightTile index={2} icon={Wrench} title="Service" value={insights.maintenance.average_mdl ? money(insights.maintenance.average_mdl) : "No service yet"} detail={entryDetail(insights.maintenance.entry_count)} />
       <InsightTile index={3} icon={ShieldCheck} title="Insurance" value={expiryValue(insights.insurance)} detail={expiryDetail("insurance", insights.insurance)} tone={expiryTone(insights.insurance)} badge={expiryBadge(insights.insurance)} />
       <InsightTile index={4} icon={CheckCircle2} title="ITP" value={expiryValue(insights.inspection)} detail={expiryDetail("technical inspection", insights.inspection)} tone={expiryTone(insights.inspection)} badge={expiryBadge(insights.inspection)} />
@@ -24,14 +29,26 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   );
 }
 
-function InsightTile({ icon: Icon, title, value, detail, tone = "neutral", badge, progress, index = 0 }: { icon: LucideIcon; title: string; value: string; detail: string; tone?: InsightTone; badge?: string; progress?: number; index?: number }) {
+function InsightTile({ icon: Icon, title, value, detail, tone = "neutral", badge, progress, index = 0, onClick }: { icon: LucideIcon; title: string; value: string; detail: string; tone?: InsightTone; badge?: string; progress?: number; index?: number; onClick?: () => void }) {
   const colors = insightTones[tone];
   return (
-    <motion.div initial={{ opacity: 0, y: 14, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.05 }} className={`relative min-h-[7rem] min-w-0 overflow-hidden rounded-[20px] border p-3 ring-1 transition-[background-color,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:min-h-[8.75rem] sm:rounded-[24px] sm:p-4 ${colors.card}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 14, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.05 }}
+      whileTap={onClick ? { scale: 0.98 } : undefined}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onClick(); } } : undefined}
+      className={`relative min-h-[7rem] min-w-0 overflow-hidden rounded-[20px] border p-3 ring-1 transition-[background-color,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:min-h-[8.75rem] sm:rounded-[24px] sm:p-4 ${colors.card} ${onClick ? "cursor-pointer touch-manipulation outline-none focus-visible:ring-2 focus-visible:ring-[#9db89a]" : ""}`}
+    >
       <div className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${colors.wash}`} />
       <div className={`relative flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] sm:gap-2 sm:text-[11px] sm:tracking-[0.14em] ${colors.meta}`}>
         <Icon size={14} />
         <span className="min-w-0 truncate">{title}</span>
+        {onClick ? <ChevronRight size={13} className="ml-auto shrink-0" /> : null}
       </div>
       <p className="relative mt-2 line-clamp-2 text-base font-bold leading-tight sm:mt-3 sm:text-lg">{value}</p>
       <p className={`relative mt-1 line-clamp-2 text-[11px] leading-4 sm:line-clamp-3 sm:text-xs sm:leading-5 ${colors.detail}`}>{detail}</p>

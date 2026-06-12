@@ -141,7 +141,7 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 	if pricedCount > 0 {
 		averagePrice = round2(priceTotal / float64(pricedCount))
 	}
-	consumption, consumptionSamples := fuelConsumption(fuelExpenses)
+	consumption, consumptionSamples, breakdown := fuelConsumption(fuelExpenses)
 	confidence := "none"
 	if consumptionSamples == 1 {
 		confidence = "low"
@@ -149,38 +149,57 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 	if consumptionSamples >= 2 {
 		confidence = "learned"
 	}
-	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": round2(averageFill), "average_price_per_liter_mdl": averagePrice, "average_consumption_l_per_100km": consumption, "consumption_samples": consumptionSamples, "consumption_confidence": confidence}
+	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": round2(averageFill), "average_price_per_liter_mdl": averagePrice, "average_consumption_l_per_100km": consumption, "consumption_samples": consumptionSamples, "consumption_confidence": confidence, "consumption_breakdown": breakdown}
 }
 
 // fuelConsumption estimates average L/100km from consecutive fuel entries with
 // rising odometer readings: total liters refilled divided by total distance.
 // Partial fills average out across intervals, so no full-tank flag is needed.
-func fuelConsumption(expenses []domain.Expense) (float64, int) {
+// The returned breakdown lists every interval used so the UI can show the math.
+func fuelConsumption(expenses []domain.Expense) (float64, int, map[string]any) {
 	sort.Slice(expenses, func(i, j int) bool {
 		if expenses[i].Date == expenses[j].Date {
 			return expenses[i].CreatedAt.Before(expenses[j].CreatedAt)
 		}
 		return expenses[i].Date < expenses[j].Date
 	})
+	intervals := make([]map[string]any, 0)
 	var totalLiters float64
 	var totalDistance int
-	var samples int
-	previousOdometer := 0
-	for _, expense := range expenses {
+	var previous *domain.Expense
+	for index := range expenses {
+		expense := expenses[index]
 		if expense.Odometer <= 0 {
 			continue
 		}
-		if previousOdometer > 0 && expense.Odometer > previousOdometer && expense.FuelLiters > 0 {
-			totalDistance += expense.Odometer - previousOdometer
+		if previous != nil && expense.Odometer > previous.Odometer && expense.FuelLiters > 0 {
+			distance := expense.Odometer - previous.Odometer
+			totalDistance += distance
 			totalLiters += expense.FuelLiters
-			samples++
+			intervals = append(intervals, map[string]any{
+				"from_date":     previous.Date,
+				"to_date":       expense.Date,
+				"from_odometer": previous.Odometer,
+				"to_odometer":   expense.Odometer,
+				"distance_km":   distance,
+				"liters":        round2(expense.FuelLiters),
+				"l_per_100km":   round2(expense.FuelLiters / float64(distance) * 100),
+				"station":       expense.Description,
+			})
 		}
-		previousOdometer = expense.Odometer
+		previous = &expenses[index]
 	}
-	if samples == 0 || totalDistance == 0 {
-		return 0, 0
+	if len(intervals) == 0 || totalDistance == 0 {
+		return 0, 0, nil
 	}
-	return round2(totalLiters / float64(totalDistance) * 100), samples
+	average := round2(totalLiters / float64(totalDistance) * 100)
+	breakdown := map[string]any{
+		"intervals":           intervals,
+		"total_liters":        round2(totalLiters),
+		"total_distance_km":   totalDistance,
+		"average_l_per_100km": average,
+	}
+	return average, len(intervals), breakdown
 }
 
 func maintenanceInsight(expenses []domain.Expense, currentOdometer, oilIntervalKM int) map[string]any {
