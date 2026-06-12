@@ -65,6 +65,17 @@ button:disabled {
   animation: none;
 }
 
+/* The floating tab bar gets its own snapshot group so it stays perfectly
+   still (no fade, no blur flash) while views transition underneath it. */
+.app-tab-bar {
+  view-transition-name: tab-bar;
+}
+
+::view-transition-old(tab-bar),
+::view-transition-new(tab-bar) {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .view-surface {
     view-transition-name: view-content;

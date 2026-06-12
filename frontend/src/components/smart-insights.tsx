@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, CalendarClock, CheckCircle2, Fuel, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
 import type { OilChangeInsight, SmartInsights, YearlyExpiryInsight } from "@/lib/types";
 import { km, money } from "@/lib/format";
@@ -17,7 +17,9 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
       <InsightTile index={2} icon={Wrench} title="Service" value={insights.maintenance.average_mdl ? money(insights.maintenance.average_mdl) : "No service yet"} detail={entryDetail(insights.maintenance.entry_count)} />
       <InsightTile index={3} icon={ShieldCheck} title="Insurance" value={expiryValue(insights.insurance)} detail={expiryDetail("insurance", insights.insurance)} tone={expiryTone(insights.insurance)} badge={expiryBadge(insights.insurance)} />
       <InsightTile index={4} icon={CheckCircle2} title="ITP" value={expiryValue(insights.inspection)} detail={expiryDetail("technical inspection", insights.inspection)} tone={expiryTone(insights.inspection)} badge={expiryBadge(insights.inspection)} />
-      {insights.anomalies?.length ? <InsightTile index={5} icon={AlertTriangle} title="Check" value={String(insights.anomalies.length)} detail="Unusual records found in this car history." tone="warn" badge="Review" /> : null}
+      <AnimatePresence initial={false}>
+        {insights.anomalies?.length ? <InsightTile key="anomalies" index={5} icon={AlertTriangle} title="Check" value={String(insights.anomalies.length)} detail="Unusual records found in this car history." tone="warn" badge="Review" /> : null}
+      </AnimatePresence>
     </section>
   );
 }
@@ -25,7 +27,7 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
 function InsightTile({ icon: Icon, title, value, detail, tone = "neutral", badge, progress, index = 0 }: { icon: LucideIcon; title: string; value: string; detail: string; tone?: InsightTone; badge?: string; progress?: number; index?: number }) {
   const colors = insightTones[tone];
   return (
-    <motion.div initial={{ opacity: 0, y: 14, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.05 }} className={`relative min-h-[7rem] min-w-0 overflow-hidden rounded-[20px] border p-3 ring-1 transition-[background-color,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:min-h-[8.75rem] sm:rounded-[24px] sm:p-4 ${colors.card}`}>
+    <motion.div initial={{ opacity: 0, y: 14, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.05 }} className={`relative min-h-[7rem] min-w-0 overflow-hidden rounded-[20px] border p-3 ring-1 transition-[background-color,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:min-h-[8.75rem] sm:rounded-[24px] sm:p-4 ${colors.card}`}>
       <div className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${colors.wash}`} />
       <div className={`relative flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] sm:gap-2 sm:text-[11px] sm:tracking-[0.14em] ${colors.meta}`}>
         <Icon size={14} />

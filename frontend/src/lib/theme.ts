@@ -99,13 +99,6 @@ export const modalPanelMotion = {
   transition: { duration: 0.32, ease: calmEase },
 } as const;
 
-export const softReveal = {
-  initial: { opacity: 0, y: 14, filter: "blur(5px)" },
-  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-  exit: { opacity: 0, y: -8, filter: "blur(4px)" },
-  transition: { duration: 0.34, ease: calmEase },
-} as const;
-
 export const softSpring = {
   type: "spring",
   stiffness: 260,

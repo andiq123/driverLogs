@@ -1,4 +1,4 @@
-import { FileText, Car } from "lucide-react";
+import { ChevronRight, FileText, Car } from "lucide-react";
 import { useState } from "react";
 import { getExpenseAttachmentPreview, getUserDocumentPreview, getVehicleDocumentPreview } from "@/lib/api";
 import type { DocumentAttachment, Expense, ExpenseAttachment, ExpenseCategory, MoneyTotals, SmartReminder, Vehicle } from "@/lib/types";
@@ -67,10 +67,11 @@ function DocumentShortcuts({ token, vehicle, expenses, userDocuments, onOpen }: 
       {items.map((item) => (
         <button key={`${item.label}-${item.fileName}`} type="button" onClick={() => onOpen({ title: item.label, fileName: item.fileName, load: item.load })} className="flex min-w-44 snap-start items-center gap-2 rounded-[18px] border border-black/[0.055] bg-[#fffffb]/94 px-3 py-2 text-left shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 transition-[background-color,transform] duration-300 active:scale-[0.985] hover:bg-[#f7faf3]">
           <span className="flex size-9 items-center justify-center rounded-[14px] bg-[#edf4e7]"><FileText size={16} /></span>
-          <span className="min-w-0">
+          <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-bold">{item.label}</span>
             <span className="block truncate text-xs text-[#6b7065]">{item.fileName}</span>
           </span>
+          <ChevronRight size={15} className="shrink-0 text-[#9aa193]" />
         </button>
       ))}
     </section>
