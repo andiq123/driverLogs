@@ -44,7 +44,6 @@ type Expense struct {
 	FuelPricePerLiterBase float64            `json:"fuel_price_per_liter_base,omitempty"`
 	FuelPricePerLiterMDL  float64            `json:"fuel_price_per_liter_mdl,omitempty"`
 	FuelType              string             `json:"fuel_type,omitempty"`
-	FuelFullTank          bool               `json:"fuel_full_tank,omitempty"`
 	Odometer              int                `json:"odometer,omitempty"`
 	ServiceType           string             `json:"service_type,omitempty"`
 	ExpiresDate           string             `json:"expires_date,omitempty"`

@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { AppShell } from "@/components/app-shell";
 import { LoginIDModal } from "@/components/login-id-modal";
 import { LoginView } from "@/components/login-view";
@@ -14,7 +13,6 @@ import { SettingsView } from "@/components/views/settings-view";
 import { useDriverLogsApp } from "@/lib/use-driverlogs-app";
 import { ViewSkeleton } from "@/components/ui";
 import { ToastCenter } from "@/components/toast-center";
-import { softReveal } from "@/lib/theme";
 
 export default function HomePage() {
   const app = useDriverLogsApp();
@@ -50,8 +48,7 @@ export default function HomePage() {
   return (
     <>
       <AppShell view={app.view} userName={app.settings.name} onLogout={app.logout} onViewChange={app.setView}>
-        <AnimatePresence mode="wait">
-          <motion.div key={app.view} {...softReveal} className="pt-3 sm:pt-4">
+        <div key={app.view} className="view-surface pt-3 sm:pt-4">
             {app.isLoadingData ? <ViewSkeleton /> : null}
             {!app.isLoadingData && app.view === "Garage" && <GarageView token={app.token} vehicles={app.vehicles} activeVehicleID={app.activeVehicle?.id ?? ""} savingVehicle={app.action === "vehicle"} deletingVehicle={app.action === "delete"} onSelect={selectVehicleAndOpenDashboard} onDelete={app.removeVehicle} onCreate={app.saveVehicle} onUpdate={app.editVehicle} />}
             {!app.isLoadingData && app.view === "Dashboard" && <DashboardView vehicle={app.activeVehicle} expenses={app.activeExpenses} userDocuments={app.userDocuments} totals={app.vehicleTotals} token={app.token} baseCurrency={app.settings.default_currency} country={app.settings.country} savingExpense={app.action === "expense"} onCreateExpense={app.saveExpense} />}
@@ -60,8 +57,7 @@ export default function HomePage() {
             {!app.isLoadingData && app.view === "Fuel Prices" && <FuelInsightsView token={app.token} country={app.settings.country} compareCountry={app.settings.compare_country || "RO"} preferredFuelType={app.activeVehicle?.preferred_fuel_type || "Super 95"} />}
             {!app.isLoadingData && app.view === "Reports" && <ReportsView vehicle={app.activeVehicle} totals={app.vehicleTotals} />}
             {!app.isLoadingData && app.view === "Settings" && <SettingsView key={`${app.settings.name}-${app.settings.default_currency}-${app.settings.country}-${app.settings.compare_country}-${app.activeVehicle?.id ?? ""}-${app.activeVehicle?.preferred_fuel_type ?? ""}-${app.activeVehicle?.oil_interval_km ?? ""}`} token={app.token} settings={app.settings} loginID={app.loginID} vehicles={app.vehicles} userDocuments={app.userDocuments} activeVehicleID={app.activeVehicle?.id ?? ""} saving={app.action === "settings" || app.action === "vehicle"} onCopyLoginID={app.copyLoginID} onOpenGarage={() => app.setView("Garage")} onSelectVehicle={app.setActiveVehicleID} onSave={app.saveSettings} onUpdateVehicle={app.editVehicle} />}
-          </motion.div>
-        </AnimatePresence>
+        </div>
       </AppShell>
       <ToastCenter toasts={app.toasts} onDismiss={app.dismissToast} />
       {app.loginNotice.isOpen ? <LoginIDModal loginID={app.loginNotice.loginID} needsName={app.loginNotice.needsName} onCopy={app.copyLoginID} onClose={app.closeLoginNotice} onSaveName={app.saveProfileName} /> : null}

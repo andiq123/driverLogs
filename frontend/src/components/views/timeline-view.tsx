@@ -54,7 +54,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                       <span className="block truncate text-sm font-semibold">{expense.description || expense.category}</span>
                       <span className="text-xs text-[#6b7065]">{expense.category} · {dateText(expense.date)}</span>
                       {expense.category === "Fuel" && expense.fuel_type ? (
-                        <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}{expense.fuel_full_tank ? " · full tank" : ""}</span>
+                        <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}</span>
                       ) : null}
                       {serviceDetail(expense) ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceDetail(expense)}</span> : null}
                       {expense.expires_date ? <span className="mt-1 block text-xs text-[#8a6a10]">Expires {dateText(expense.expires_date)}</span> : null}

@@ -13,7 +13,7 @@ import { CustomSelect } from "./custom-select";
 import { ExpenseCategoryPicker } from "./expense-category-picker";
 import { FuelPriceSuggestions } from "./fuel-price-suggestions";
 import { ActionButton, Input, Panel } from "./ui";
-import { BadgeCheck, BadgeDollarSign, CalendarDays, CarFront, CheckCircle2, CircleGauge, Droplets, FileText, Fuel, Hash, Landmark, MapPin, Milestone, Paperclip, ScanLine, Text, Trash2, Wrench } from "lucide-react";
+import { BadgeCheck, BadgeDollarSign, CalendarDays, CarFront, CircleGauge, Droplets, FileText, Fuel, Hash, Landmark, MapPin, Milestone, Paperclip, ScanLine, Text, Trash2, Wrench } from "lucide-react";
 import { useFuelPriceSuggestions } from "@/lib/use-fuel-price-suggestions";
 import { calmEase } from "@/lib/theme";
 
@@ -224,7 +224,6 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const [fuelPriceEdited, setFuelPriceEdited] = useState(false);
   const [description, setDescription] = useState(expense?.description ?? "");
   const [gasStation, setGasStation] = useState(expense?.category === "Fuel" ? expense.description : "");
-  const [fullTank, setFullTank] = useState(Boolean(expense?.fuel_full_tank));
   const [serviceType, setServiceType] = useState(expense?.service_type ?? "");
   const [expiresDate, setExpiresDate] = useState(expense?.expires_date ?? "");
   const [odometerValue, setOdometerValue] = useState(expense?.odometer ? String(expense.odometer) : "");
@@ -272,7 +271,6 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       fuel_price_per_liter_base: numberValue(form.get("fuel_price_per_liter_base")),
       fuel_price_currency: String(form.get("fuel_price_currency") ?? baseCurrency),
       fuel_type: String(form.get("fuel_type") ?? "").trim(),
-      fuel_full_tank: form.get("fuel_full_tank") === "true",
       odometer: intValue(form.get("odometer")),
       service_type: String(form.get("service_type") ?? "").trim(),
       expires_date: String(form.get("expires_date") ?? "").trim(),
@@ -294,7 +292,6 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     setFuelPriceEdited(false);
     setDescription("");
     setGasStation("");
-    setFullTank(false);
     setServiceType("");
     setExpiresDate("");
     setOdometerValue("");
@@ -354,7 +351,6 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
                   <CustomSelect name="fuel_price_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={fuelPriceCurrency} onChange={setFuelPriceCurrency} />
                   <CustomSelect name="fuel_type" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} />
                 </div>
-                <ToggleField name="fuel_full_tank" label="Full tank" checked={fullTank} onChange={setFullTank} />
                 <Autocomplete name="gas_station" label="Gas station" icon={MapPin} options={gasStationBrands} value={gasStation} onChange={setGasStation} />
                 <FuelPriceSuggestions suggestions={fuelSuggestion.suggestions} status={fuelSuggestion.status} onSelect={applyFuelSuggestion} />
               </motion.div>
@@ -439,16 +435,6 @@ function ExpenseFilePicker({ files, message, onFilesChange }: { files: File[]; m
 
 function fileKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
-}
-
-function ToggleField({ checked, label, name, onChange }: { checked: boolean; label: string; name: string; onChange: (checked: boolean) => void }) {
-  return (
-    <button type="button" onClick={() => onChange(!checked)} className={`flex h-11 touch-manipulation items-center justify-between rounded-[18px] border px-3 text-sm font-bold transition-[background-color,border-color,transform] duration-300 active:scale-[0.985] ${checked ? "border-[#bdd7c0] bg-[#eef6e9] text-[#24603c]" : "border-black/[0.06] bg-white/88 text-[#62685e]"}`}>
-      <input type="hidden" name={name} value={checked ? "true" : "false"} />
-      <span className="flex items-center gap-2"><CheckCircle2 size={17} />{label}</span>
-      <span className="text-xs">{checked ? "Yes" : "No"}</span>
-    </button>
-  );
 }
 
 function ServicePresets({ value, serviceType, onChange }: { value: string; serviceType: string; onChange: (description: string, serviceType: string) => void }) {

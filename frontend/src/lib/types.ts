@@ -70,7 +70,6 @@ export type Expense = {
   fuel_price_currency?: string;
   fuel_price_per_liter_base?: number;
   fuel_type?: string;
-  fuel_full_tank?: boolean;
   odometer?: number;
   service_type?: string;
   expires_date?: string;
@@ -230,8 +229,7 @@ export type FuelInsight = {
   average_price_per_liter_mdl: number;
   average_consumption_l_per_100km?: number;
   consumption_samples?: number;
-  consumption_confidence?: "learned" | "low" | "rough" | "none";
-  full_tank_based?: boolean;
+  consumption_confidence?: "learned" | "low" | "none";
 };
 
 export type CategoryInsight = {

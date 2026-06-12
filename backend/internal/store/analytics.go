@@ -141,7 +141,7 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 	if pricedCount > 0 {
 		averagePrice = round2(priceTotal / float64(pricedCount))
 	}
-	consumption, consumptionSamples, fullTankBased := fuelConsumption(fuelExpenses)
+	consumption, consumptionSamples := fuelConsumption(fuelExpenses)
 	confidence := "none"
 	if consumptionSamples == 1 {
 		confidence = "low"
@@ -149,47 +149,38 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 	if consumptionSamples >= 2 {
 		confidence = "learned"
 	}
-	if consumptionSamples > 0 && !fullTankBased {
-		confidence = "rough"
-	}
-	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": round2(averageFill), "average_price_per_liter_mdl": averagePrice, "average_consumption_l_per_100km": consumption, "consumption_samples": consumptionSamples, "consumption_confidence": confidence, "full_tank_based": fullTankBased}
+	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": round2(averageFill), "average_price_per_liter_mdl": averagePrice, "average_consumption_l_per_100km": consumption, "consumption_samples": consumptionSamples, "consumption_confidence": confidence}
 }
 
-func fuelConsumption(expenses []domain.Expense) (float64, int, bool) {
+// fuelConsumption estimates average L/100km from consecutive fuel entries with
+// rising odometer readings: total liters refilled divided by total distance.
+// Partial fills average out across intervals, so no full-tank flag is needed.
+func fuelConsumption(expenses []domain.Expense) (float64, int) {
 	sort.Slice(expenses, func(i, j int) bool {
 		if expenses[i].Date == expenses[j].Date {
 			return expenses[i].CreatedAt.Before(expenses[j].CreatedAt)
 		}
 		return expenses[i].Date < expenses[j].Date
 	})
-	fullTank := make([]domain.Expense, 0)
-	for _, expense := range expenses {
-		if expense.FuelFullTank {
-			fullTank = append(fullTank, expense)
-		}
-	}
-	source := expenses
-	fullTankBased := false
-	if len(fullTank) >= 2 {
-		source = fullTank
-		fullTankBased = true
-	}
-	var totalConsumption float64
+	var totalLiters float64
+	var totalDistance int
 	var samples int
-	for index := 1; index < len(source); index++ {
-		previous := source[index-1]
-		current := source[index]
-		if previous.Odometer <= 0 || current.Odometer <= previous.Odometer || current.FuelLiters <= 0 {
+	previousOdometer := 0
+	for _, expense := range expenses {
+		if expense.Odometer <= 0 {
 			continue
 		}
-		distance := current.Odometer - previous.Odometer
-		totalConsumption += current.FuelLiters / float64(distance) * 100
-		samples++
+		if previousOdometer > 0 && expense.Odometer > previousOdometer && expense.FuelLiters > 0 {
+			totalDistance += expense.Odometer - previousOdometer
+			totalLiters += expense.FuelLiters
+			samples++
+		}
+		previousOdometer = expense.Odometer
 	}
-	if samples == 0 {
-		return 0, 0, false
+	if samples == 0 || totalDistance == 0 {
+		return 0, 0
 	}
-	return round2(totalConsumption / float64(samples)), samples, fullTankBased
+	return round2(totalLiters / float64(totalDistance) * 100), samples
 }
 
 func maintenanceInsight(expenses []domain.Expense, currentOdometer, oilIntervalKM int) map[string]any {

@@ -1,7 +1,7 @@
 import { Activity, BarChart3, Car, CheckCircle2, Fuel, Gauge, PackagePlus, ReceiptText, Settings, ShieldCheck, Sparkles, TrendingUp, Wrench } from "lucide-react";
 import type { ExpenseCategory, MoneyTotals, NavItem } from "./types";
 
-export const palette = ["#0f6bff", "#0f8f68", "#d14836", "#b88700", "#6d5dfc", "#151712"];
+export const palette = ["#0a7aff", "#23a05e", "#ff5d4f", "#f5a300", "#6a5cf5", "#151712"];
 
 export const insightTones = {
   neutral: {
@@ -10,6 +10,7 @@ export const insightTones = {
     meta: "text-[#62685e]",
     detail: "text-[#62685e]",
     badge: "bg-[#eef3e8] text-[#62685e]",
+    bar: "bg-[#a8b0a0]",
   },
   good: {
     card: "border-[#bdd7c0] bg-[#f1f8ed] text-[#142016] shadow-[0_8px_24px_rgba(54,94,58,0.075)] ring-[#ffffff]/80",
@@ -17,6 +18,7 @@ export const insightTones = {
     meta: "text-[#456148]",
     detail: "text-[#556a54]",
     badge: "bg-white/82 text-[#24603c]",
+    bar: "bg-[#3a8e57]",
   },
   warn: {
     card: "border-[#efd282] bg-[#fff8df] text-[#211b0a] shadow-[0_10px_30px_rgba(173,128,17,0.12)] ring-[#ffffff]/82",
@@ -24,6 +26,7 @@ export const insightTones = {
     meta: "text-[#7b5a12]",
     detail: "text-[#776224]",
     badge: "bg-white/88 text-[#8a6200]",
+    bar: "bg-[#d9a514]",
   },
   danger: {
     card: "border-[#f0b2a8] bg-[#fff0ec] text-[#26100d] shadow-[0_10px_32px_rgba(209,72,54,0.14)] ring-[#ffffff]/82",
@@ -31,6 +34,7 @@ export const insightTones = {
     meta: "text-[#9b3226]",
     detail: "text-[#855047]",
     badge: "bg-white/88 text-[#a92f22]",
+    bar: "bg-[#e05a47]",
   },
 } as const;
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { CalendarDays } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import type { View } from "@/lib/types";
@@ -13,7 +14,7 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
   const today = useTodayLabel();
   return (
     <main className="min-h-dvh overflow-x-hidden bg-[#f5f7f2] text-[#151712]">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[118rem] gap-4 overflow-x-hidden px-2 pb-[calc(4.35rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:px-6 lg:py-3 xl:gap-6">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[118rem] gap-4 overflow-x-hidden px-2 pb-[calc(5.6rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:px-6 lg:py-3 lg:pb-3 xl:gap-6">
         <aside className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-64 flex-col rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_18px_64px_rgba(31,41,28,0.10)] lg:flex">
           <Brand />
           <Nav view={view} onViewChange={onViewChange} />
@@ -43,14 +44,18 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
         </section>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-black/[0.08] bg-[#fbfcf8]/94 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1 backdrop-blur-xl lg:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-          {mobileNavItems.map((item) => (
-            <button key={item.label} aria-label={item.label} onClick={() => onViewChange(item.label)} className={`flex h-11 touch-manipulation flex-col items-center justify-center gap-1 rounded-[16px] text-[11px] font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.985] ${view === item.label ? "bg-[#e6f0df] text-[#151712]" : "text-[#70776a]"}`}>
-              <item.icon size={18} />
-              <span className="sr-only">{item.label}</span>
-            </button>
-          ))}
+      <nav aria-label="Primary" className="pointer-events-none fixed inset-x-0 bottom-[max(0.7rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4 lg:hidden">
+        <div className="pointer-events-auto flex w-full max-w-sm items-center gap-1 rounded-full border border-white/65 bg-[#fbfcf8]/74 p-1.5 shadow-[0_22px_56px_rgba(31,41,28,0.20),0_2px_10px_rgba(31,41,28,0.08)] ring-1 ring-black/[0.05] backdrop-blur-2xl backdrop-saturate-150">
+          {mobileNavItems.map((item) => {
+            const active = view === item.label;
+            return (
+              <motion.button key={item.label} aria-label={item.label} aria-current={active ? "page" : undefined} onClick={() => onViewChange(item.label)} whileTap={{ scale: 0.92 }} transition={{ type: "spring", stiffness: 480, damping: 32 }} className={`relative flex h-[3.1rem] min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-1 overflow-hidden rounded-full px-1 text-[10px] font-semibold leading-none outline-none transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-[#9db89a] ${active ? "text-[#1c3a26]" : "text-[#70776a]"}`}>
+                {active ? <motion.span layoutId="mobile-nav-pill" transition={{ type: "spring", stiffness: 420, damping: 34 }} className="absolute inset-0 rounded-full bg-[#e6f0df] shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_1px_6px_rgba(31,41,28,0.08)]" /> : null}
+                <item.icon size={18} className="relative shrink-0" />
+                <span className="relative max-w-full truncate tracking-tight">{shortNavLabel(item.label)}</span>
+              </motion.button>
+            );
+          })}
         </div>
       </nav>
     </main>
@@ -93,12 +98,22 @@ function Brand() {
 function Nav({ view, onViewChange }: { view: View; onViewChange: (view: View) => void }) {
   return (
     <nav className="mt-7 grid gap-1">
-      {navItems.map((item) => (
-        <button key={item.label} onClick={() => onViewChange(item.label)} className={`flex h-12 items-center gap-3 rounded-[18px] px-3 text-sm font-medium transition-[background-color,color,transform] duration-200 active:scale-[0.985] ${view === item.label ? "bg-[#e6f0df] text-[#151712]" : "text-[#62685e] hover:bg-black/[0.04]"}`}>
-          <item.icon size={18} />
-          {item.label}
-        </button>
-      ))}
+      {navItems.map((item) => {
+        const active = view === item.label;
+        return (
+          <motion.button key={item.label} aria-current={active ? "page" : undefined} onClick={() => onViewChange(item.label)} whileTap={{ scale: 0.985 }} className={`relative flex h-12 items-center gap-3 rounded-[18px] px-3 text-sm font-medium transition-colors duration-300 ${active ? "text-[#151712]" : "text-[#62685e] hover:bg-black/[0.04]"}`}>
+            {active ? <motion.span layoutId="side-nav-pill" transition={{ type: "spring", stiffness: 420, damping: 34 }} className="absolute inset-0 rounded-[18px] bg-[#e6f0df]" /> : null}
+            <item.icon size={18} className="relative" />
+            <span className="relative">{item.label}</span>
+          </motion.button>
+        );
+      })}
     </nav>
   );
+}
+
+function shortNavLabel(label: View) {
+  if (label === "Dashboard") return "Home";
+  if (label === "Fuel Prices") return "Fuel";
+  return label;
 }

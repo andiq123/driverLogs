@@ -963,7 +963,6 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense, curre
 		expense.FuelPricePerLiterBase = 0
 		expense.FuelPricePerLiterMDL = 0
 		expense.FuelType = ""
-		expense.FuelFullTank = false
 	}
 	if expense.Category != "Maintenance" {
 		expense.ServiceType = ""

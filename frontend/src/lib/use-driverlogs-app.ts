@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { apiBaseHost, createExpense, createVehicle, deleteExpense, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateExpenseAnalytics, updateUserSettings, updateVehicle, uploadExpenseAttachment } from "./api";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
@@ -14,8 +15,23 @@ const selectedVehicleStorageKey = "driverlogs:selected-vehicle-id";
 const healthToastKey = "api-health";
 const pwaUpdateToastKey = "pwa-update";
 
+function startViewTransition(update: () => void) {
+  if (typeof document === "undefined" || !("startViewTransition" in document) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    update();
+    return;
+  }
+  (document as Document & { startViewTransition: (callback: () => void) => void }).startViewTransition(() => flushSync(update));
+}
+
 export function useDriverLogsApp() {
-  const [view, setView] = useState<View>("Dashboard");
+  const [view, setRawView] = useState<View>("Dashboard");
+
+  const setView = useCallback((next: View) => {
+    window.scrollTo({ top: 0 });
+    setRawView(next);
+  }, []);
+
+  const changeView = useCallback((next: View) => startViewTransition(() => setView(next)), [setView]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [userDocuments, setUserDocuments] = useState<DocumentAttachment[]>([]);
@@ -85,6 +101,7 @@ export function useDriverLogsApp() {
   }, [isDemo, logout, showToast]);
 
   useEffect(() => {
+    if (readToken()) return;
     let cancelled = false;
     void healthCheck().catch((error) => {
       logClientError({ level: "warn", area: "app.health", message: "Health check failed", detail: errorMessage(error, "unknown error") });
@@ -381,7 +398,7 @@ export function useDriverLogsApp() {
     editExpense,
     saveVehicle,
     setActiveVehicleID: selectVehicle,
-    setView,
+    setView: changeView,
     signIn,
     authAction: auth.authAction,
     authFeedback: auth.authFeedback,

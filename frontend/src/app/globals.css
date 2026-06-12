@@ -58,6 +58,50 @@ button:disabled {
   color: #151712;
 }
 
+/* Native view transitions: only the content surface animates; the app shell
+   (header, sidebar, tab bar) is excluded so nothing jumps during a switch. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .view-surface {
+    view-transition-name: view-content;
+  }
+
+  ::view-transition-old(view-content) {
+    animation: view-leave 0.4s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+
+  ::view-transition-new(view-content) {
+    animation: view-enter 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+
+  /* Fallback entrance for browsers without the View Transitions API. */
+  @supports not (view-transition-name: none) {
+    .view-surface {
+      animation: view-enter 0.45s cubic-bezier(0.32, 0.72, 0, 1) both;
+    }
+  }
+}
+
+@keyframes view-leave {
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.992);
+    filter: blur(4px);
+  }
+}
+
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.992);
+    filter: blur(5px);
+  }
+}
+
 .vin-autofill {
   animation: vin-autofill 420ms ease-out;
 }

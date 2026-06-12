@@ -9,15 +9,34 @@ import type { FuelComparisonResponse, FuelMarketResponse, FuelTrendChange, FuelT
 import { EmptyState, SkeletonLine } from "../ui";
 
 const marketCache = new Map<string, FuelMarketResponse>();
-const failedMarketKeys = new Set<string>();
 const inFlightMarketRequests = new Map<string, Promise<FuelMarketResponse>>();
+
+// Stale-while-revalidate: cached data renders instantly, a fresh request always
+// runs in the background. refresh=true also busts the backend market cache.
+function fetchMarket(token: string, country: string, compareCountry: string, refresh = false) {
+  const cacheKey = `${country}:${compareCountry}`;
+  if (!refresh) {
+    const inFlight = inFlightMarketRequests.get(cacheKey);
+    if (inFlight) return inFlight;
+  }
+  const request = getFuelMarket(token, country, compareCountry, refresh)
+    .then((response) => {
+      marketCache.set(cacheKey, response);
+      return response;
+    })
+    .finally(() => {
+      if (inFlightMarketRequests.get(cacheKey) === request) inFlightMarketRequests.delete(cacheKey);
+    });
+  inFlightMarketRequests.set(cacheKey, request);
+  return request;
+}
 
 export function FuelInsightsView({ token, country, compareCountry, preferredFuelType = "Super 95" }: { token: string; country: string; compareCountry: string; preferredFuelType?: string }) {
   const marketKey = `${country}:${compareCountry}`;
   const isDemo = isLocalDemoEnabled && token === demoToken;
   const [market, setMarket] = useState<FuelMarketResponse | undefined>(() => marketCache.get(marketKey));
   const [demoMarket, setDemoMarket] = useState<FuelMarketResponse>();
-  const [failed, setFailed] = useState(() => failedMarketKeys.has(marketKey));
+  const [failed, setFailed] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const tokenRef = useRef(token);
@@ -32,8 +51,8 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     if (isDemo) {
-      let cancelled = false;
       void import("@/lib/demo-data").then(({ demoFuelMarket }) => {
         if (!cancelled) setDemoMarket(demoFuelMarket);
       });
@@ -41,66 +60,38 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
         cancelled = true;
       };
     }
-    let cancelled = false;
-    const cacheKey = `${country}:${compareCountry}`;
-    const cached = marketCache.get(cacheKey);
-    if (cached || failedMarketKeys.has(cacheKey)) {
-      void Promise.resolve().then(() => {
-        if (cancelled) return;
-        setMarket(cached);
-        setFailed(!cached);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    let request = inFlightMarketRequests.get(cacheKey);
-    if (!request) {
-      request = getFuelMarket(tokenRef.current, country, compareCountry);
-      inFlightMarketRequests.set(cacheKey, request);
-    }
-    void request
+    const [nextCountry, nextCompare] = marketKey.split(":");
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      setMarket(marketCache.get(marketKey));
+      setRevalidating(true);
+    });
+    fetchMarket(tokenRef.current, nextCountry, nextCompare)
       .then((response) => {
-        marketCache.set(cacheKey, response);
-        failedMarketKeys.delete(cacheKey);
-        if (!cancelled) {
-          setMarket(response);
-          setFailed(false);
-        }
+        if (cancelled) return;
+        setMarket(response);
+        setFailed(false);
       })
       .catch(() => {
-        failedMarketKeys.add(cacheKey);
-        if (!cancelled) {
-          setMarket(undefined);
-          setFailed(true);
-        }
+        if (!cancelled) setFailed(!marketCache.has(marketKey));
       })
       .finally(() => {
-        if (inFlightMarketRequests.get(cacheKey) === request) {
-          inFlightMarketRequests.delete(cacheKey);
-        }
+        if (!cancelled) setRevalidating(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [compareCountry, country, isDemo]);
+  }, [isDemo, marketKey]);
 
   async function revalidate() {
     if (isDemo || revalidating) return;
-    const cacheKey = `${country}:${compareCountry}`;
     setRevalidating(true);
     setFailed(false);
-    marketCache.delete(cacheKey);
-    failedMarketKeys.delete(cacheKey);
-    inFlightMarketRequests.delete(cacheKey);
     try {
-      const response = await getFuelMarket(tokenRef.current, country, compareCountry, true);
-      marketCache.set(cacheKey, response);
+      const response = await fetchMarket(tokenRef.current, country, compareCountry, true);
       setMarket(response);
     } catch {
-      failedMarketKeys.add(cacheKey);
-      setFailed(true);
+      setFailed(!marketCache.has(marketKey));
     } finally {
       setRevalidating(false);
     }
