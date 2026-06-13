@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { apiBaseHost, createExpense, createVehicle, deleteExpense, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateExpenseAnalytics, updateUserSettings, updateVehicle, uploadExpenseAttachment } from "./api";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
@@ -15,23 +14,13 @@ const selectedVehicleStorageKey = "driverlogs:selected-vehicle-id";
 const healthToastKey = "api-health";
 const pwaUpdateToastKey = "pwa-update";
 
-function startViewTransition(update: () => void) {
-  if (typeof document === "undefined" || !("startViewTransition" in document) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    update();
-    return;
-  }
-  (document as Document & { startViewTransition: (callback: () => void) => void }).startViewTransition(() => flushSync(update));
-}
-
 export function useDriverLogsApp() {
   const [view, setRawView] = useState<View>("Dashboard");
 
-  const setView = useCallback((next: View) => {
+  const changeView = useCallback((next: View) => {
     window.scrollTo({ top: 0 });
     setRawView(next);
   }, []);
-
-  const changeView = useCallback((next: View) => startViewTransition(() => setView(next)), [setView]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [userDocuments, setUserDocuments] = useState<DocumentAttachment[]>([]);
@@ -156,7 +145,7 @@ export function useDriverLogsApp() {
     setActiveVehicleID(demoAppData.vehicles[0]?.id ?? "");
     activeVehicleIDRef.current = demoAppData.vehicles[0]?.id ?? "";
     setStatus("Demo data loaded.");
-    setView("Dashboard");
+    changeView("Dashboard");
     showToast("success", "Demo started", "Explore the dashboard, timeline, analytics, fuel prices, and settings.");
   }
 
@@ -173,7 +162,7 @@ export function useDriverLogsApp() {
       setActiveVehicleID(saved.id);
       activeVehicleIDRef.current = saved.id;
       localStorage.setItem(selectedVehicleStorageKey, saved.id);
-      setView("Dashboard");
+      changeView("Dashboard");
       showToast("success", "Vehicle saved", "Your garage was updated.");
     } catch {
       setStatus("Vehicle could not be saved. Each user can have up to 4 vehicles.");
@@ -217,7 +206,7 @@ export function useDriverLogsApp() {
       const uploadError = await uploadExpenseFiles(saved.id, files);
       await loadData(false);
       setOpenExpenseFilesID(saved.id);
-      setView("Timeline");
+      changeView("Timeline");
       showToast("success", "Expense saved", files.length && !uploadError ? `${files.length} file${files.length === 1 ? "" : "s"} attached.` : "You can attach files from the timeline.");
       if (uploadError) showToast("error", "File upload failed", errorMessage(uploadError, "The expense was saved, but one or more files were not attached."));
     } catch (error) {
@@ -357,7 +346,7 @@ export function useDriverLogsApp() {
     setExpenses([]);
     setUserDocuments([]);
     setVehicleTotalsByID({});
-    setView("Dashboard");
+    changeView("Dashboard");
   }
 
   function selectVehicle(id: string) {

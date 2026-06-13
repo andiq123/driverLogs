@@ -13,21 +13,19 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
   const title = view === "Settings" ? "Profile" : view;
   const today = useTodayLabel();
   return (
-    <main className="min-h-dvh overflow-x-hidden bg-[#f5f7f2] text-[#151712]">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[118rem] gap-4 overflow-x-hidden px-2 pb-[calc(5.6rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:px-6 lg:py-3 lg:pb-3 xl:gap-6">
-        <aside className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-64 flex-col rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_18px_64px_rgba(31,41,28,0.10)] lg:flex">
+    <main className="min-h-dvh overflow-x-hidden bg-[#f5f7f2] text-[#151712] lg:h-dvh lg:overflow-hidden">
+      <div className="mx-auto flex w-full max-w-[118rem] gap-4 overflow-x-hidden px-2 pb-[calc(5.6rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:h-dvh lg:px-6 lg:py-3 lg:pb-3 xl:gap-6">
+        <aside className="hidden h-[calc(100dvh-1.5rem)] w-64 shrink-0 flex-col rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_18px_64px_rgba(31,41,28,0.10)] lg:flex">
           <Brand />
           <Nav view={view} onViewChange={onViewChange} />
-          <div className="mt-6 rounded-[24px] bg-[#eef3e8] p-4">
-            <p className="text-sm font-semibold">Clean app data</p>
-            <p className="mt-1 text-xs leading-5 text-[#62685e]">Only records created in DriverLogs are shown here.</p>
+          <div className="mt-auto">
+            <UserCard userName={displayName} onOpenSettings={() => onViewChange("Settings")} onLogout={onLogout} />
           </div>
-          <UserCard userName={displayName} onOpenSettings={() => onViewChange("Settings")} onLogout={onLogout} />
         </aside>
 
-        <section className="min-w-0 flex-1 lg:pb-3">
-          <header className="sticky top-0 z-20 -mx-2 border-b border-black/[0.06] bg-[#f5f7f2]/88 px-3 pb-2 pt-[max(0.35rem,env(safe-area-inset-top))] backdrop-blur-xl sm:-mx-5 sm:px-5 sm:pb-3 sm:pt-[max(0.75rem,env(safe-area-inset-top))] lg:relative lg:mx-0 lg:border-none lg:bg-transparent lg:px-0 lg:pt-0 lg:backdrop-blur-none">
-            <div className="flex items-center justify-between gap-3">
+        <section className="flex min-w-0 flex-1 flex-col lg:h-full lg:min-h-0">
+          <header className="sticky top-0 z-20 -mx-2 border-b border-black/[0.06] bg-[#f5f7f2]/88 px-3 pb-2 pt-[max(0.35rem,env(safe-area-inset-top))] backdrop-blur-xl sm:-mx-5 sm:px-5 sm:pb-3 sm:pt-[max(0.75rem,env(safe-area-inset-top))] lg:relative lg:mx-0 lg:mt-4 lg:flex lg:h-16 lg:shrink-0 lg:items-center lg:border-none lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0 lg:backdrop-blur-none">
+            <div className="flex w-full items-center justify-between gap-3">
               <div className="min-w-0">
                 <h1 className="truncate text-[30px] font-semibold leading-none tracking-tight sm:text-4xl">{title}</h1>
               </div>
@@ -40,7 +38,7 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
               </div>
             </div>
           </header>
-          {children}
+          <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-3">{children}</div>
         </section>
       </div>
 
@@ -85,7 +83,7 @@ function formatTodayLabel() {
 
 function Brand() {
   return (
-    <div className="flex items-center gap-3 px-2 py-2">
+    <div className="flex h-16 items-center gap-3 px-2">
       <BrandMark />
       <div>
         <p className="text-lg font-semibold leading-tight">DriverLogs</p>

@@ -57,14 +57,9 @@ export function FuelBreakdownSheet({ breakdown, confidence, onClose }: { breakdo
                 </button>
               </header>
 
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...sheetSpring, delay: 0.08 }} className="mt-4 rounded-[22px] bg-[#eef3e8] p-4">
-                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#456148]"><Divide size={13} />How it&apos;s calculated</p>
-                <p className="mt-2 text-sm leading-6 text-[#3c4a3c]">
-                  Every fill-up&apos;s liters are matched to the kilometers driven since the previous fill-up. The average is all liters divided by all kilometers — partial fills balance out over time.
-                </p>
-                <p className="mt-3 rounded-[14px] bg-white/80 px-3 py-2 text-center text-sm font-bold text-[#24603c]">
-                  {breakdown.total_liters} L ÷ {km(breakdown.total_distance_km)} × 100 = {breakdown.average_l_per_100km} L/100 km
-                </p>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...sheetSpring, delay: 0.08 }} className="mt-4 flex items-center justify-center gap-2 rounded-[18px] bg-[#eef3e8] px-3 py-3.5 text-center text-sm font-bold text-[#24603c]">
+                <Divide size={15} className="shrink-0 text-[#456148]" />
+                {breakdown.total_liters} L ÷ {km(breakdown.total_distance_km)} × 100 = {breakdown.average_l_per_100km} L/100 km
               </motion.div>
 
               <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{breakdown.intervals.length} odometer interval{breakdown.intervals.length === 1 ? "" : "s"}</p>

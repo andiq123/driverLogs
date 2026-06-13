@@ -28,7 +28,7 @@ export function DashboardView({ vehicle, expenses, userDocuments, totals, token,
           </div>
           <h2 className="relative mt-4 text-[30px] font-semibold leading-none tracking-tight sm:mt-6 sm:text-5xl">{vehicleName(vehicle)}</h2>
           <p className="relative mt-2 hidden max-w-xl text-sm leading-6 text-white/68 sm:block">Smart estimates use only records created for this car.</p>
-          <div className="relative mt-5 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-3 xl:max-w-3xl">
+          <div className="relative mt-5 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-3">
             <Metric label="Lifetime" value={money(totals.total_expenses_mdl)} sub={equivalents(totals.total_expenses_eur, totals.total_expenses_usd)} />
             <Metric label="Odometer" value={km(vehicle.odometer ?? 0)} sub="Current reading" />
             <Metric label="Cost/km" value={totals.cost_per_km_mdl ? `${totals.cost_per_km_mdl} MDL` : "Learning"} sub={`${totals.expense_count} entries`} />

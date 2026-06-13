@@ -30,17 +30,15 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
   if (vehicle && editingExpense) {
     return <ExpenseForm key={editingExpense.id} vehicle={vehicle} token={token} baseCurrency={baseCurrency} country={country} saving={savingExpense} expense={editingExpense} onUpdate={updateExpense} onCancel={() => setEditingExpense(undefined)} />;
   }
+  const showFilter = Boolean(vehicle) && expenses.length > 0 && presentCategories.length > 1;
   return (
-    <Panel title="Timeline" eyebrow={vehicle ? vehicleName(vehicle) : "Selected vehicle"}>
+    <Panel
+      title="Timeline"
+      eyebrow={vehicle ? vehicleName(vehicle) : "Selected vehicle"}
+      action={showFilter ? <div className="w-40 sm:w-52"><CustomSelect label="Filter" name="timeline-category-filter" icon={ListFilter} options={[allCategoriesFilter, ...presentCategories]} value={activeFilter} onChange={(value) => setCategoryFilter(value as TimelineFilter)} /></div> : undefined}
+    >
       {!vehicle ? <EmptyState icon={Activity} title="No timeline yet" body="Add a vehicle and start logging costs." /> : expenses.length === 0 ? <EmptyState icon={ReceiptText} title="No expenses logged" body="This car's history will appear here as clean chronological records." /> : (
         <div className="grid gap-2.5 sm:gap-3">
-          {presentCategories.length > 1 ? (
-            <div className="flex items-center justify-end">
-              <div className="w-full sm:w-56">
-                <CustomSelect label="Filter timeline" name="timeline-category-filter" icon={ListFilter} options={[allCategoriesFilter, ...presentCategories]} value={activeFilter} onChange={(value) => setCategoryFilter(value as TimelineFilter)} />
-              </div>
-            </div>
-          ) : null}
           {sorted.length === 0 ? <EmptyState icon={ListFilter} title="No matching expenses" body="Choose another category to see more timeline records." /> : null}
           {sorted.map((expense, index) => {
             const Icon = categoryIcon(expense.category);
