@@ -315,12 +315,8 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   }
 
   function changeCategory(nextCategory: ExpenseCategory) {
-    const previousCategory = category;
     setCategory(nextCategory);
-    if (previousCategory === "Maintenance" && nextCategory !== "Maintenance" && isServicePreset(description)) {
-      setDescription("");
-      setServiceType("");
-    }
+    if (nextCategory !== "Maintenance") setServiceType("");
   }
 
   useEffect(() => {
@@ -360,7 +356,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
             {category === "Maintenance" ? (
               <motion.div key="maintenance-presets" initial={{ opacity: 0, y: 12, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -6, filter: "blur(3px)" }} transition={{ duration: 0.32, ease: calmEase }}>
                 <input type="hidden" name="service_type" value={serviceType} />
-                <ServicePresets value={description} serviceType={serviceType} onChange={(nextDescription, nextType) => { setDescription(nextDescription); setServiceType(nextType); }} />
+                <ServicePresets value={serviceType} onChange={setServiceType} />
               </motion.div>
             ) : null}
           </AnimatePresence>
@@ -437,14 +433,18 @@ function fileKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
-function ServicePresets({ value, serviceType, onChange }: { value: string; serviceType: string; onChange: (description: string, serviceType: string) => void }) {
-  const options = servicePresetOptions;
+// Service presets are the single structured signal for what work was done.
+// Each chip toggles a key in `service_type` (a comma-separated set), e.g.
+// "oil_change,filters". The free-text Description stays a separate optional note,
+// so there is no duplicated input and oil-change detection is exact, not text-guessed.
+function ServicePresets({ value, onChange }: { value: string; onChange: (serviceType: string) => void }) {
+  const selected = serviceTypeKeys(value);
   return (
     <div className="flex flex-wrap gap-2">
-      {options.map((option) => {
-        const active = selectedServicePresets(value).includes(option.label);
+      {servicePresetOptions.map((option) => {
+        const active = selected.includes(option.value);
         return (
-          <button key={option.label} type="button" onClick={() => onChange(toggleServicePreset(value, option.label), active && serviceType === option.value ? "" : option.value)} className={`h-9 touch-manipulation rounded-full px-3 text-xs font-bold transition-[background-color,color,transform] duration-200 active:scale-[0.985] ${active ? "bg-[#151712] text-white" : "bg-[#eef3e8] text-[#62685e] hover:text-[#151712]"}`}>
+          <button key={option.value} type="button" aria-pressed={active} onClick={() => onChange(toggleServiceTypeKey(value, option.value))} className={`h-9 touch-manipulation rounded-full px-3 text-xs font-bold transition-[background-color,color,transform] duration-200 active:scale-[0.985] ${active ? "bg-[#151712] text-white" : "bg-[#eef3e8] text-[#62685e] hover:text-[#151712]"}`}>
             {option.label}
           </button>
         );
@@ -460,28 +460,14 @@ const servicePresetOptions = [
   { label: "Alignment", value: "alignment" },
 ];
 
-function isServicePreset(value: string) {
-  const selected = selectedServicePresets(value);
-  return selected.length > 0 && selected.length === splitServiceDescription(value).length;
+function serviceTypeKeys(value: string) {
+  return value.split(",").map((key) => key.trim()).filter(Boolean);
 }
 
-function toggleServicePreset(value: string, option: string) {
-  const parts = splitServiceDescription(value);
-  const exists = parts.some((part) => samePreset(part, option));
-  const next = exists ? parts.filter((part) => !samePreset(part, option)) : [...parts, option];
-  return next.join(" · ");
-}
-
-function selectedServicePresets(value: string) {
-  return splitServiceDescription(value).filter((part) => servicePresetOptions.some((option) => samePreset(part, option.label)));
-}
-
-function splitServiceDescription(value: string) {
-  return value.split(/[,·]/).map((part) => part.trim()).filter(Boolean);
-}
-
-function samePreset(value: string, option: string) {
-  return value.toLowerCase() === option.toLowerCase();
+function toggleServiceTypeKey(value: string, key: string) {
+  const keys = serviceTypeKeys(value);
+  const next = keys.includes(key) ? keys.filter((existing) => existing !== key) : [...keys, key];
+  return next.join(",");
 }
 
 function amountPlaceholder(category: ExpenseCategory, currency: string) {
@@ -492,7 +478,7 @@ function amountPlaceholder(category: ExpenseCategory, currency: string) {
 function descriptionPlaceholder(category: ExpenseCategory) {
   const placeholders: Record<ExpenseCategory, string> = {
     Fuel: "Station, route, or receipt note",
-    Maintenance: "Oil service, filters, alignment",
+    Maintenance: "Optional note · workshop, parts",
     Repairs: "Service work or workshop note",
     Insurance: "Policy, provider, or coverage",
     Tires: "Tire set, mounting, balancing",

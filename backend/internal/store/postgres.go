@@ -132,6 +132,10 @@ CREATE TABLE IF NOT EXISTS document_attachments (
 		`UPDATE expenses SET service_type='filters' WHERE category IN ('Maintenance', 'Repairs') AND service_type='oil_change' AND lower(description) NOT LIKE '%oil%' AND lower(description) NOT LIKE '%ulei%' AND lower(description) LIKE '%filter%'`,
 		`UPDATE expenses SET service_type='alignment' WHERE category IN ('Maintenance', 'Repairs') AND service_type='oil_change' AND lower(description) NOT LIKE '%oil%' AND lower(description) NOT LIKE '%ulei%' AND lower(description) LIKE '%alignment%'`,
 		`UPDATE expenses SET service_type='regular_service' WHERE category IN ('Maintenance', 'Repairs') AND service_type='oil_change' AND lower(description) NOT LIKE '%oil%' AND lower(description) NOT LIKE '%ulei%'`,
+		// Repair legacy multi-select desync: rows where an oil change was logged but the
+		// single-value service_type captured a different preset. Append the oil key so
+		// detection stays exact going forward (idempotent via the ALL guard).
+		`UPDATE expenses SET service_type = service_type || ',oil_change' WHERE category IN ('Maintenance', 'Repairs') AND service_type <> '' AND 'oil_change' <> ALL(string_to_array(service_type, ',')) AND (lower(description) LIKE '%oil change%' OR lower(description) LIKE '%oil service%' OR lower(description) LIKE '%schimb ulei%')`,
 	} {
 		if _, err := s.pool.Exec(ctx, statement); err != nil {
 			return fmt.Errorf("backfill expense smart fields: %w", err)

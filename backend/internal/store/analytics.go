@@ -103,16 +103,159 @@ func trendsFrom(expenses []domain.Expense) []map[string]any {
 }
 
 func insightsFrom(expenses []domain.Expense, currentOdometer, oilIntervalKM int) map[string]any {
+	now := time.Now().UTC()
 	insights := map[string]any{
 		"fuel":        fuelInsight(expenses),
 		"maintenance": maintenanceInsight(expenses, currentOdometer, oilIntervalKM),
 		"insurance":   yearlyExpiryInsight(expenses, "Insurance"),
 		"inspection":  yearlyExpiryInsight(expenses, "Inspection"),
+		"distance":    distanceInsight(expenses, now),
+		"spending":    spendingInsight(expenses, now),
 	}
 	insights["reminders"] = smartReminders(insights)
 	insights["anomalies"] = smartAnomalies(expenses)
-	insights["forecast"] = smartForecast(expenses, insights)
+	insights["forecast"] = smartForecast(expenses)
 	return insights
+}
+
+// distanceInsight estimates kilometers driven per calendar month from odometer
+// readings. A month's distance is the odometer at the month's last reading minus
+// the most recent reading before the month started, so partial logging still
+// yields a fair figure. Reports this month vs last month with a trend and a
+// short monthly series for a sparkline.
+func distanceInsight(expenses []domain.Expense, now time.Time) map[string]any {
+	type reading struct {
+		date time.Time
+		odo  int
+	}
+	readings := make([]reading, 0)
+	for _, expense := range expenses {
+		if expense.Odometer <= 0 {
+			continue
+		}
+		if date, ok := parseDate(expense.Date); ok {
+			readings = append(readings, reading{date, expense.Odometer})
+		}
+	}
+	sort.Slice(readings, func(i, j int) bool {
+		if readings[i].date.Equal(readings[j].date) {
+			return readings[i].odo < readings[j].odo
+		}
+		return readings[i].date.Before(readings[j].date)
+	})
+	emptyMonths := []map[string]any{}
+	if len(readings) < 2 {
+		return map[string]any{"status": "not_enough_data", "this_month_km": 0, "last_month_km": 0, "delta_km": 0, "trend": "first", "monthly_average_km": 0, "has_current": false, "months": emptyMonths}
+	}
+	odoAsOf := func(t time.Time) (int, bool) {
+		value := 0
+		found := false
+		for _, r := range readings {
+			if r.date.After(t) {
+				break
+			}
+			value = r.odo
+			found = true
+		}
+		return value, found
+	}
+	monthDistance := func(monthStart time.Time) (int, bool) {
+		before, okBefore := odoAsOf(monthStart.Add(-time.Nanosecond))
+		end, okEnd := odoAsOf(monthStart.AddDate(0, 1, 0).Add(-time.Nanosecond))
+		if !okBefore || !okEnd || end < before {
+			return 0, false
+		}
+		return end - before, true
+	}
+	thisStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	lastStart := thisStart.AddDate(0, -1, 0)
+	thisKM, okThis := monthDistance(thisStart)
+	lastKM, okLast := monthDistance(lastStart)
+	months := make([]map[string]any, 0, 6)
+	var sum, count int
+	for offset := 5; offset >= 1; offset-- {
+		monthStart := thisStart.AddDate(0, -offset, 0)
+		if km, ok := monthDistance(monthStart); ok {
+			months = append(months, map[string]any{"month": monthStart.Format("2006-01"), "km": km})
+			sum += km
+			count++
+		}
+	}
+	if okThis {
+		months = append(months, map[string]any{"month": thisStart.Format("2006-01"), "km": thisKM})
+	}
+	average := 0
+	if count > 0 {
+		average = sum / count
+	}
+	this := 0
+	if okThis {
+		this = thisKM
+	}
+	last := 0
+	if okLast {
+		last = lastKM
+	}
+	trend := "first"
+	delta := 0
+	if okLast {
+		delta = this - last
+		switch {
+		case delta > 0:
+			trend = "up"
+		case delta < 0:
+			trend = "down"
+		default:
+			trend = "flat"
+		}
+	}
+	return map[string]any{"status": "tracked", "this_month_km": this, "delta_km": delta, "trend": trend, "monthly_average_km": average, "has_current": okThis, "months": months}
+}
+
+// spendingInsight reports total spend this month vs last, with a trend and a
+// short monthly series. Sums stored stamped MDL values only (no recalculation).
+func spendingInsight(expenses []domain.Expense, now time.Time) map[string]any {
+	months := map[string]float64{}
+	for _, expense := range expenses {
+		month := expenseMonth(expense.Date)
+		if month == "" {
+			continue
+		}
+		months[month] += expense.AmountMDL
+	}
+	thisStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	thisKey := thisStart.Format("2006-01")
+	lastKey := thisStart.AddDate(0, -1, 0).Format("2006-01")
+	thisMDL := round2(months[thisKey])
+	lastMDL := round2(months[lastKey])
+	hasPrior := false
+	for month := range months {
+		if month < thisKey {
+			hasPrior = true
+			break
+		}
+	}
+	trend := "first"
+	delta := 0.0
+	if hasPrior {
+		delta = round2(thisMDL - lastMDL)
+		switch {
+		case delta > 0.001:
+			trend = "up"
+		case delta < -0.001:
+			trend = "down"
+		default:
+			trend = "flat"
+		}
+	}
+	series := make([]map[string]any, 0, 6)
+	for offset := 5; offset >= 0; offset-- {
+		monthKey := thisStart.AddDate(0, -offset, 0).Format("2006-01")
+		if amount, ok := months[monthKey]; ok {
+			series = append(series, map[string]any{"month": monthKey, "mdl": round2(amount)})
+		}
+	}
+	return map[string]any{"this_month_mdl": thisMDL, "delta_mdl": delta, "trend": trend, "months": series}
 }
 
 func fuelInsight(expenses []domain.Expense) map[string]any {
@@ -230,27 +373,6 @@ func serviceInsight(expenses []domain.Expense) map[string]any {
 	return map[string]any{"entry_count": count, "total_mdl": total, "average_mdl": average, "last_date": lastDate}
 }
 
-func categoryInsight(expenses []domain.Expense, category string) map[string]any {
-	var count int
-	var total float64
-	var lastDate string
-	for _, expense := range expenses {
-		if expense.Category != category {
-			continue
-		}
-		count++
-		total += expense.AmountMDL
-		if expense.Date > lastDate {
-			lastDate = expense.Date
-		}
-	}
-	average := 0.0
-	if count > 0 {
-		average = total / float64(count)
-	}
-	return map[string]any{"entry_count": count, "total_mdl": total, "average_mdl": average, "last_date": lastDate}
-}
-
 func yearlyExpiryInsight(expenses []domain.Expense, category string) map[string]any {
 	var lastDate, expiresDate string
 	for _, expense := range expenses {
@@ -292,9 +414,9 @@ func oilChangeExpenses(expenses []domain.Expense) []domain.Expense {
 		if expense.Category != "Maintenance" && expense.Category != "Repairs" {
 			continue
 		}
-		serviceType := strings.ToLower(expense.ServiceType)
-		description := strings.ToLower(expense.Description)
-		if serviceType == "oil_change" || hasOilChangeText(description) {
+		// The service_type set is the source of truth. Description text is only a
+		// fallback for legacy rows saved before the structured toggle existed.
+		if serviceTypeHasOil(expense.ServiceType) || (strings.TrimSpace(expense.ServiceType) == "" && hasOilChangeText(expense.Description)) {
 			matches = append(matches, expense)
 		}
 	}
@@ -302,11 +424,20 @@ func oilChangeExpenses(expenses []domain.Expense) []domain.Expense {
 	return matches
 }
 
+func serviceTypeHasOil(serviceType string) bool {
+	for key := range strings.SplitSeq(serviceType, ",") {
+		if strings.TrimSpace(strings.ToLower(key)) == "oil_change" {
+			return true
+		}
+	}
+	return false
+}
+
 func hasOilChangeText(description string) bool {
-	return strings.Contains(description, "oil change") ||
-		strings.Contains(description, "oil service") ||
-		strings.Contains(description, "schimb ulei") ||
-		strings.Contains(description, "ulei")
+	text := strings.ToLower(description)
+	return strings.Contains(text, "oil change") ||
+		strings.Contains(text, "oil service") ||
+		strings.Contains(text, "schimb ulei")
 }
 
 func oilChangeEstimate(expenses []domain.Expense, currentOdometer, configuredIntervalKM int) map[string]any {
@@ -432,17 +563,9 @@ func smartAnomalies(expenses []domain.Expense) []map[string]any {
 	return anomalies
 }
 
-func smartForecast(expenses []domain.Expense, insights map[string]any) map[string]any {
-	forecast := map[string]any{"next_30_days_mdl": round2(monthlyAverage(expenses)), "next_90_days_mdl": round2(monthlyAverage(expenses) * 3)}
-	maintenance, _ := insights["maintenance"].(map[string]any)
-	if maintenance != nil {
-		forecast["next_service_mdl"] = round2(numberFromAny(maintenance["average_mdl"]))
-	}
-	insurance := categoryInsight(expenses, "Insurance")
-	inspection := categoryInsight(expenses, "Inspection")
-	forecast["next_insurance_mdl"] = round2(numberFromAny(insurance["average_mdl"]))
-	forecast["next_inspection_mdl"] = round2(numberFromAny(inspection["average_mdl"]))
-	return forecast
+func smartForecast(expenses []domain.Expense) map[string]any {
+	monthly := monthlyAverage(expenses)
+	return map[string]any{"next_30_days_mdl": round2(monthly), "next_90_days_mdl": round2(monthly * 3)}
 }
 
 func monthlyAverage(expenses []domain.Expense) float64 {

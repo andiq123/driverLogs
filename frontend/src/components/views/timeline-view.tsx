@@ -42,7 +42,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
           {sorted.length === 0 ? <EmptyState icon={ListFilter} title="No matching expenses" body="Choose another category to see more timeline records." /> : null}
           {sorted.map((expense, index) => {
             const Icon = categoryIcon(expense.category);
-            const previousFuelExpense = expense.category === "Fuel" ? sorted.slice(index + 1).find((entry) => entry.category === "Fuel") : undefined;
+            const priorFuelExpenses = expense.category === "Fuel" ? sorted.slice(index + 1).filter((entry) => entry.category === "Fuel") : [];
             return (
               <div key={expense.id} className="grid gap-2.5 sm:gap-3">
                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.025, 0.18), duration: 0.18 }} className="min-w-0 overflow-hidden rounded-[20px] border border-black/[0.045] bg-[#fffffb]/92 p-2.5 shadow-[0_7px_22px_rgba(31,41,28,0.05)] ring-1 ring-white/70 sm:rounded-[24px] sm:p-3">
@@ -75,7 +75,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                     {filesExpenseID === expense.id ? <ExpenseAttachments expenseID={expense.id} token={token} /> : null}
                   </AnimatePresence>
                 </motion.div>
-                {expense.category === "Fuel" && previousFuelExpense ? <FuelFillupWin current={expense} previous={previousFuelExpense} /> : null}
+                {expense.category === "Fuel" && priorFuelExpenses.length ? <FuelFillupWin current={expense} history={priorFuelExpenses} /> : null}
               </div>
             );
           })}
@@ -114,13 +114,7 @@ function serviceTypeLabel(value: string) {
 
 function serviceDetail(expense: Expense) {
   if (!expense.service_type) return "";
-  if (hasServicePresetText(expense.description)) return "";
-  return serviceTypeLabel(expense.service_type);
-}
-
-function hasServicePresetText(value: string) {
-  const text = value.toLowerCase();
-  return ["oil change", "regular service", "filters", "alignment"].some((preset) => text.includes(preset));
+  return expense.service_type.split(",").map((key) => key.trim()).filter(Boolean).map(serviceTypeLabel).join(" · ");
 }
 
 function fuelPriceLabel(expense: Expense) {

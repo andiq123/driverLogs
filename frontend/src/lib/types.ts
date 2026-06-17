@@ -217,9 +217,32 @@ export type SmartInsights = {
   maintenance: MaintenanceInsight;
   insurance: YearlyExpiryInsight;
   inspection: YearlyExpiryInsight;
+  distance?: DistanceInsight;
+  spending?: SpendingInsight;
   reminders?: SmartReminder[];
   anomalies?: SmartAnomaly[];
   forecast?: SmartForecast;
+};
+
+export type MonthlyDistance = { month: string; km: number };
+
+export type DistanceInsight = {
+  status: "tracked" | "not_enough_data";
+  this_month_km: number;
+  delta_km: number;
+  trend: "up" | "down" | "flat" | "first";
+  monthly_average_km: number;
+  has_current: boolean;
+  months: MonthlyDistance[];
+};
+
+export type MonthlySpend = { month: string; mdl: number };
+
+export type SpendingInsight = {
+  this_month_mdl: number;
+  delta_mdl: number;
+  trend: "up" | "down" | "flat" | "first";
+  months: MonthlySpend[];
 };
 
 export type FuelInsight = {
@@ -302,9 +325,6 @@ export type SmartAnomaly = {
 export type SmartForecast = {
   next_30_days_mdl: number;
   next_90_days_mdl: number;
-  next_service_mdl?: number;
-  next_insurance_mdl?: number;
-  next_inspection_mdl?: number;
 };
 
 export type ChartDatum = {

@@ -80,6 +80,33 @@ const demoTotals: MoneyTotals = {
       days_left: 283,
       interval_days: 365,
     },
+    distance: {
+      status: "tracked",
+      this_month_km: 555,
+      delta_km: 27,
+      trend: "up",
+      monthly_average_km: 552,
+      has_current: true,
+      months: [
+        { month: "2026-02", km: 610 },
+        { month: "2026-03", km: 528 },
+        { month: "2026-04", km: 540 },
+        { month: "2026-05", km: 528 },
+        { month: "2026-06", km: 555 },
+      ],
+    },
+    spending: {
+      this_month_mdl: 1241.36,
+      delta_mdl: -2369.26,
+      trend: "down",
+      months: [
+        { month: "2026-02", mdl: 2190 },
+        { month: "2026-03", mdl: 4910 },
+        { month: "2026-04", mdl: 3350 },
+        { month: "2026-05", mdl: 3610.62 },
+        { month: "2026-06", mdl: 1241.36 },
+      ],
+    },
   },
 };
 
