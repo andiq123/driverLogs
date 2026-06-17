@@ -88,11 +88,11 @@ const demoTotals: MoneyTotals = {
       monthly_average_km: 552,
       has_current: true,
       months: [
-        { month: "2026-02", km: 610, from_odometer: 182000, to_odometer: 182610 },
-        { month: "2026-03", km: 528, from_odometer: 182610, to_odometer: 183138 },
-        { month: "2026-04", km: 540, from_odometer: 183138, to_odometer: 183678 },
-        { month: "2026-05", km: 528, from_odometer: 183678, to_odometer: 184206 },
-        { month: "2026-06", km: 555, from_odometer: 184206, to_odometer: 184761 },
+        { month: "2026-02", km: 610, from_odometer: 182000, to_odometer: 182610, logs: [{ label: "OMV Romania", odometer: 182610, category: "Fuel" }] },
+        { month: "2026-03", km: 528, from_odometer: 182610, to_odometer: 183138, logs: [{ label: "Rompetrol", odometer: 183138, category: "Fuel" }] },
+        { month: "2026-04", km: 540, from_odometer: 183138, to_odometer: 183678, logs: [{ label: "Brake pads · Alignment", odometer: 183678, category: "Maintenance" }] },
+        { month: "2026-05", km: 528, from_odometer: 183678, to_odometer: 184206, logs: [{ label: "Petrom", odometer: 184206, category: "Fuel" }] },
+        { month: "2026-06", km: 555, from_odometer: 184206, to_odometer: 184761, logs: [{ label: "Oil change · Filters", odometer: 184500, category: "Maintenance" }, { label: "Petrom", odometer: 184761, category: "Fuel" }] },
       ],
     },
     spending: {

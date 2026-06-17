@@ -51,6 +51,16 @@ function MonthRow({ entry, index, maxKM, isCurrent }: { entry: MonthlyDistance; 
         <motion.div initial={{ width: 0 }} animate={{ width }} transition={{ type: "spring", stiffness: 90, damping: 22, delay: 0.2 + index * 0.05 }} className={`h-full rounded-full ${isCurrent ? "bg-[#3a8e57]" : "bg-[#b6c8aa]"}`} />
       </div>
       <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#62685e]"><Milestone size={13} />{km(entry.from_odometer)} → {km(entry.to_odometer)}</p>
+      {entry.logs && entry.logs.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {entry.logs.map((log, logIndex) => (
+            <span key={`${log.odometer}-${logIndex}`} className="inline-flex max-w-full items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-[#62685e]">
+              <span className="truncate">{log.label}</span>
+              <span className="shrink-0 font-bold text-[#4b5147]">{km(log.odometer)}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
     </motion.div>
   );
 }

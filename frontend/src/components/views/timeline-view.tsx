@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
-import { Activity, BarChart3, EyeOff, FileText, ListFilter, Pencil, ReceiptText, Trash2 } from "lucide-react";
+import { Activity, BarChart3, EyeOff, FileText, ListFilter, Pencil, ReceiptText, Trash2, TrendingUp } from "lucide-react";
 import type { Expense, ExpenseCategory, Vehicle } from "@/lib/types";
 import { categories, categoryIcon } from "@/lib/theme";
 import { dateText, equivalents, km, money, vehicleName } from "@/lib/format";
@@ -19,6 +19,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
   const [categoryFilter, setCategoryFilter] = useState<TimelineFilter>(allCategoriesFilter);
   const filesExpenseID = openExpenseFilesID ?? localFilesExpenseID;
   const presentCategories = useMemo(() => categoryOptions(expenses), [expenses]);
+  const odometerGains = useMemo(() => odometerGainsByID(expenses), [expenses]);
   const activeFilter = categoryFilter === allCategoriesFilter || presentCategories.includes(categoryFilter) ? categoryFilter : allCategoriesFilter;
   const filteredExpenses = activeFilter === allCategoriesFilter ? expenses : expenses.filter((expense) => expense.category === activeFilter);
   const sorted = [...filteredExpenses].sort((a, b) => b.date.localeCompare(a.date));
@@ -56,7 +57,12 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                       ) : null}
                       {serviceDetail(expense) ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceDetail(expense)}</span> : null}
                       {expense.expires_date ? <span className="mt-1 block text-xs text-[#8a6a10]">Expires {dateText(expense.expires_date)}</span> : null}
-                      {expense.odometer ? <span className="mt-1 block text-xs text-[#6b7065]">{km(expense.odometer)}</span> : null}
+                      {expense.odometer ? (
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#6b7065]">
+                          {km(expense.odometer)}
+                          {odometerGains[expense.id] ? <span className="inline-flex items-center gap-1 rounded-full bg-[#eef6e9] px-2 py-0.5 text-[10px] font-bold text-[#24603c]"><TrendingUp size={11} />+{km(odometerGains[expense.id])}</span> : null}
+                        </span>
+                      ) : null}
                       {expense.exclude_from_analytics ? <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-[#fff8df] px-2 py-0.5 text-[11px] font-bold text-[#7b5a12]"><EyeOff size={12} /> Excluded</span> : null}
                     </span>
                     <span className="grid min-w-0 justify-items-end gap-1 text-right sm:ml-auto">
@@ -88,6 +94,20 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
 function categoryOptions(expenses: Expense[]) {
   const present = new Set(expenses.map((expense) => expense.category));
   return categories.filter((category) => present.has(category));
+}
+
+// Maps each expense to the km gained since the previous odometer reading across
+// the whole vehicle history, so the badge stays correct even when filtered.
+function odometerGainsByID(expenses: Expense[]) {
+  const withOdometer = expenses
+    .filter((expense) => (expense.odometer ?? 0) > 0)
+    .sort((a, b) => (a.date === b.date ? (a.odometer ?? 0) - (b.odometer ?? 0) : a.date.localeCompare(b.date)));
+  const gains: Record<string, number> = {};
+  for (let index = 1; index < withOdometer.length; index += 1) {
+    const delta = (withOdometer[index].odometer ?? 0) - (withOdometer[index - 1].odometer ?? 0);
+    if (delta > 0) gains[withOdometer[index].id] = delta;
+  }
+  return gains;
 }
 
 function toggleFiles(expenseID: string, currentID: string, onOpen: ((id: string) => void) | undefined, setLocal: (id: string) => void) {
