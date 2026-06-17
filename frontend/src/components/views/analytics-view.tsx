@@ -9,6 +9,13 @@ import { palette } from "@/lib/theme";
 import { ChartSkeleton, EmptyState, Panel } from "../ui";
 import { SmartInsightsPanel } from "../smart-insights";
 
+const tooltipStyle = {
+  cursor: { fill: "rgba(31,41,28,0.05)" },
+  contentStyle: { borderRadius: 16, border: "1px solid rgba(0,0,0,0.06)", boxShadow: "0 12px 34px rgba(31,41,28,0.12)", padding: "8px 12px", background: "#fffefb" },
+  labelStyle: { fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "#62685e", marginBottom: 2 },
+  itemStyle: { fontSize: 13, fontWeight: 700, color: "#151712", padding: 0 },
+} as const;
+
 export function AnalyticsView({ mounted, vehicle, totals }: { mounted: boolean; vehicle?: Vehicle; totals: MoneyTotals }) {
   const showCharts = useMinWidth("(min-width: 640px)");
 
@@ -24,7 +31,7 @@ export function AnalyticsView({ mounted, vehicle, totals }: { mounted: boolean; 
             <MobileCategoryList rows={totals.category_totals} total={totals.total_expenses_mdl} />
             {showCharts ? (
               <ChartSurface mounted={mounted}>
-                {({ width, height }) => <PieChart width={width} height={height}><Pie data={totals.category_totals} innerRadius={64} outerRadius={96} paddingAngle={4} dataKey="amount_mdl">{totals.category_totals.map((entry, index) => <Cell key={entry.name} fill={palette[index % palette.length]} />)}</Pie><Tooltip /></PieChart>}
+                {({ width, height }) => <PieChart width={width} height={height}><Pie data={totals.category_totals} innerRadius={64} outerRadius={96} paddingAngle={4} dataKey="amount_mdl">{totals.category_totals.map((entry, index) => <Cell key={entry.name} fill={palette[index % palette.length]} />)}</Pie><Tooltip {...tooltipStyle} formatter={(value, name) => [money(Number(value)), String(name)]} /></PieChart>}
               </ChartSurface>
             ) : null}
           </>
@@ -36,7 +43,7 @@ export function AnalyticsView({ mounted, vehicle, totals }: { mounted: boolean; 
             <MobileTrendList rows={totals.trends} />
             {showCharts ? (
               <ChartSurface mounted={mounted}>
-                {({ width, height }) => <AreaChart width={width} height={height} data={totals.trends}><XAxis dataKey="month" tickFormatter={monthLabel} axisLine={false} tickLine={false} /><YAxis hide /><Tooltip labelFormatter={(label) => typeof label === "string" ? monthLabel(label) : label} /><Area type="monotone" dataKey="amount_mdl" stroke="#0f8f68" fill="#dfe7d4" strokeWidth={3} /></AreaChart>}
+                {({ width, height }) => <AreaChart width={width} height={height} data={totals.trends}><XAxis dataKey="month" tickFormatter={monthLabel} axisLine={false} tickLine={false} /><YAxis hide /><Tooltip {...tooltipStyle} labelFormatter={(label) => typeof label === "string" ? monthLabel(label) : label} formatter={(value) => [money(Number(value)), "Spent"]} /><Area type="monotone" dataKey="amount_mdl" stroke="#0f8f68" fill="#dfe7d4" strokeWidth={3} /></AreaChart>}
               </ChartSurface>
             ) : null}
           </>

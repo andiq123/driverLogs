@@ -159,30 +159,37 @@ func distanceInsight(expenses []domain.Expense, now time.Time) map[string]any {
 		}
 		return value, found
 	}
-	monthDistance := func(monthStart time.Time) (int, bool) {
+	monthDistance := func(monthStart time.Time) (from int, to int, ok bool) {
 		before, okBefore := odoAsOf(monthStart.Add(-time.Nanosecond))
 		end, okEnd := odoAsOf(monthStart.AddDate(0, 1, 0).Add(-time.Nanosecond))
 		if !okBefore || !okEnd || end < before {
-			return 0, false
+			return 0, 0, false
 		}
-		return end - before, true
+		return before, end, true
+	}
+	monthEntry := func(monthStart time.Time) (map[string]any, int, bool) {
+		from, to, ok := monthDistance(monthStart)
+		if !ok {
+			return nil, 0, false
+		}
+		distance := to - from
+		return map[string]any{"month": monthStart.Format("2006-01"), "km": distance, "from_odometer": from, "to_odometer": to}, distance, true
 	}
 	thisStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	lastStart := thisStart.AddDate(0, -1, 0)
-	thisKM, okThis := monthDistance(thisStart)
-	lastKM, okLast := monthDistance(lastStart)
+	_, thisKM, okThis := monthEntry(thisStart)
+	_, lastKM, okLast := monthEntry(lastStart)
 	months := make([]map[string]any, 0, 6)
 	var sum, count int
 	for offset := 5; offset >= 1; offset-- {
-		monthStart := thisStart.AddDate(0, -offset, 0)
-		if km, ok := monthDistance(monthStart); ok {
-			months = append(months, map[string]any{"month": monthStart.Format("2006-01"), "km": km})
+		if entry, km, ok := monthEntry(thisStart.AddDate(0, -offset, 0)); ok {
+			months = append(months, entry)
 			sum += km
 			count++
 		}
 	}
-	if okThis {
-		months = append(months, map[string]any{"month": thisStart.Format("2006-01"), "km": thisKM})
+	if entry, _, ok := monthEntry(thisStart); ok {
+		months = append(months, entry)
 	}
 	average := 0
 	if count > 0 {
@@ -215,16 +222,20 @@ func distanceInsight(expenses []domain.Expense, now time.Time) map[string]any {
 // spendingInsight reports total spend this month vs last, with a trend and a
 // short monthly series. Sums stored stamped MDL values only (no recalculation).
 func spendingInsight(expenses []domain.Expense, now time.Time) map[string]any {
+	thisStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	thisKey := thisStart.Format("2006-01")
 	months := map[string]float64{}
+	thisCategories := map[string]float64{}
 	for _, expense := range expenses {
 		month := expenseMonth(expense.Date)
 		if month == "" {
 			continue
 		}
 		months[month] += expense.AmountMDL
+		if month == thisKey {
+			thisCategories[expense.Category] += expense.AmountMDL
+		}
 	}
-	thisStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	thisKey := thisStart.Format("2006-01")
 	lastKey := thisStart.AddDate(0, -1, 0).Format("2006-01")
 	thisMDL := round2(months[thisKey])
 	lastMDL := round2(months[lastKey])
@@ -255,7 +266,16 @@ func spendingInsight(expenses []domain.Expense, now time.Time) map[string]any {
 			series = append(series, map[string]any{"month": monthKey, "mdl": round2(amount)})
 		}
 	}
-	return map[string]any{"this_month_mdl": thisMDL, "delta_mdl": delta, "trend": trend, "months": series}
+	categories := make([]map[string]any, 0, len(thisCategories))
+	for name, amount := range thisCategories {
+		share := 0.0
+		if thisMDL > 0 {
+			share = round2(amount / thisMDL * 100)
+		}
+		categories = append(categories, map[string]any{"name": name, "mdl": round2(amount), "share": share})
+	}
+	sort.Slice(categories, func(i, j int) bool { return numberFromAny(categories[i]["mdl"]) > numberFromAny(categories[j]["mdl"]) })
+	return map[string]any{"this_month_mdl": thisMDL, "delta_mdl": delta, "trend": trend, "months": series, "categories": categories}
 }
 
 func fuelInsight(expenses []domain.Expense) map[string]any {
@@ -325,9 +345,10 @@ func fuelConsumption(expenses []domain.Expense) (float64, int, map[string]any) {
 				"from_odometer": previous.Odometer,
 				"to_odometer":   expense.Odometer,
 				"distance_km":   distance,
-				"liters":        round2(expense.FuelLiters),
-				"l_per_100km":   round2(expense.FuelLiters / float64(distance) * 100),
-				"station":       expense.Description,
+				"liters":             round2(expense.FuelLiters),
+				"l_per_100km":        round2(expense.FuelLiters / float64(distance) * 100),
+				"price_per_liter_mdl": round2(expense.FuelPricePerLiterMDL),
+				"station":            expense.Description,
 			})
 		}
 		previous = &expenses[index]

@@ -38,9 +38,9 @@ const demoTotals: MoneyTotals = {
       consumption_confidence: "learned",
       consumption_breakdown: {
         intervals: [
-          { from_date: "2026-01-07", to_date: "2026-03-04", from_odometer: 183180, to_odometer: 183747, distance_km: 567, liters: 43.1, l_per_100km: 7.6, station: "Rompetrol" },
-          { from_date: "2026-03-04", to_date: "2026-05-24", from_odometer: 183747, to_odometer: 184275, distance_km: 528, liters: 40.09, l_per_100km: 7.59, station: "Petrom" },
-          { from_date: "2026-05-24", to_date: "2026-06-05", from_odometer: 184275, to_odometer: 184830, distance_km: 555, liters: 42.18, l_per_100km: 7.6, station: "Petrom" },
+          { from_date: "2026-01-07", to_date: "2026-03-04", from_odometer: 183180, to_odometer: 183747, distance_km: 567, liters: 43.1, l_per_100km: 7.6, price_per_liter_mdl: 21.3, station: "Rompetrol" },
+          { from_date: "2026-03-04", to_date: "2026-05-24", from_odometer: 183747, to_odometer: 184275, distance_km: 528, liters: 40.09, l_per_100km: 7.59, price_per_liter_mdl: 31.32, station: "Petrom" },
+          { from_date: "2026-05-24", to_date: "2026-06-05", from_odometer: 184275, to_odometer: 184830, distance_km: 555, liters: 42.18, l_per_100km: 7.6, price_per_liter_mdl: 29.43, station: "Petrom" },
         ],
         total_liters: 125.37,
         total_distance_km: 1650,
@@ -88,11 +88,11 @@ const demoTotals: MoneyTotals = {
       monthly_average_km: 552,
       has_current: true,
       months: [
-        { month: "2026-02", km: 610 },
-        { month: "2026-03", km: 528 },
-        { month: "2026-04", km: 540 },
-        { month: "2026-05", km: 528 },
-        { month: "2026-06", km: 555 },
+        { month: "2026-02", km: 610, from_odometer: 182000, to_odometer: 182610 },
+        { month: "2026-03", km: 528, from_odometer: 182610, to_odometer: 183138 },
+        { month: "2026-04", km: 540, from_odometer: 183138, to_odometer: 183678 },
+        { month: "2026-05", km: 528, from_odometer: 183678, to_odometer: 184206 },
+        { month: "2026-06", km: 555, from_odometer: 184206, to_odometer: 184761 },
       ],
     },
     spending: {
@@ -105,6 +105,9 @@ const demoTotals: MoneyTotals = {
         { month: "2026-04", mdl: 3350 },
         { month: "2026-05", mdl: 3610.62 },
         { month: "2026-06", mdl: 1241.36 },
+      ],
+      categories: [
+        { name: "Fuel", mdl: 1241.36, share: 100 },
       ],
     },
   },

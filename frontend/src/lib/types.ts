@@ -224,7 +224,7 @@ export type SmartInsights = {
   forecast?: SmartForecast;
 };
 
-export type MonthlyDistance = { month: string; km: number };
+export type MonthlyDistance = { month: string; km: number; from_odometer: number; to_odometer: number };
 
 export type DistanceInsight = {
   status: "tracked" | "not_enough_data";
@@ -238,11 +238,14 @@ export type DistanceInsight = {
 
 export type MonthlySpend = { month: string; mdl: number };
 
+export type SpendingCategory = { name: string; mdl: number; share: number };
+
 export type SpendingInsight = {
   this_month_mdl: number;
   delta_mdl: number;
   trend: "up" | "down" | "flat" | "first";
   months: MonthlySpend[];
+  categories: SpendingCategory[];
 };
 
 export type FuelInsight = {
@@ -264,6 +267,7 @@ export type FuelConsumptionInterval = {
   distance_km: number;
   liters: number;
   l_per_100km: number;
+  price_per_liter_mdl?: number;
   station?: string;
 };
 

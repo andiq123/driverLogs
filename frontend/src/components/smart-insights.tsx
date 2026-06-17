@@ -7,21 +7,31 @@ import type { DistanceInsight, OilChangeInsight, SmartInsights, SpendingInsight,
 import { km, money } from "@/lib/format";
 import { insightTones } from "@/lib/theme";
 import { FuelBreakdownSheet } from "./fuel-breakdown-sheet";
+import { DrivingBreakdownSheet } from "./driving-breakdown-sheet";
+import { SpendingBreakdownSheet } from "./spending-breakdown-sheet";
 
 type InsightTone = keyof typeof insightTones;
 
 export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   const oil = insights.maintenance.oil_change;
   const fuelBreakdown = insights.fuel.consumption_breakdown;
+  const distance = insights.distance;
+  const distanceHasBreakdown = Boolean(distance && distance.months.length > 0);
+  const spending = insights.spending;
+  const spendingHasBreakdown = Boolean(spending && spending.categories.length > 0);
   const [showFuelMath, setShowFuelMath] = useState(false);
+  const [showDrivingMath, setShowDrivingMath] = useState(false);
+  const [showSpendingMath, setShowSpendingMath] = useState(false);
   return (
     <section className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 2xl:grid-cols-5">
-      <InsightTile index={0} icon={CalendarClock} title="Oil" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} tone={oilTone(oil.remaining_km, oil.next_odometer)} badge={oilBadge(oil.remaining_km, oil.next_odometer)} progress={oilProgress(oil)} />
+      <InsightTile index={0} icon={CalendarClock} title="Oil" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} subnote={oilSubnote(oil)} tone={oilTone(oil.remaining_km, oil.next_odometer)} badge={oilBadge(oil.remaining_km, oil.next_odometer)} progress={oilProgress(oil)} />
       <InsightTile index={1} icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples)} onClick={fuelBreakdown ? () => setShowFuelMath(true) : undefined} />
       <FuelBreakdownSheet breakdown={showFuelMath ? fuelBreakdown : undefined} confidence={insights.fuel.consumption_confidence} onClose={() => setShowFuelMath(false)} />
-      {insights.distance ? <InsightTile index={2} icon={Route} title="Driving" value={distanceValue(insights.distance)} detail={distanceDetail(insights.distance)} sparkline={insights.distance.months.map((entry) => entry.km)} /> : null}
-      <InsightTile index={3} icon={Wrench} title="Service" value={insights.maintenance.average_mdl ? money(insights.maintenance.average_mdl) : "No service yet"} detail={entryDetail(insights.maintenance.entry_count)} />
-      {insights.spending ? <InsightTile index={4} icon={Wallet} title="Spending" value={spendingValue(insights.spending)} detail={spendingDetail(insights.spending)} tone={spendingTone(insights.spending)} sparkline={insights.spending.months.map((entry) => entry.mdl)} /> : null}
+      {distance ? <InsightTile index={2} icon={Route} title="Driving" value={distanceValue(distance)} detail={distanceDetail(distance)} sparkline={distance.months.map((entry) => entry.km)} onClick={distanceHasBreakdown ? () => setShowDrivingMath(true) : undefined} /> : null}
+      <DrivingBreakdownSheet distance={showDrivingMath ? distance : undefined} onClose={() => setShowDrivingMath(false)} />
+      <InsightTile index={3} icon={Wrench} title="Service" value={insights.maintenance.average_mdl ? money(insights.maintenance.average_mdl) : "No service yet"} detail={entryDetail(insights.maintenance.entry_count)} subnote={insights.maintenance.last_date ? `Last service ${formatDate(insights.maintenance.last_date)}` : undefined} />
+      {spending ? <InsightTile index={4} icon={Wallet} title="Spending" value={spendingValue(spending)} detail={spendingDetail(spending)} tone={spendingTone(spending)} sparkline={spending.months.map((entry) => entry.mdl)} onClick={spendingHasBreakdown ? () => setShowSpendingMath(true) : undefined} /> : null}
+      <SpendingBreakdownSheet spending={showSpendingMath ? spending : undefined} onClose={() => setShowSpendingMath(false)} />
       <InsightTile index={5} icon={ShieldCheck} title="Insurance" value={expiryValue(insights.insurance)} detail={expiryDetail("insurance", insights.insurance)} tone={expiryTone(insights.insurance)} badge={expiryBadge(insights.insurance)} />
       <InsightTile index={6} icon={CheckCircle2} title="ITP" value={expiryValue(insights.inspection)} detail={expiryDetail("technical inspection", insights.inspection)} tone={expiryTone(insights.inspection)} badge={expiryBadge(insights.inspection)} />
       <AnimatePresence initial={false}>
@@ -31,7 +41,7 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   );
 }
 
-function InsightTile({ icon: Icon, title, value, detail, tone = "neutral", badge, progress, sparkline, index = 0, onClick }: { icon: LucideIcon; title: string; value: string; detail: ReactNode; tone?: InsightTone; badge?: string; progress?: number; sparkline?: number[]; index?: number; onClick?: () => void }) {
+function InsightTile({ icon: Icon, title, value, detail, subnote, tone = "neutral", badge, progress, sparkline, index = 0, onClick }: { icon: LucideIcon; title: string; value: string; detail: ReactNode; subnote?: ReactNode; tone?: InsightTone; badge?: string; progress?: number; sparkline?: number[]; index?: number; onClick?: () => void }) {
   const colors = insightTones[tone];
   return (
     <motion.div
@@ -54,6 +64,7 @@ function InsightTile({ icon: Icon, title, value, detail, tone = "neutral", badge
       </div>
       <p className="relative mt-2 line-clamp-2 text-base font-bold leading-tight sm:mt-3 sm:text-lg">{value}</p>
       <p className={`relative mt-1 line-clamp-2 text-[11px] leading-4 sm:line-clamp-3 sm:text-xs sm:leading-5 ${colors.detail}`}>{detail}</p>
+      {subnote ? <p className={`relative mt-1 truncate text-[10px] font-medium opacity-80 ${colors.detail}`}>{subnote}</p> : null}
       {progress !== undefined ? (
         <div className={`relative mt-2 sm:mt-3 ${badge ? "pr-14" : ""}`}>
           <div className="h-1.5 overflow-hidden rounded-full bg-black/[0.08]">
@@ -89,6 +100,11 @@ function MiniSparkline({ values, className }: { values: number[]; className?: st
       <circle cx={lastX} cy={lastY} r={2.4} fill="currentColor" />
     </svg>
   );
+}
+
+function oilSubnote(oil: OilChangeInsight) {
+  if (!oil.last_odometer) return undefined;
+  return oil.last_date ? `Last change ${km(oil.last_odometer)} · ${formatDate(oil.last_date)}` : `Last change ${km(oil.last_odometer)}`;
 }
 
 function oilProgress(oil: OilChangeInsight) {
