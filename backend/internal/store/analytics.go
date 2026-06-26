@@ -251,6 +251,7 @@ func spendingInsight(expenses []domain.Expense, now time.Time) map[string]any {
 	thisKey := thisStart.Format("2006-01")
 	months := map[string]float64{}
 	thisCategories := map[string]float64{}
+	thisCounts := map[string]int{}
 	for _, expense := range expenses {
 		month := expenseMonth(expense.Date)
 		if month == "" {
@@ -259,6 +260,7 @@ func spendingInsight(expenses []domain.Expense, now time.Time) map[string]any {
 		months[month] += expense.AmountMDL
 		if month == thisKey {
 			thisCategories[expense.Category] += expense.AmountMDL
+			thisCounts[expense.Category]++
 		}
 	}
 	lastKey := thisStart.AddDate(0, -1, 0).Format("2006-01")
@@ -297,7 +299,11 @@ func spendingInsight(expenses []domain.Expense, now time.Time) map[string]any {
 		if thisMDL > 0 {
 			share = round2(amount / thisMDL * 100)
 		}
-		categories = append(categories, map[string]any{"name": name, "mdl": round2(amount), "share": share})
+		avg := 0.0
+		if thisCounts[name] > 0 {
+			avg = round2(amount / float64(thisCounts[name]))
+		}
+		categories = append(categories, map[string]any{"name": name, "mdl": round2(amount), "share": share, "count": thisCounts[name], "average_mdl": avg})
 	}
 	sort.Slice(categories, func(i, j int) bool { return numberFromAny(categories[i]["mdl"]) > numberFromAny(categories[j]["mdl"]) })
 	return map[string]any{"this_month_mdl": thisMDL, "delta_mdl": delta, "trend": trend, "months": series, "categories": categories}

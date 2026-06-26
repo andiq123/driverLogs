@@ -43,6 +43,7 @@ function CategoryRow({ category, index }: { category: SpendingCategory; index: n
         <span className="inline-flex min-w-0 items-center gap-2 font-bold">{createElement(categoryIcon(category.name as ExpenseCategory), { size: 15, className: "shrink-0 text-[#62685e]" })}<span className="truncate">{category.name}</span></span>
         <span className="shrink-0 font-bold">{money(category.mdl)}</span>
       </div>
+      <p className="mt-0.5 text-[11px] text-[#62685e]">{category.count} {entryNoun(category.name)}{category.count === 1 ? "" : "s"}{category.count > 1 ? ` · avg ${money(category.average_mdl)}` : ""}</p>
       <div className="mt-2 flex items-center gap-2">
         <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.07]">
           <motion.span initial={{ width: 0 }} animate={{ width: `${Math.max(4, Math.round(category.share))}%` }} transition={{ type: "spring", stiffness: 90, damping: 22, delay: 0.2 + index * 0.05 }} className="block h-full rounded-full" style={{ backgroundColor: color }} />
@@ -51,6 +52,12 @@ function CategoryRow({ category, index }: { category: SpendingCategory; index: n
       </div>
     </motion.div>
   );
+}
+
+// Per-category noun, all pluralize with a trailing "s".
+function entryNoun(category: string) {
+  const nouns: Record<string, string> = { Fuel: "fill-up", Maintenance: "service", Insurance: "payment", Inspection: "check", Tires: "purchase", Parking: "payment", Upgrades: "upgrade" };
+  return nouns[category] ?? "expense";
 }
 
 function trendText(spending: SpendingInsight) {

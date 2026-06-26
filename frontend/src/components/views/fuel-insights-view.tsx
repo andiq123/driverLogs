@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Fuel, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import { getFuelMarket } from "@/lib/api";
 import { normalizeFuelType } from "@/lib/car-options";
+import { demoToken, isLocalDemoEnabled } from "@/lib/demo-mode";
 import type { FuelComparisonResponse, FuelMarketResponse, FuelTrendChange, FuelTrendResponse } from "@/lib/types";
 import { EmptyState, SkeletonLine } from "../ui";
 
@@ -32,7 +33,9 @@ function fetchMarket(token: string, country: string, compareCountry: string, ref
 
 export function FuelInsightsView({ token, country, compareCountry, preferredFuelType = "Super 95" }: { token: string; country: string; compareCountry: string; preferredFuelType?: string }) {
   const marketKey = `${country}:${compareCountry}`;
+  const isDemo = isLocalDemoEnabled && token === demoToken;
   const [market, setMarket] = useState<FuelMarketResponse | undefined>(() => marketCache.get(marketKey));
+  const [demoMarket, setDemoMarket] = useState<FuelMarketResponse>();
   const [failed, setFailed] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
   const tokenRef = useRef(token);
@@ -43,6 +46,12 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
 
   useEffect(() => {
     let cancelled = false;
+    if (isDemo) {
+      void import("@/lib/demo-data").then(({ demoFuelMarket }) => {
+        if (!cancelled) setDemoMarket(demoFuelMarket);
+      });
+      return () => { cancelled = true; };
+    }
     const [nextCountry, nextCompare] = marketKey.split(":");
     void Promise.resolve().then(() => {
       if (cancelled) return;
@@ -64,10 +73,10 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
     return () => {
       cancelled = true;
     };
-  }, [marketKey]);
+  }, [isDemo, marketKey]);
 
   async function revalidate() {
-    if (revalidating) return;
+    if (isDemo || revalidating) return;
     setRevalidating(true);
     setFailed(false);
     try {
@@ -80,23 +89,24 @@ export function FuelInsightsView({ token, country, compareCountry, preferredFuel
     }
   }
 
-  const trends = market?.trends;
-  const comparison = market?.comparison;
+  const activeMarket = isDemo ? demoMarket : market;
+  const trends = activeMarket?.trends;
+  const comparison = activeMarket?.comparison;
   // ponytail: label uses the backend-stamped remaining seconds, refreshes on revalidate/remount — no clock, no per-minute tick
-  const cacheText = market?.cache ? cacheTimeLeft(market.cache.expires_in_seconds) : "";
+  const cacheText = activeMarket?.cache ? cacheTimeLeft(activeMarket.cache.expires_in_seconds) : "";
   const biggestMove = useMemo(() => trends?.rows.reduce((best, row) => Math.abs(row.year.percent) > Math.abs(best.year.percent) ? row : best, trends.rows[0]), [trends]);
   const preferredFuel = useMemo(() => trends?.rows.find((row) => row.fuel_type === preferredTrendFuel(preferredFuelType)), [preferredFuelType, trends]);
   const comparisonByFuel = useMemo(() => new Map(comparison?.rows.map((row) => [row.fuel_type, row]) ?? []), [comparison]);
 
   return (
     <div className="grid gap-3 sm:gap-4">
-      <FuelHero trends={trends} preferredFuel={preferredFuel} biggestMove={biggestMove} cacheText={cacheText} revalidating={revalidating} onRevalidate={revalidate} />
-      <FuelRows trends={trends} comparisonByFuel={comparisonByFuel} compareCountry={compareCountry} failed={failed} />
+      <FuelHero trends={trends} preferredFuel={preferredFuel} biggestMove={biggestMove} cacheText={cacheText} isDemo={isDemo} revalidating={revalidating} onRevalidate={revalidate} />
+      <FuelRows trends={trends} comparisonByFuel={comparisonByFuel} compareCountry={compareCountry} failed={!isDemo && failed} />
     </div>
   );
 }
 
-function FuelHero({ trends, preferredFuel, biggestMove, cacheText, revalidating, onRevalidate }: { trends?: FuelTrendResponse; preferredFuel?: FuelTrendResponse["rows"][number]; biggestMove?: FuelTrendResponse["rows"][number]; cacheText: string; revalidating: boolean; onRevalidate: () => Promise<void> }) {
+function FuelHero({ trends, preferredFuel, biggestMove, cacheText, isDemo, revalidating, onRevalidate }: { trends?: FuelTrendResponse; preferredFuel?: FuelTrendResponse["rows"][number]; biggestMove?: FuelTrendResponse["rows"][number]; cacheText: string; isDemo: boolean; revalidating: boolean; onRevalidate: () => Promise<void> }) {
   return (
     <section className="relative min-h-[216px] overflow-hidden rounded-[24px] bg-[#151712] p-4 text-white shadow-[0_22px_72px_rgba(21,23,18,0.22)] sm:min-h-[300px] sm:rounded-[28px] sm:p-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,rgba(223,231,212,0.18),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_42%)]" />
@@ -112,10 +122,12 @@ function FuelHero({ trends, preferredFuel, biggestMove, cacheText, revalidating,
           ) : (
             <SkeletonLine className="h-7 w-32 bg-[#dfe7d4]/70" />
           )}
-          <button type="button" onClick={() => void onRevalidate()} disabled={revalidating} className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 font-bold text-white/85 transition-[background-color,opacity,transform] duration-200 active:scale-[0.98] disabled:opacity-60 hover:bg-white/16">
-            <RefreshCw size={13} className={revalidating ? "animate-spin" : ""} />
-            Revalidate
-          </button>
+          {!isDemo ? (
+            <button type="button" onClick={() => void onRevalidate()} disabled={revalidating} className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 font-bold text-white/85 transition-[background-color,opacity,transform] duration-200 active:scale-[0.98] disabled:opacity-60 hover:bg-white/16">
+              <RefreshCw size={13} className={revalidating ? "animate-spin" : ""} />
+              Revalidate
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="relative mt-4 grid grid-cols-3 gap-1.5 sm:mt-8 sm:gap-3">

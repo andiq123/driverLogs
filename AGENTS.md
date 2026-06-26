@@ -22,7 +22,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - User default base currency and country are backend settings. New expenses should use the saved base currency, then store both the entered base amount/currency and stamped MDL/EUR/USD values.
 - Persist users, settings, vehicles, and expenses in Postgres. Do not add in-memory store fallbacks for app data; startup should fail if the database is unavailable.
 - Frontend code may format numeric values returned by the backend, but must not calculate ownership totals, exchange conversions, report totals, or cost-per-kilometer.
-- Do not add demo or seeded vehicle/expense data. Empty app state must be real and user-created data must come through API calls.
+- Do not add demo or seeded vehicle/expense data to production. A dev-only demo mode is allowed: gated by `NODE_ENV === "development"`, fully read-only (blocks all mutations, never writes to the DB), used only for local visualization of scenarios. Real user data must still come through API calls, and empty production app state must be real.
 - Vehicle make/model autocomplete and VIN decode should be served through backend endpoints. Do not bind frontend forms directly to third-party vehicle APIs. VIN decode is assistive only: it can prefill fields, but users must confirm before saving.
 - Fuel price suggestions must be served through backend endpoints. Use free sources only by default: PretCarburant.ro for Romania station-level prices and Autotraveler for Moldova national reference prices. Do not add API-key or commercial fuel-price providers unless explicitly requested.
 - Do not add file exports unless explicitly requested again. Reports are clean in-app summaries.

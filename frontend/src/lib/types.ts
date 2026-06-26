@@ -240,7 +240,7 @@ export type DistanceInsight = {
 
 export type MonthlySpend = { month: string; mdl: number };
 
-export type SpendingCategory = { name: string; mdl: number; share: number };
+export type SpendingCategory = { name: string; mdl: number; share: number; count: number; average_mdl: number };
 
 export type SpendingInsight = {
   this_month_mdl: number;

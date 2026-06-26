@@ -93,7 +93,8 @@ export function BreakdownSheet({ open, onClose, label, eyebrow, title, unit, sta
         {stats}
       </motion.div>
       <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{rowsLabel}</p>
-      <div className="mt-2 grid gap-2">{children}</div>
+      {/* grid-cols-1 = minmax(0,1fr): a wide row can't stretch the column and push the list off-screen */}
+      <div className="mt-2 grid grid-cols-1 gap-2">{children}</div>
       <p className="mt-4 text-xs leading-5 text-[#6b7065]">{explanation}</p>
     </BottomSheet>
   );

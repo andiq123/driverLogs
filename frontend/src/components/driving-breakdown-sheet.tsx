@@ -51,7 +51,7 @@ function MonthRow({ entry, index, maxKM, isCurrent }: { entry: MonthlyDistance; 
         <div className="mt-2 flex flex-wrap gap-1.5">
           {entry.logs.map((log, logIndex) => (
             <span key={`${log.odometer}-${logIndex}`} className="inline-flex max-w-full items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-[#62685e]">
-              <span className="truncate">{log.label}</span>
+              <span className="min-w-0 truncate">{log.label}</span>
               <span className="shrink-0 font-bold text-[#4b5147]">{km(log.odometer)}</span>
             </span>
           ))}
