@@ -55,7 +55,7 @@ func main() {
 	}
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(repo, db, fuelprices.NewService(), files, cfg.JWTSecret, cfg.CORSAllowedOrigins),
+		Handler:           httpapi.NewRouter(repo, fuelprices.NewService(), files, cfg.JWTSecret, cfg.CORSAllowedOrigins),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

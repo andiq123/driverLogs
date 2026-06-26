@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { AlertCircle, KeyRound, Loader2, PlayCircle, ShieldCheck, UserRound } from "lucide-react";
+import { AlertCircle, KeyRound, Loader2, ShieldCheck, UserRound } from "lucide-react";
 import { authTheme } from "@/lib/theme";
 import { BrandMark } from "./brand-mark";
 import { Input } from "./ui";
@@ -11,11 +11,10 @@ type LoginViewProps = {
   action: "login" | "register" | "";
   onClearStatus: () => void;
   onCreate: () => void;
-  onDemo?: () => void;
   onLogin: (loginID: string) => void;
 };
 
-export function LoginView({ savedLoginID, status, feedback, action, onClearStatus, onCreate, onDemo, onLogin }: LoginViewProps) {
+export function LoginView({ savedLoginID, status, feedback, action, onClearStatus, onCreate, onLogin }: LoginViewProps) {
   const isBusy = feedback === "loading";
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -51,12 +50,6 @@ export function LoginView({ savedLoginID, status, feedback, action, onClearStatu
               {action === "login" ? <Loader2 size={17} className="animate-spin" /> : <ShieldCheck size={17} />}
               Sign in
             </button>
-            {onDemo ? (
-              <button type="button" disabled={isBusy} onClick={onDemo} className="flex h-12 touch-manipulation items-center justify-center gap-2 rounded-[18px] border border-black/[0.055] bg-[#fffffb]/92 text-sm font-bold text-[#151712] shadow-[0_8px_24px_rgba(31,41,28,0.06)] transition-[background-color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#f8faf5] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-70">
-                <PlayCircle size={17} />
-                Start demo
-              </button>
-            ) : null}
             {status ? <AuthFeedback message={status} feedback={feedback} /> : null}
           </form>
         </section>

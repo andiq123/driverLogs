@@ -1,10 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Milestone, Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Milestone } from "lucide-react";
 import type { DistanceInsight, MonthlyDistance } from "@/lib/types";
 import { km } from "@/lib/format";
-import { BottomSheet, SheetHeader, sheetSpring } from "./bottom-sheet";
+import { BreakdownSheet, SheetStat, sheetSpring, trendIcon } from "./bottom-sheet";
 
 export function DrivingBreakdownSheet({ distance, onClose }: { distance?: DistanceInsight; onClose: () => void }) {
   const open = Boolean(distance && distance.months.length > 0);
@@ -13,29 +13,25 @@ export function DrivingBreakdownSheet({ distance, onClose }: { distance?: Distan
   const thisMonthKey = months[0]?.month;
 
   return (
-    <BottomSheet open={open} onClose={onClose} label="Monthly distance breakdown">
-      {distance ? (
-        <>
-          <SheetHeader eyebrow="Distance this month" title={km(distance.this_month_km)} onClose={onClose} />
-
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...sheetSpring, delay: 0.08 }} className="mt-4 grid grid-cols-2 gap-2">
-            <Stat label="vs last month" value={trendText(distance)} icon={trendIcon(distance.trend)} />
-            <Stat label="Monthly average" value={km(distance.monthly_average_km)} />
-          </motion.div>
-
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{months.length} month{months.length === 1 ? "" : "s"} tracked</p>
-          <div className="mt-2 grid gap-2">
-            {months.map((entry, index) => (
-              <MonthRow key={entry.month} entry={entry} index={index} maxKM={maxKM} isCurrent={entry.month === thisMonthKey} />
-            ))}
-          </div>
-
-          <p className="mt-4 text-xs leading-5 text-[#6b7065]">
-            Each month is the odometer at its last reading minus the reading before it began. Log odometer with fuel or service to sharpen it.
-          </p>
-        </>
-      ) : null}
-    </BottomSheet>
+    <BreakdownSheet
+      open={open}
+      onClose={onClose}
+      label="Monthly distance breakdown"
+      eyebrow="Distance this month"
+      title={km(distance?.this_month_km ?? 0)}
+      rowsLabel={`${months.length} month${months.length === 1 ? "" : "s"} tracked`}
+      explanation="Each month is the odometer at its last reading minus the reading before it began. Log odometer with fuel or service to sharpen it."
+      stats={
+        <div className="grid grid-cols-2 gap-2">
+          <SheetStat label="vs last month" value={distance ? trendText(distance) : "—"} icon={distance ? trendIcon(distance.trend) : undefined} />
+          <SheetStat label="Monthly average" value={km(distance?.monthly_average_km ?? 0)} />
+        </div>
+      }
+    >
+      {months.map((entry, index) => (
+        <MonthRow key={entry.month} entry={entry} index={index} maxKM={maxKM} isCurrent={entry.month === thisMonthKey} />
+      ))}
+    </BreakdownSheet>
   );
 }
 
@@ -65,26 +61,10 @@ function MonthRow({ entry, index, maxKM, isCurrent }: { entry: MonthlyDistance; 
   );
 }
 
-function Stat({ label, value, icon: Icon, tone = "neutral" }: { label: string; value: string; icon?: typeof TrendingUp; tone?: "good" | "warn" | "neutral" }) {
-  const color = tone === "good" ? "text-[#24603c]" : tone === "warn" ? "text-[#8a6200]" : "text-[#30342e]";
-  return (
-    <div className="rounded-[18px] bg-[#eef3e8]/70 px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{label}</p>
-      <p className={`mt-1 inline-flex items-center gap-1.5 text-sm font-bold ${color}`}>{Icon ? <Icon size={14} className="shrink-0" /> : null}{value}</p>
-    </div>
-  );
-}
-
 function trendText(distance: DistanceInsight) {
   if (distance.trend === "first") return "First month";
   if (distance.trend === "flat") return "Same";
   return `${km(Math.abs(distance.delta_km))} ${distance.trend === "up" ? "more" : "less"}`;
-}
-
-function trendIcon(trend: DistanceInsight["trend"]) {
-  if (trend === "up") return TrendingUp;
-  if (trend === "down") return TrendingDown;
-  return Minus;
 }
 
 function monthLabel(value: string) {

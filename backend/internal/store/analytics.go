@@ -652,10 +652,6 @@ func numberFromAny(value any) float64 {
 	}
 }
 
-func currentOdometer(vehicles []domain.Vehicle, vehicleID string) int {
-	return selectedVehicle(vehicles, vehicleID).Odometer
-}
-
 func selectedVehicle(vehicles []domain.Vehicle, vehicleID string) domain.Vehicle {
 	for _, vehicle := range vehicles {
 		if vehicle.ID == vehicleID {

@@ -2,9 +2,10 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { controls, popoverMotion } from "@/lib/theme";
+import { useAnchorRect } from "@/lib/use-anchor-rect";
 
 type AutocompleteProps = {
   label: string;
@@ -20,22 +21,10 @@ type AutocompleteProps = {
 export function Autocomplete({ label, name, options, value, maxLength, icon: Icon, isAutofilled = false, onChange }: AutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [bounds, setBounds] = useState<DOMRect>();
   const inputRef = useRef<HTMLInputElement>(null);
+  const bounds = useAnchorRect(inputRef, isOpen);
   const matches = useMemo(() => filterOptions(options, value), [options, value]);
   const listID = `${name}-options`;
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const updateBounds = () => setBounds(inputRef.current?.getBoundingClientRect());
-    updateBounds();
-    window.addEventListener("resize", updateBounds);
-    window.addEventListener("scroll", updateBounds, true);
-    return () => {
-      window.removeEventListener("resize", updateBounds);
-      window.removeEventListener("scroll", updateBounds, true);
-    };
-  }, [isOpen]);
 
   function choose(option: string) {
     onChange(option);

@@ -167,10 +167,10 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
           <Autocomplete name="engine_type" label="Engine" icon={Wrench} options={engineOptions} value={engineValue} maxLength={1600} isAutofilled={autofilled.engine} onChange={(value) => { clearAutofill("engine"); setEngineValue(value); }} />
         </div>
         <CustomSelect name="preferred_fuel_type" label="Preferred fuel" icon={Fuel} options={fuelTypes} value={preferredFuelType} onChange={setPreferredFuelType} />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(150px,0.8fr)_minmax(118px,0.36fr)]">
-          <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" defaultValue={vehicle?.odometer || ""} />
+        <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" defaultValue={vehicle?.odometer || ""} placeholder="Odometer, km" />
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(120px,0.42fr)]">
           <Input name="purchase_price" label="Purchase price" icon={BadgeDollarSign} inputMode="decimal" defaultValue={vehicle?.purchase_price || ""} />
-          <CustomSelect name="purchase_currency" label="Price currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} showLabel onChange={setPurchaseCurrency} />
+          <CustomSelect name="purchase_currency" label="Price currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} onChange={setPurchaseCurrency} />
         </div>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <ActionButton loading={saving} className="mt-2">{isEditing ? "Save changes" : "Save vehicle"}</ActionButton>

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiBaseHost, createExpense, createVehicle, deleteExpense, deleteVehicle, errorMessage, getAppData, healthCheck, isUnauthorizedError, logClientError, updateExpense, updateExpenseAnalytics, updateUserSettings, updateVehicle, uploadExpenseAttachment } from "./api";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
-import { demoToken, isLocalDemoEnabled } from "./demo-mode";
 import { emptyTotals } from "./theme";
 import type { DocumentAttachment, Expense, UserSettings, Vehicle, View } from "./types";
 import { useAuthSession } from "./use-auth-session";
@@ -32,7 +31,6 @@ export function useDriverLogsApp() {
   const [action, setAction] = useState<"vehicle" | "expense" | "settings" | "delete" | "profile" | "">("");
   const [openExpenseFilesID, setOpenExpenseFilesID] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [isDemo, setIsDemo] = useState(false);
   const activeVehicleIDRef = useRef("");
   const tokenRef = useRef("");
   const appDataLoadedRef = useRef(false);
@@ -54,7 +52,7 @@ export function useDriverLogsApp() {
 
   const loadData = useCallback(async (showLoading = true) => {
     const activeToken = tokenRef.current;
-    if (!activeToken || isDemo) return;
+    if (!activeToken) return;
     const requestToken = readToken() || activeToken;
     if (showLoading) setIsLoadingData(true);
     setStatus("Loading app data...");
@@ -87,7 +85,7 @@ export function useDriverLogsApp() {
     } finally {
       if (showLoading) setIsLoadingData(false);
     }
-  }, [isDemo, logout, showToast]);
+  }, [logout, showToast]);
 
   useEffect(() => {
     if (readToken()) return;
@@ -111,7 +109,7 @@ export function useDriverLogsApp() {
   }, [showToast]);
 
   useEffect(() => {
-    if (!token || isDemo) return;
+    if (!token) return;
     if (appDataLoadedRef.current) return;
     appDataLoadedRef.current = true;
     const frame = requestAnimationFrame(() => {
@@ -119,41 +117,16 @@ export function useDriverLogsApp() {
       void loadData();
     });
     return () => cancelAnimationFrame(frame);
-  }, [isDemo, loadData, token]);
+  }, [loadData, token]);
 
   useEffect(() => {
-    if (!token || isDemo) return;
+    if (!token) return;
     const reloadDocuments = () => void loadData(false);
     window.addEventListener("driverlogs:documents-updated", reloadDocuments);
     return () => window.removeEventListener("driverlogs:documents-updated", reloadDocuments);
-  }, [isDemo, loadData, token]);
-
-  async function startDemo() {
-    if (!isLocalDemoEnabled) {
-      showToast("error", "Demo unavailable", "Demo mode is only available locally.");
-      return;
-    }
-    const { demoAppData } = await import("./demo-data");
-    setIsDemo(true);
-    setMounted(true);
-    setIsLoadingData(false);
-    setVehicles(demoAppData.vehicles);
-    setExpenses(demoAppData.expenses);
-    setUserDocuments([]);
-    setSettings(demoAppData.settings);
-    setVehicleTotalsByID(demoAppData.vehicle_totals);
-    setActiveVehicleID(demoAppData.vehicles[0]?.id ?? "");
-    activeVehicleIDRef.current = demoAppData.vehicles[0]?.id ?? "";
-    setStatus("Demo data loaded.");
-    changeView("Dashboard");
-    showToast("success", "Demo started", "Explore the dashboard, timeline, analytics, fuel prices, and settings.");
-  }
+  }, [loadData, token]);
 
   async function saveVehicle(vehicle: Partial<Vehicle>) {
-    if (isDemo) {
-      showToast("info", "Demo mode", "Demo data is read-only. Register to save your own car.");
-      return;
-    }
     setAction("vehicle");
     setStatus("Saving vehicle...");
     try {
@@ -173,10 +146,6 @@ export function useDriverLogsApp() {
   }
 
   async function editVehicle(id: string, vehicle: Partial<Vehicle>) {
-    if (isDemo) {
-      showToast("info", "Demo mode", "Register to edit real vehicle records.");
-      return;
-    }
     setAction("vehicle");
     setStatus("Saving vehicle...");
     try {
@@ -195,10 +164,6 @@ export function useDriverLogsApp() {
   }
 
   async function saveExpense(expense: Partial<Expense>, files: File[] = []) {
-    if (isDemo) {
-      showToast("info", "Demo mode", "Register to save real expenses.");
-      return;
-    }
     setAction("expense");
     setStatus("Saving expense...");
     try {
@@ -218,10 +183,6 @@ export function useDriverLogsApp() {
   }
 
   async function editExpense(id: string, expense: Partial<Expense>, files: File[] = []) {
-    if (isDemo) {
-      showToast("info", "Demo mode", "Register to edit real expenses.");
-      return;
-    }
     setAction("expense");
     setStatus("Saving expense...");
     try {
@@ -242,10 +203,6 @@ export function useDriverLogsApp() {
   async function toggleExpenseAnalytics(expense: Expense, excluded: boolean) {
     const previousExpenses = expenses;
     setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, exclude_from_analytics: excluded } : item));
-    if (isDemo) {
-      showToast("info", "Demo mode", excluded ? "This expense is hidden from demo analytics locally." : "This expense is included in demo analytics locally.");
-      return;
-    }
     setAction("expense");
     try {
       await updateExpenseAnalytics(token, expense.id, excluded);
@@ -271,10 +228,6 @@ export function useDriverLogsApp() {
   }
 
   async function removeExpense(id: string) {
-    if (isDemo) {
-      showToast("info", "Demo mode", "Register to delete real expenses.");
-      return;
-    }
     setAction("delete");
     setStatus("Removing expense...");
     try {
@@ -290,11 +243,6 @@ export function useDriverLogsApp() {
   }
 
   async function saveSettings(nextSettings: UserSettings) {
-    if (isDemo) {
-      setSettings(nextSettings);
-      showToast("info", "Demo mode", "Settings changes are local in demo mode.");
-      return;
-    }
     setAction("settings");
     setStatus("Saving settings...");
     try {
@@ -318,10 +266,6 @@ export function useDriverLogsApp() {
   }
 
   async function removeVehicle(id: string) {
-    if (isDemo) {
-      showToast("info", "Demo mode", "Demo vehicle cannot be removed.");
-      return;
-    }
     setAction("delete");
     setStatus("Removing vehicle...");
     try {
@@ -340,7 +284,6 @@ export function useDriverLogsApp() {
   }
 
   function logoutApp() {
-    setIsDemo(false);
     logout();
     setVehicles([]);
     setExpenses([]);
@@ -366,7 +309,6 @@ export function useDriverLogsApp() {
     activeVehicle,
     action,
     createLogin,
-    startDemo: isLocalDemoEnabled ? startDemo : undefined,
     clearAuthStatus: auth.clearAuthStatus,
     closeLoginNotice: auth.closeLoginNotice,
     copyLoginID,
@@ -394,7 +336,7 @@ export function useDriverLogsApp() {
     authStatus,
     status: authStatus || status,
     settings,
-    token: isDemo && isLocalDemoEnabled ? demoToken : token,
+    token,
     toasts,
     userDocuments,
     openExpenseFilesID,

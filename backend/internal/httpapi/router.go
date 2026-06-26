@@ -53,11 +53,11 @@ type Store interface {
 	UserSettings(userID string) (domain.UserSettings, error)
 	UpdateUserSettings(userID string, settings domain.UserSettings) (domain.UserSettings, error)
 	TouchUser(userID string)
+	Ping(ctx context.Context) error
 }
 
 type Handler struct {
 	store      Store
-	db         healthPinger
 	exchange   exchange.BNMClient
 	fuelPrices fuelprices.Service
 	files      filestorage.Client
@@ -66,16 +66,12 @@ type Handler struct {
 	cors       corsPolicy
 }
 
-type healthPinger interface {
-	Ping(ctx context.Context) error
-}
-
 type contextKey string
 
 const userIDKey contextKey = "user_id"
 
-func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, files filestorage.Client, jwtSecret string, corsAllowedOrigins []string) http.Handler {
-	h := Handler{store: repo, db: db, exchange: exchange.NewBNMClient(), fuelPrices: fuelPrices, files: files, jwtSecret: jwtSecret, logger: slog.Default(), cors: newCORSPolicy(corsAllowedOrigins)}
+func NewRouter(repo Store, fuelPrices fuelprices.Service, files filestorage.Client, jwtSecret string, corsAllowedOrigins []string) http.Handler {
+	h := Handler{store: repo, exchange: exchange.NewBNMClient(), fuelPrices: fuelPrices, files: files, jwtSecret: jwtSecret, logger: slog.Default(), cors: newCORSPolicy(corsAllowedOrigins)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
 	mux.HandleFunc("POST /client-errors", h.clientError)
@@ -85,10 +81,10 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, files
 	mux.HandleFunc("GET /app-data", h.requireAuth(h.appData))
 	mux.HandleFunc("GET /user/settings", h.requireAuth(h.getSettings))
 	mux.HandleFunc("PUT /user/settings", h.requireAuth(h.updateSettings))
-	mux.HandleFunc("GET /user/documents", h.requireAuth(h.listUserDocuments))
-	mux.HandleFunc("POST /user/documents/{kind}", h.requireAuth(h.uploadUserDocument))
-	mux.HandleFunc("GET /user/documents/{id}/preview", h.requireAuth(h.previewUserDocument))
-	mux.HandleFunc("DELETE /user/documents/{id}", h.requireAuth(h.deleteUserDocument))
+	mux.HandleFunc("GET /user/documents", h.requireAuth(h.userDocs(h.listDocuments)))
+	mux.HandleFunc("POST /user/documents/{kind}", h.requireAuth(h.userDocs(h.uploadDocument)))
+	mux.HandleFunc("GET /user/documents/{id}/preview", h.requireAuth(h.userDocs(h.previewDocument)))
+	mux.HandleFunc("DELETE /user/documents/{id}", h.requireAuth(h.userDocs(h.deleteDocument)))
 	mux.HandleFunc("GET /vehicle-options/makes", h.vehicleMakes)
 	mux.HandleFunc("GET /vehicle-options/models", h.vehicleModels)
 	mux.HandleFunc("GET /vehicle-options/vin/{vin}", h.vehicleVIN)
@@ -101,10 +97,10 @@ func NewRouter(repo Store, db healthPinger, fuelPrices fuelprices.Service, files
 	mux.HandleFunc("GET /vehicles/{id}", h.requireAuth(h.getVehicle))
 	mux.HandleFunc("PUT /vehicles/{id}", h.requireAuth(h.updateVehicle))
 	mux.HandleFunc("DELETE /vehicles/{id}", h.requireAuth(h.deleteVehicle))
-	mux.HandleFunc("GET /vehicles/{id}/documents", h.requireAuth(h.listVehicleDocuments))
-	mux.HandleFunc("POST /vehicles/{id}/documents/{kind}", h.requireAuth(h.uploadVehicleDocument))
-	mux.HandleFunc("GET /vehicles/{id}/documents/{document_id}/preview", h.requireAuth(h.previewVehicleDocument))
-	mux.HandleFunc("DELETE /vehicles/{id}/documents/{document_id}", h.requireAuth(h.deleteVehicleDocument))
+	mux.HandleFunc("GET /vehicles/{id}/documents", h.requireAuth(h.vehicleDocs(h.listDocuments)))
+	mux.HandleFunc("POST /vehicles/{id}/documents/{kind}", h.requireAuth(h.vehicleDocs(h.uploadDocument)))
+	mux.HandleFunc("GET /vehicles/{id}/documents/{document_id}/preview", h.requireAuth(h.vehicleDocs(h.previewDocument)))
+	mux.HandleFunc("DELETE /vehicles/{id}/documents/{document_id}", h.requireAuth(h.vehicleDocs(h.deleteDocument)))
 	mux.HandleFunc("GET /expenses", h.requireAuth(h.listExpenses))
 	mux.HandleFunc("POST /expenses", h.requireAuth(h.createExpense))
 	mux.HandleFunc("PUT /expenses/{id}", h.requireAuth(h.updateExpense))
@@ -194,7 +190,7 @@ func (h Handler) health(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
-	if err := h.db.Ping(ctx); err != nil {
+	if err := h.store.Ping(ctx); err != nil {
 		h.logger.Warn("database health check failed", "error", err)
 		response["status"] = "degraded"
 		response["database"] = "unavailable"
@@ -684,40 +680,34 @@ func (h Handler) deleteExpenseAttachment(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h Handler) listUserDocuments(w http.ResponseWriter, r *http.Request) {
-	h.listDocuments(w, r, "user", userID(r), r.URL.Query().Get("kind"))
+// Document routes differ only by who owns the document. These binders supply the
+// (ownerType, ownerID) pair; each op resolves its own kind/id from the request.
+func (h Handler) userDocs(op func(http.ResponseWriter, *http.Request, string, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) { op(w, r, "user", userID(r)) }
 }
 
-func (h Handler) uploadUserDocument(w http.ResponseWriter, r *http.Request) {
-	h.uploadDocument(w, r, "user", userID(r), r.PathValue("kind"))
+func (h Handler) vehicleDocs(op func(http.ResponseWriter, *http.Request, string, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) { op(w, r, "vehicle", r.PathValue("id")) }
 }
 
-func (h Handler) previewUserDocument(w http.ResponseWriter, r *http.Request) {
-	h.previewDocument(w, r, "user", userID(r), r.PathValue("id"))
+// docID is the {document_id} path value on vehicle routes, {id} on user routes.
+func docID(r *http.Request) string {
+	if id := r.PathValue("document_id"); id != "" {
+		return id
+	}
+	return r.PathValue("id")
 }
 
-func (h Handler) deleteUserDocument(w http.ResponseWriter, r *http.Request) {
-	h.deleteDocument(w, r, "user", userID(r), r.PathValue("id"))
+// documentKind comes from the path on upload, the query string on list.
+func documentKind(r *http.Request) string {
+	if kind := r.PathValue("kind"); kind != "" {
+		return kind
+	}
+	return r.URL.Query().Get("kind")
 }
 
-func (h Handler) listVehicleDocuments(w http.ResponseWriter, r *http.Request) {
-	h.listDocuments(w, r, "vehicle", r.PathValue("id"), r.URL.Query().Get("kind"))
-}
-
-func (h Handler) uploadVehicleDocument(w http.ResponseWriter, r *http.Request) {
-	h.uploadDocument(w, r, "vehicle", r.PathValue("id"), r.PathValue("kind"))
-}
-
-func (h Handler) previewVehicleDocument(w http.ResponseWriter, r *http.Request) {
-	h.previewDocument(w, r, "vehicle", r.PathValue("id"), r.PathValue("document_id"))
-}
-
-func (h Handler) deleteVehicleDocument(w http.ResponseWriter, r *http.Request) {
-	h.deleteDocument(w, r, "vehicle", r.PathValue("id"), r.PathValue("document_id"))
-}
-
-func (h Handler) listDocuments(w http.ResponseWriter, r *http.Request, ownerType, ownerID, kind string) {
-	documents, err := h.store.Documents(userID(r), ownerType, ownerID, kind)
+func (h Handler) listDocuments(w http.ResponseWriter, r *http.Request, ownerType, ownerID string) {
+	documents, err := h.store.Documents(userID(r), ownerType, ownerID, documentKind(r))
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document owner not found"})
 		return
@@ -730,7 +720,8 @@ func (h Handler) listDocuments(w http.ResponseWriter, r *http.Request, ownerType
 	writeJSON(w, http.StatusOK, documents)
 }
 
-func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, kind string) {
+func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID string) {
+	kind := documentKind(r)
 	if h.files == nil || !h.files.Enabled() {
 		h.logStorageUnavailable("document upload", "owner_type", ownerType, "owner_id", ownerID, "kind", kind)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "file storage is not configured on the backend"})
@@ -788,8 +779,8 @@ func (h Handler) uploadDocument(w http.ResponseWriter, r *http.Request, ownerTyp
 	writeJSON(w, http.StatusCreated, saved)
 }
 
-func (h Handler) previewDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, documentID string) {
-	document, err := h.store.Document(userID(r), ownerType, ownerID, documentID)
+func (h Handler) previewDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID string) {
+	document, err := h.store.Document(userID(r), ownerType, ownerID, docID(r))
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return
@@ -802,8 +793,8 @@ func (h Handler) previewDocument(w http.ResponseWriter, r *http.Request, ownerTy
 	h.streamFile(w, r, document.ObjectKey, document.FileName, document.ContentType, document.ID)
 }
 
-func (h Handler) deleteDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID, documentID string) {
-	document, err := h.store.Document(userID(r), ownerType, ownerID, documentID)
+func (h Handler) deleteDocument(w http.ResponseWriter, r *http.Request, ownerType, ownerID string) {
+	document, err := h.store.Document(userID(r), ownerType, ownerID, docID(r))
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
 		return

@@ -4,35 +4,33 @@ import { motion } from "framer-motion";
 import { ArrowRight, Divide, Droplets, Milestone, TrendingDown, TrendingUp } from "lucide-react";
 import type { FuelConsumptionBreakdown, FuelConsumptionInterval } from "@/lib/types";
 import { km } from "@/lib/format";
-import { BottomSheet, SheetHeader, formatSheetDate, sheetSpring } from "./bottom-sheet";
+import { BreakdownSheet, formatSheetDate, sheetSpring } from "./bottom-sheet";
 
 const PRICE_EPSILON = 0.01;
 
 export function FuelBreakdownSheet({ breakdown, confidence, onClose }: { breakdown?: FuelConsumptionBreakdown; confidence?: string; onClose: () => void }) {
+  const intervals = breakdown?.intervals ?? [];
   return (
-    <BottomSheet open={Boolean(breakdown)} onClose={onClose} label="Fuel consumption breakdown">
-      {breakdown ? (
-        <>
-          <SheetHeader eyebrow="Fuel consumption" title={String(breakdown.average_l_per_100km)} unit="L/100 km" onClose={onClose} />
-
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...sheetSpring, delay: 0.08 }} className="mt-4 flex items-center justify-center gap-2 rounded-[18px] bg-[#eef3e8] px-3 py-3.5 text-center text-sm font-bold text-[#24603c]">
-            <Divide size={15} className="shrink-0 text-[#456148]" />
-            {breakdown.total_liters} L ÷ {km(breakdown.total_distance_km)} × 100 = {breakdown.average_l_per_100km} L/100 km
-          </motion.div>
-
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{breakdown.intervals.length} odometer interval{breakdown.intervals.length === 1 ? "" : "s"}</p>
-          <div className="mt-2 grid gap-2">
-            {breakdown.intervals.map((interval, index) => (
-              <IntervalRow key={`${interval.from_odometer}-${interval.to_odometer}`} interval={interval} previous={breakdown.intervals[index - 1]} index={index} />
-            ))}
-          </div>
-
-          <p className="mt-4 text-xs leading-5 text-[#6b7065]">
-            {confidence === "low" ? "One interval is a rough first estimate — it sharpens with every fill-up that includes an odometer reading." : "Accuracy improves as more fill-ups with odometer readings are logged."}
-          </p>
-        </>
+    <BreakdownSheet
+      open={Boolean(breakdown)}
+      onClose={onClose}
+      label="Fuel consumption breakdown"
+      eyebrow="Fuel consumption"
+      title={String(breakdown?.average_l_per_100km ?? 0)}
+      unit="L/100 km"
+      rowsLabel={`${intervals.length} odometer interval${intervals.length === 1 ? "" : "s"}`}
+      explanation={confidence === "low" ? "One interval is a rough first estimate — it sharpens with every fill-up that includes an odometer reading." : "Accuracy improves as more fill-ups with odometer readings are logged."}
+      stats={breakdown ? (
+        <div className="flex items-center justify-center gap-2 rounded-[18px] bg-[#eef3e8] px-3 py-3.5 text-center text-sm font-bold text-[#24603c]">
+          <Divide size={15} className="shrink-0 text-[#456148]" />
+          {breakdown.total_liters} L ÷ {km(breakdown.total_distance_km)} × 100 = {breakdown.average_l_per_100km} L/100 km
+        </div>
       ) : null}
-    </BottomSheet>
+    >
+      {intervals.map((interval, index) => (
+        <IntervalRow key={`${interval.from_odometer}-${interval.to_odometer}`} interval={interval} previous={intervals[index - 1]} index={index} />
+      ))}
+    </BreakdownSheet>
   );
 }
 

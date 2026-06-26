@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { Minus, TrendingDown, TrendingUp, X } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { modalBackdropMotion } from "@/lib/theme";
@@ -69,6 +69,51 @@ export function SheetHeader({ eyebrow, title, unit, onClose }: { eyebrow: string
       </button>
     </header>
   );
+}
+
+// Shared chrome for the breakdown sheets: header, a stats block, a labelled row
+// list, and an explanation. Only the row bodies differ, so each sheet just maps
+// its rows into `children` and supplies the surrounding pieces.
+export function BreakdownSheet({ open, onClose, label, eyebrow, title, unit, stats, rowsLabel, explanation, children }: {
+  open: boolean;
+  onClose: () => void;
+  label: string;
+  eyebrow: string;
+  title: string;
+  unit?: string;
+  stats: ReactNode;
+  rowsLabel: ReactNode;
+  explanation: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <BottomSheet open={open} onClose={onClose} label={label}>
+      <SheetHeader eyebrow={eyebrow} title={title} unit={unit} onClose={onClose} />
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...sheetSpring, delay: 0.08 }} className="mt-4">
+        {stats}
+      </motion.div>
+      <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{rowsLabel}</p>
+      <div className="mt-2 grid gap-2">{children}</div>
+      <p className="mt-4 text-xs leading-5 text-[#6b7065]">{explanation}</p>
+    </BottomSheet>
+  );
+}
+
+// Small stat badge + trend arrow shared by the breakdown sheets.
+export function SheetStat({ label, value, icon: Icon, tone = "neutral" }: { label: string; value: string; icon?: typeof TrendingUp; tone?: "good" | "warn" | "neutral" }) {
+  const color = tone === "good" ? "text-[#24603c]" : tone === "warn" ? "text-[#8a6200]" : "text-[#30342e]";
+  return (
+    <div className="rounded-[18px] bg-[#eef3e8]/70 px-3 py-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{label}</p>
+      <p className={`mt-1 inline-flex items-center gap-1.5 truncate text-sm font-bold ${color}`}>{Icon ? <Icon size={14} className="shrink-0" /> : null}{value}</p>
+    </div>
+  );
+}
+
+export function trendIcon(trend: "up" | "down" | "flat" | "first") {
+  if (trend === "up") return TrendingUp;
+  if (trend === "down") return TrendingDown;
+  return Minus;
 }
 
 export function formatSheetDate(value: string) {

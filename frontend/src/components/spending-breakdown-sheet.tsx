@@ -2,11 +2,10 @@
 
 import { createElement } from "react";
 import { motion } from "framer-motion";
-import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import type { ExpenseCategory, SpendingCategory, SpendingInsight } from "@/lib/types";
 import { money } from "@/lib/format";
 import { categoryIcon, palette } from "@/lib/theme";
-import { BottomSheet, SheetHeader, sheetSpring } from "./bottom-sheet";
+import { BreakdownSheet, SheetStat, sheetSpring, trendIcon } from "./bottom-sheet";
 
 export function SpendingBreakdownSheet({ spending, onClose }: { spending?: SpendingInsight; onClose: () => void }) {
   const open = Boolean(spending && spending.categories.length > 0);
@@ -14,27 +13,25 @@ export function SpendingBreakdownSheet({ spending, onClose }: { spending?: Spend
   const top = categories[0];
 
   return (
-    <BottomSheet open={open} onClose={onClose} label="Spending breakdown">
-      {spending ? (
-        <>
-          <SheetHeader eyebrow="Spending this month" title={money(spending.this_month_mdl)} onClose={onClose} />
-
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ ...sheetSpring, delay: 0.08 }} className="mt-4 grid grid-cols-2 gap-2">
-            <Stat label="vs last month" value={trendText(spending)} icon={trendIcon(spending.trend)} />
-            <Stat label="Biggest cost" value={top ? top.name : "—"} />
-          </motion.div>
-
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">Where it went</p>
-          <div className="mt-2 grid gap-2">
-            {categories.map((category, index) => (
-              <CategoryRow key={category.name} category={category} index={index} />
-            ))}
-          </div>
-
-          <p className="mt-4 text-xs leading-5 text-[#6b7065]">Totals use the stored MDL value stamped on each expense when it was created.</p>
-        </>
-      ) : null}
-    </BottomSheet>
+    <BreakdownSheet
+      open={open}
+      onClose={onClose}
+      label="Spending breakdown"
+      eyebrow="Spending this month"
+      title={money(spending?.this_month_mdl ?? 0)}
+      rowsLabel="Where it went"
+      explanation="Totals use the stored MDL value stamped on each expense when it was created."
+      stats={
+        <div className="grid grid-cols-2 gap-2">
+          <SheetStat label="vs last month" value={spending ? trendText(spending) : "—"} icon={spending ? trendIcon(spending.trend) : undefined} />
+          <SheetStat label="Biggest cost" value={top ? top.name : "—"} />
+        </div>
+      }
+    >
+      {categories.map((category, index) => (
+        <CategoryRow key={category.name} category={category} index={index} />
+      ))}
+    </BreakdownSheet>
   );
 }
 
@@ -56,23 +53,8 @@ function CategoryRow({ category, index }: { category: SpendingCategory; index: n
   );
 }
 
-function Stat({ label, value, icon: Icon }: { label: string; value: string; icon?: typeof TrendingUp }) {
-  return (
-    <div className="rounded-[18px] bg-[#eef3e8]/70 px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{label}</p>
-      <p className="mt-1 inline-flex items-center gap-1.5 truncate text-sm font-bold text-[#30342e]">{Icon ? <Icon size={14} className="shrink-0" /> : null}{value}</p>
-    </div>
-  );
-}
-
 function trendText(spending: SpendingInsight) {
   if (spending.trend === "first") return "First month";
   if (spending.trend === "flat") return "Same";
   return `${money(Math.abs(spending.delta_mdl))} ${spending.trend === "up" ? "more" : "less"}`;
-}
-
-function trendIcon(trend: SpendingInsight["trend"]) {
-  if (trend === "up") return TrendingUp;
-  if (trend === "down") return TrendingDown;
-  return Minus;
 }

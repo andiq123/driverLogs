@@ -26,6 +26,10 @@ func NewPostgresStore(ctx context.Context, pool *pgxpool.Pool) (*PostgresStore, 
 	return store, nil
 }
 
+func (s *PostgresStore) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
+}
+
 func (s *PostgresStore) migrate(ctx context.Context) error {
 	_, err := s.pool.Exec(ctx, `
 CREATE TABLE IF NOT EXISTS users (
@@ -741,28 +745,26 @@ func scanVehicle(row rowScanner) (domain.Vehicle, error) {
 	return vehicle, err
 }
 
-func scanVehicles(rows pgx.Rows) ([]domain.Vehicle, error) {
-	vehicles := []domain.Vehicle{}
+// scanRows collects every row through a single-row scanner. One loop for all
+// list queries instead of one copy per table.
+func scanRows[T any](rows pgx.Rows, scan func(rowScanner) (T, error)) ([]T, error) {
+	items := []T{}
 	for rows.Next() {
-		vehicle, err := scanVehicle(rows)
+		item, err := scan(rows)
 		if err != nil {
 			return nil, err
 		}
-		vehicles = append(vehicles, vehicle)
+		items = append(items, item)
 	}
-	return vehicles, rows.Err()
+	return items, rows.Err()
+}
+
+func scanVehicles(rows pgx.Rows) ([]domain.Vehicle, error) {
+	return scanRows(rows, scanVehicle)
 }
 
 func scanExpenses(rows pgx.Rows) ([]domain.Expense, error) {
-	expenses := []domain.Expense{}
-	for rows.Next() {
-		expense, err := scanExpense(rows)
-		if err != nil {
-			return nil, err
-		}
-		expenses = append(expenses, expense)
-	}
-	return expenses, rows.Err()
+	return scanRows(rows, scanExpense)
 }
 
 func scanExpense(row rowScanner) (domain.Expense, error) {
@@ -775,15 +777,7 @@ func scanExpense(row rowScanner) (domain.Expense, error) {
 }
 
 func scanAttachments(rows pgx.Rows) ([]domain.ExpenseAttachment, error) {
-	attachments := []domain.ExpenseAttachment{}
-	for rows.Next() {
-		attachment, err := scanAttachment(rows)
-		if err != nil {
-			return nil, err
-		}
-		attachments = append(attachments, attachment)
-	}
-	return attachments, rows.Err()
+	return scanRows(rows, scanAttachment)
 }
 
 func scanAttachment(row rowScanner) (domain.ExpenseAttachment, error) {
@@ -796,15 +790,7 @@ func scanAttachment(row rowScanner) (domain.ExpenseAttachment, error) {
 }
 
 func scanDocuments(rows pgx.Rows) ([]domain.DocumentAttachment, error) {
-	documents := []domain.DocumentAttachment{}
-	for rows.Next() {
-		document, err := scanDocument(rows)
-		if err != nil {
-			return nil, err
-		}
-		documents = append(documents, document)
-	}
-	return documents, rows.Err()
+	return scanRows(rows, scanDocument)
 }
 
 func scanDocument(row rowScanner) (domain.DocumentAttachment, error) {
