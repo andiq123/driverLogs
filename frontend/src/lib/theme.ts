@@ -62,6 +62,7 @@ export const countries = ["MD", "RO", "UA", "US", "DE"] as const;
 
 export const controls = {
   input: "h-12 w-full min-w-0 rounded-[18px] border border-black/[0.08] bg-white/92 px-3 text-[15px] leading-none outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] transition-[border-color,box-shadow,background-color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] placeholder:text-[#8b9386] hover:bg-white focus:border-black/15 focus:bg-white focus:shadow-[0_0_0_4px_rgba(21,23,18,0.06),inset_0_1px_0_rgba(255,255,255,0.72)]",
+  trigger: "relative flex h-12 w-full min-w-0 items-center justify-between gap-2 rounded-[18px] border border-black/[0.08] bg-white/92 px-3 text-left text-[15px] outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] transition-[border-color,box-shadow,background-color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white focus:border-black/15 focus:shadow-[0_0_0_4px_rgba(21,23,18,0.06),inset_0_1px_0_rgba(255,255,255,0.72)] aria-expanded:border-black/15 aria-expanded:shadow-[0_0_0_4px_rgba(21,23,18,0.06),inset_0_1px_0_rgba(255,255,255,0.72)]",
   menuItem: "transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.985]",
 };
 
