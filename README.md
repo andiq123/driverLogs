@@ -18,7 +18,22 @@ It helps a user keep one focused dashboard per selected car, record fuel and ser
 
 ## Project Structure
 
-- `frontend/` - Next.js app
-- `backend/` - Go API
-- `docker-compose.yml` - local database services
-- `start.sh` - local development runner
+- `frontend/` — Next.js app
+- `backend/` — Go API
+- `docker-compose.yml` — local Postgres
+- `start.sh` — local development runner
+
+## Local development
+
+```bash
+./start.sh
+```
+
+Starts Colima (if needed), Postgres, the Go API (Air), and the Next.js frontend.  
+`Ctrl-C` stops the apps, tears down compose, and stops Colima.
+
+Leave Colima running between sessions:
+
+```bash
+KEEP_COLIMA=1 ./start.sh
+```

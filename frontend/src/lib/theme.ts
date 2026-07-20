@@ -43,7 +43,6 @@ export const navItems: NavItem[] = [
   { label: "Timeline", icon: Activity },
   { label: "Analytics", icon: BarChart3 },
   { label: "Fuel Prices", icon: TrendingUp },
-  { label: "Reports", icon: ReceiptText },
 ];
 
 export const mobileNavItems: NavItem[] = [
@@ -55,6 +54,11 @@ export const mobileNavItems: NavItem[] = [
 ];
 
 export const categories: ExpenseCategory[] = ["Fuel", "Maintenance", "Insurance", "Inspection", "Tires", "Parking", "Upgrades", "Miscellaneous"];
+
+/** Most common log actions — keep the rest one tap away. */
+export const primaryCategories: ExpenseCategory[] = ["Fuel", "Maintenance", "Insurance", "Inspection"];
+
+export const secondaryCategories: ExpenseCategory[] = ["Tires", "Parking", "Upgrades", "Miscellaneous"];
 
 export const userCurrencies = ["MDL", "EUR", "USD", "RON"] as const;
 

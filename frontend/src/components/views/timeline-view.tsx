@@ -4,8 +4,9 @@ import { Activity, BarChart3, EyeOff, FileText, ListFilter, Pencil, ReceiptText,
 import type { Expense, ExpenseCategory, Vehicle } from "@/lib/types";
 import { categories, categoryIcon } from "@/lib/theme";
 import { dateText, equivalents, km, money, vehicleName } from "@/lib/format";
-import { EmptyState, IconButton, Panel } from "../ui";
-import { ExpenseForm } from "../forms";
+import { serviceDetail } from "@/lib/car-options";
+import { EmptyState, IconButton } from "../ui";
+import { ExpenseForm } from "../expense-form";
 import { ExpenseAttachments } from "../expense-attachments";
 import { CustomSelect } from "../custom-select";
 import { FuelFillupWin } from "../fuel-fillup-win";
@@ -33,29 +34,33 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
   }
   const showFilter = Boolean(vehicle) && expenses.length > 0 && presentCategories.length > 1;
   return (
-    <Panel
-      title="Timeline"
-      eyebrow={vehicle ? vehicleName(vehicle) : "Selected vehicle"}
-      action={showFilter ? <div className="w-40 sm:w-52"><CustomSelect label="Filter" name="timeline-category-filter" icon={ListFilter} options={[allCategoriesFilter, ...presentCategories]} value={activeFilter} onChange={(value) => setCategoryFilter(value as TimelineFilter)} /></div> : undefined}
-    >
+    <div className="grid gap-3">
+      {showFilter ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="truncate text-sm text-[#62685e]">{vehicle ? vehicleName(vehicle) : "Selected vehicle"}</p>
+          <div className="w-40 sm:w-52">
+            <CustomSelect label="Filter" name="timeline-category-filter" icon={ListFilter} options={[allCategoriesFilter, ...presentCategories]} value={activeFilter} onChange={(value) => setCategoryFilter(value as TimelineFilter)} />
+          </div>
+        </div>
+      ) : null}
       {!vehicle ? <EmptyState icon={Activity} title="No timeline yet" body="Add a vehicle and start logging costs." /> : expenses.length === 0 ? <EmptyState icon={ReceiptText} title="No expenses logged" body="This car's history will appear here as clean chronological records." /> : (
-        <div className="grid gap-2.5 sm:gap-3">
-          {sorted.length === 0 ? <EmptyState icon={ListFilter} title="No matching expenses" body="Choose another category to see more timeline records." /> : null}
+        <section className="overflow-hidden rounded-[24px] border border-black/[0.055] bg-[#fffffb]/96 ring-1 ring-white/70 sm:rounded-[28px]">
+          {sorted.length === 0 ? <div className="p-4"><EmptyState icon={ListFilter} title="No matching expenses" body="Choose another category to see more timeline records." /></div> : null}
           {sorted.map((expense, index) => {
             const Icon = categoryIcon(expense.category);
             const priorFuelExpenses = expense.category === "Fuel" ? sorted.slice(index + 1).filter((entry) => entry.category === "Fuel") : [];
             return (
-              <div key={expense.id} className="grid gap-2.5 sm:gap-3">
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.025, 0.18), duration: 0.18 }} className="min-w-0 overflow-hidden rounded-[20px] border border-black/[0.045] bg-[#fffffb]/92 p-2.5 shadow-[0_7px_22px_rgba(31,41,28,0.05)] ring-1 ring-white/70 sm:rounded-[24px] sm:p-3">
+              <div key={expense.id}>
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.025, 0.18), duration: 0.18 }} className={`min-w-0 p-3 sm:p-3.5 ${index > 0 ? "border-t border-black/[0.05]" : ""}`}>
                   <div className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-start gap-2.5 sm:flex sm:items-center sm:gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-[14px] bg-white sm:size-11 sm:rounded-[16px]"><Icon size={18} /></span>
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-[14px] bg-[#edf4e7] sm:size-11 sm:rounded-[16px]"><Icon size={18} /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">{expense.description || expense.category}</span>
                       <span className="text-xs text-[#6b7065]">{expense.category} · {dateText(expense.date)}</span>
                       {expense.category === "Fuel" && expense.fuel_type ? (
                         <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}</span>
                       ) : null}
-                      {serviceDetail(expense) ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceDetail(expense)}</span> : null}
+                      {serviceDetail(expense.service_type) ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceDetail(expense.service_type)}</span> : null}
                       {expense.expires_date ? <span className="mt-1 block text-xs text-[#8a6a10]">Expires {dateText(expense.expires_date)}</span> : null}
                       {expense.odometer ? (
                         <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#6b7065]">
@@ -81,13 +86,13 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                     {filesExpenseID === expense.id ? <ExpenseAttachments expenseID={expense.id} token={token} /> : null}
                   </AnimatePresence>
                 </motion.div>
-                {expense.category === "Fuel" && priorFuelExpenses.length ? <FuelFillupWin current={expense} history={priorFuelExpenses} /> : null}
+                {expense.category === "Fuel" && priorFuelExpenses.length ? <div className="border-t border-black/[0.04] px-3 py-2.5 sm:px-3.5"><FuelFillupWin current={expense} history={priorFuelExpenses} /></div> : null}
               </div>
             );
           })}
-        </div>
+        </section>
       )}
-    </Panel>
+    </div>
   );
 }
 
@@ -120,21 +125,6 @@ function confirmDelete(expense: Expense, onDelete: (id: string) => void) {
   if (window.confirm(`Remove ${expense.description || expense.category}?`)) {
     onDelete(expense.id);
   }
-}
-
-function serviceTypeLabel(value: string) {
-  const labels: Record<string, string> = {
-    oil_change: "Oil change",
-    regular_service: "Regular service",
-    filters: "Filters",
-    alignment: "Alignment",
-  };
-  return labels[value] ?? value;
-}
-
-function serviceDetail(expense: Expense) {
-  if (!expense.service_type) return "";
-  return expense.service_type.split(",").map((key) => key.trim()).filter(Boolean).map(serviceTypeLabel).join(" · ");
 }
 
 function fuelPriceLabel(expense: Expense) {

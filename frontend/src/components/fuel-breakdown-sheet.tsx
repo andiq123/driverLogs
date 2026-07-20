@@ -3,10 +3,9 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Divide, Droplets, Milestone, TrendingDown, TrendingUp } from "lucide-react";
 import type { FuelConsumptionBreakdown, FuelConsumptionInterval } from "@/lib/types";
-import { km } from "@/lib/format";
+import { km, PRICE_EPSILON } from "@/lib/format";
 import { BreakdownSheet, formatSheetDate, sheetSpring } from "./bottom-sheet";
 
-const PRICE_EPSILON = 0.01;
 
 export function FuelBreakdownSheet({ breakdown, confidence, onClose }: { breakdown?: FuelConsumptionBreakdown; confidence?: string; onClose: () => void }) {
   const intervals = breakdown?.intervals ?? [];

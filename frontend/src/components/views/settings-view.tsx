@@ -33,7 +33,7 @@ export function SettingsView({ token, settings, loginID, vehicles, userDocuments
 
   return (
     <div className="max-w-2xl">
-      <Panel title="Profile" eyebrow="Account">
+      <Panel eyebrow="Account">
         <form onSubmit={submit} className="grid gap-4">
           <Input name="name" label="Name" icon={UserRound} value={name} maxLength={80} showLabel onChange={(event) => setName(event.currentTarget.value)} />
           <div className="grid gap-1 text-sm font-semibold">

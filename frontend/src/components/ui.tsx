@@ -2,17 +2,20 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react
 import { Car, Loader2, type LucideIcon } from "lucide-react";
 import { controls } from "@/lib/theme";
 
-export function Panel({ title, eyebrow, action, children }: { title: string; eyebrow: string; action?: ReactNode; children: ReactNode }) {
+export function Panel({ title, eyebrow, action, children }: { title?: string; eyebrow?: string; action?: ReactNode; children: ReactNode }) {
+  const showHeader = Boolean(title || eyebrow || action);
   return (
     <section className="min-w-0 overflow-hidden rounded-[24px] border border-black/[0.055] bg-[#fffffb]/96 p-3.5 shadow-[0_8px_28px_rgba(31,41,28,0.06)] ring-1 ring-white/70 transition-[box-shadow,transform,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:rounded-[28px] sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[#70776a] sm:text-xs sm:tracking-[0.16em]">{eyebrow}</p>
-          <h2 className="mt-0.5 text-lg font-semibold sm:mt-1 sm:text-xl">{title}</h2>
+      {showHeader ? (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {eyebrow ? <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[#70776a] sm:text-xs sm:tracking-[0.16em]">{eyebrow}</p> : null}
+            {title ? <h2 className={`text-lg font-semibold sm:text-xl ${eyebrow ? "mt-0.5 sm:mt-1" : ""}`}>{title}</h2> : null}
+          </div>
+          {action ? <div className="shrink-0">{action}</div> : null}
         </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
-      <div className="mt-3.5 sm:mt-5">{children}</div>
+      ) : null}
+      <div className={showHeader ? "mt-3.5 sm:mt-5" : undefined}>{children}</div>
     </section>
   );
 }

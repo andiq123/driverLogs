@@ -24,6 +24,24 @@ export function dateText(value?: string) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
+export function monthLabel(value: string) {
+  const [year, month] = value.split("-");
+  const monthIndex = Number(month) - 1;
+  if (!year || !Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) return value;
+  return new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(new Date(Date.UTC(Number(year), monthIndex, 1)));
+}
+
+/** Local calendar date as YYYY-MM-DD. */
+export function todayDateValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Price equality epsilon for fuel comparisons (MDL/L). */
+export const PRICE_EPSILON = 0.01;
+
 export function numberValue(value: FormDataEntryValue | null) {
   const normalized = normalizeDecimal(String(value ?? ""));
   const parsed = Number(normalized);

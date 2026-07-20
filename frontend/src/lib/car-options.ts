@@ -56,3 +56,35 @@ export function oilIntervalForVehicle(fuelType?: string, engineType?: string) {
   if (value.includes("petrol") || value.includes("gasoline") || value.includes("super 95")) return 12000;
   return 10000;
 }
+
+export const servicePresetOptions = [
+  { label: "Oil change", value: "oil_change" },
+  { label: "Regular service", value: "regular_service" },
+  { label: "Filters", value: "filters" },
+  { label: "Alignment", value: "alignment" },
+] as const;
+
+export function serviceTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    oil_change: "Oil change",
+    regular_service: "Regular service",
+    filters: "Filters",
+    alignment: "Alignment",
+  };
+  return labels[value] ?? value;
+}
+
+export function serviceTypeKeys(value: string) {
+  return value.split(",").map((key) => key.trim()).filter(Boolean);
+}
+
+export function toggleServiceTypeKey(value: string, key: string) {
+  const keys = serviceTypeKeys(value);
+  const next = keys.includes(key) ? keys.filter((existing) => existing !== key) : [...keys, key];
+  return next.join(",");
+}
+
+export function serviceDetail(serviceType?: string) {
+  if (!serviceType) return "";
+  return serviceTypeKeys(serviceType).map(serviceTypeLabel).join(" · ");
+}

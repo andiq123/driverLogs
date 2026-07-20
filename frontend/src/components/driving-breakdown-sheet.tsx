@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Milestone } from "lucide-react";
 import type { DistanceInsight, MonthlyDistance } from "@/lib/types";
-import { km } from "@/lib/format";
+import { km, monthLabel } from "@/lib/format";
 import { BreakdownSheet, SheetStat, sheetSpring, trendIcon } from "./bottom-sheet";
 
 export function DrivingBreakdownSheet({ distance, onClose }: { distance?: DistanceInsight; onClose: () => void }) {
@@ -65,12 +65,4 @@ function trendText(distance: DistanceInsight) {
   if (distance.trend === "first") return "First month";
   if (distance.trend === "flat") return "Same";
   return `${km(Math.abs(distance.delta_km))} ${distance.trend === "up" ? "more" : "less"}`;
-}
-
-function monthLabel(value: string) {
-  const [year, month] = value.split("-");
-  const index = Number(month) - 1;
-  const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  if (!year || index < 0 || index > 11) return value;
-  return `${names[index]} ${year}`;
 }

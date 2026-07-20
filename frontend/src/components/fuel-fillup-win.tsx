@@ -1,14 +1,13 @@
 import { motion } from "framer-motion";
 import { Minus, Sparkles, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 import { calmEase } from "@/lib/theme";
-import { money } from "@/lib/format";
+import { money, PRICE_EPSILON } from "@/lib/format";
 import type { Expense } from "@/lib/types";
 
 // Price per liter is the only fair way to compare two fill-ups — it works
 // whether or not the tank was filled, and ignores how many liters went in. We
 // surface it whenever there is a previous priced fill, framed by what changed:
 // a new low, cheaper than last, below average, pricier, or steady.
-const PRICE_EPSILON = 0.01;
 
 type Tone = "good" | "warn" | "neutral";
 
@@ -41,7 +40,7 @@ export function FuelFillupWin({ current, history }: { current: Expense; history:
       initial={{ opacity: 0, y: 10, scale: 0.985, filter: "blur(5px)" }}
       animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
       transition={{ duration: 0.42, ease: calmEase }}
-      className={`relative mx-1 overflow-hidden rounded-[22px] border p-3 ring-1 ring-white/80 sm:mx-8 sm:rounded-[24px] sm:p-4 ${tone.container}`}
+      className={`relative overflow-hidden rounded-[22px] border p-3 ring-1 ring-white/80 sm:rounded-[24px] sm:p-4 ${tone.container}`}
     >
       <div className="grid gap-3 sm:grid-cols-[minmax(0,0.82fr)_minmax(240px,1fr)] sm:items-center">
         <div className="min-w-0">

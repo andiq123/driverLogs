@@ -23,7 +23,7 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   const [showDrivingMath, setShowDrivingMath] = useState(false);
   const [showSpendingMath, setShowSpendingMath] = useState(false);
   return (
-    <section className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 2xl:grid-cols-5">
+    <section className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 2xl:grid-cols-4">
       <InsightTile index={0} icon={CalendarClock} title="Oil" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} subnote={oilSubnote(oil)} tone={oilTone(oil.remaining_km, oil.next_odometer)} badge={oilBadge(oil.remaining_km, oil.next_odometer)} progress={oilProgress(oil)} />
       <InsightTile index={1} icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples)} onClick={fuelBreakdown ? () => setShowFuelMath(true) : undefined} />
       <FuelBreakdownSheet breakdown={showFuelMath ? fuelBreakdown : undefined} confidence={insights.fuel.consumption_confidence} onClose={() => setShowFuelMath(false)} />

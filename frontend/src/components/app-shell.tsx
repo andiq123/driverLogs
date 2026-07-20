@@ -1,20 +1,32 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CalendarDays } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
-import type { View } from "@/lib/types";
+import { Car, ChevronRight } from "lucide-react";
+import { type MouseEvent, type ReactNode } from "react";
+import type { Vehicle, View } from "@/lib/types";
+import { vehicleName } from "@/lib/format";
 import { mobileNavItems, navItems } from "@/lib/theme";
 import { BrandMark } from "./brand-mark";
 import { UserCard } from "./user-card";
 
-export function AppShell({ view, userName, onLogout, onViewChange, children }: { view: View; userName?: string; onLogout: () => void; onViewChange: (view: View) => void; children: ReactNode }) {
+type AppShellProps = {
+  view: View;
+  userName?: string;
+  vehicle?: Vehicle;
+  vehicles?: Vehicle[];
+  onLogout: () => void;
+  onViewChange: (view: View) => void;
+  onSelectVehicle?: (id: string) => void;
+  children: ReactNode;
+};
+
+export function AppShell({ view, userName, vehicle, vehicles = [], onLogout, onViewChange, onSelectVehicle, children }: AppShellProps) {
   const displayName = userName?.trim() || "User";
-  const title = view === "Settings" ? "Profile" : view;
-  const today = useTodayLabel();
+  const title = view === "Settings" ? "Profile" : view === "Garage" ? "Garage" : view;
+
   return (
     <main className="min-h-dvh overflow-x-hidden bg-[#f5f7f2] text-[#151712] lg:h-dvh lg:overflow-hidden">
-      <div className="mx-auto flex w-full max-w-[118rem] gap-4 overflow-x-hidden px-2 pb-[calc(5.6rem+env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-5 lg:h-dvh lg:px-6 lg:py-3 lg:pb-3 xl:gap-6">
+      <div className="mx-auto flex w-full max-w-[96rem] gap-4 overflow-x-hidden px-2 pb-[calc(5.6rem+env(safe-area-inset-bottom))] pt-1 sm:px-5 lg:h-dvh lg:px-6 lg:py-3 lg:pb-3 xl:gap-6">
         <aside className="hidden h-[calc(100dvh-1.5rem)] w-64 shrink-0 flex-col rounded-[28px] border border-black/[0.06] bg-[#fbfcf8] p-4 shadow-[0_18px_64px_rgba(31,41,28,0.10)] lg:flex">
           <Brand />
           <Nav view={view} onViewChange={onViewChange} />
@@ -24,18 +36,18 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col lg:h-full lg:min-h-0">
-          <header className="sticky top-0 z-20 -mx-2 border-b border-black/[0.06] bg-[#f5f7f2]/88 px-3 pb-2 pt-[max(0.35rem,env(safe-area-inset-top))] backdrop-blur-xl sm:-mx-5 sm:px-5 sm:pb-3 sm:pt-[max(0.75rem,env(safe-area-inset-top))] lg:relative lg:mx-0 lg:mt-4 lg:flex lg:h-16 lg:shrink-0 lg:items-center lg:border-none lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0 lg:backdrop-blur-none">
+          <header className="sticky top-0 z-20 -mx-2 border-b border-black/[0.06] bg-[#f5f7f2]/88 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-xl sm:-mx-5 sm:px-5 sm:pb-3 lg:relative lg:mx-0 lg:mt-4 lg:flex lg:h-16 lg:shrink-0 lg:items-center lg:border-none lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0 lg:backdrop-blur-none">
             <div className="flex w-full items-center justify-between gap-3">
               <div className="min-w-0">
                 <h1 className="truncate text-[30px] font-semibold leading-none tracking-tight sm:text-4xl">{title}</h1>
               </div>
-              <div className="flex shrink-0 items-center gap-2 rounded-[18px] border border-black/[0.055] bg-[#fffffb]/82 px-2.5 py-2 text-right shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 sm:px-3">
-                <CalendarDays size={17} className="text-[#62685e]" />
-                <span className="grid leading-none">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#70776a] sm:text-[10px]">{today.weekday}</span>
-                  <span className="mt-1 text-xs font-bold text-[#151712] sm:text-sm">{today.monthDay}</span>
-                </span>
-              </div>
+              <VehicleSwitcher
+                vehicle={vehicle}
+                vehicles={vehicles}
+                active={view === "Garage"}
+                onOpenGarage={() => onViewChange("Garage")}
+                onSelectVehicle={onSelectVehicle}
+              />
             </div>
           </header>
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-3">{children}</div>
@@ -60,25 +72,59 @@ export function AppShell({ view, userName, onLogout, onViewChange, children }: {
   );
 }
 
-function useTodayLabel() {
-  const [today, setToday] = useState(formatTodayLabel);
+function VehicleSwitcher({
+  vehicle,
+  vehicles,
+  active,
+  onOpenGarage,
+  onSelectVehicle,
+}: {
+  vehicle?: Vehicle;
+  vehicles: Vehicle[];
+  active: boolean;
+  onOpenGarage: () => void;
+  onSelectVehicle?: (id: string) => void;
+}) {
+  const label = vehicle ? vehicleName(vehicle) : "Add vehicle";
+  const plate = vehicle?.plate_number ?? "Garage";
+  const canQuickCycle = vehicles.length > 1 && onSelectVehicle && vehicle;
 
-  useEffect(() => {
-    const refresh = () => setToday(formatTodayLabel());
-    refresh();
-    const interval = window.setInterval(refresh, 60 * 60 * 1000);
-    return () => window.clearInterval(interval);
-  }, []);
+  function onPrimaryClick() {
+    onOpenGarage();
+  }
 
-  return today;
-}
+  function onSecondaryClick(event: MouseEvent) {
+    if (!canQuickCycle || !vehicle) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const index = vehicles.findIndex((item) => item.id === vehicle.id);
+    const next = vehicles[(index + 1) % vehicles.length];
+    if (next) onSelectVehicle(next.id);
+  }
 
-function formatTodayLabel() {
-  const now = new Date();
-  return {
-    weekday: new Intl.DateTimeFormat("en", { weekday: "long" }).format(now),
-    monthDay: new Intl.DateTimeFormat("en", { month: "long", day: "numeric" }).format(now),
-  };
+  return (
+    <button
+      type="button"
+      aria-label={canQuickCycle ? "Open garage. Double-click to switch vehicle." : "Open garage"}
+      aria-current={active ? "page" : undefined}
+      onClick={onPrimaryClick}
+      onDoubleClick={onSecondaryClick}
+      className={`flex max-w-[11.5rem] shrink-0 items-center gap-2 rounded-[18px] border px-2.5 py-2 text-left shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 transition-[background-color,transform] duration-300 active:scale-[0.985] sm:max-w-[14rem] sm:px-3 ${
+        active
+          ? "border-[#c9d8c0] bg-[#e6f0df]"
+          : "border-black/[0.055] bg-[#fffffb]/82 hover:bg-[#f7faf3]"
+      }`}
+    >
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-[12px] bg-[#edf4e7] text-[#151712]">
+        <Car size={15} />
+      </span>
+      <span className="min-w-0 flex-1 leading-none">
+        <span className="block truncate text-[9px] font-bold uppercase tracking-[0.14em] text-[#70776a] sm:text-[10px]">{plate}</span>
+        <span className="mt-1 block truncate text-xs font-bold text-[#151712] sm:text-sm">{label}</span>
+      </span>
+      <ChevronRight size={14} className="shrink-0 text-[#9aa193]" />
+    </button>
+  );
 }
 
 function Brand() {

@@ -4,7 +4,7 @@ import { getExpenseAttachmentPreview, getUserDocumentPreview, getVehicleDocument
 import type { DocumentAttachment, Expense, ExpenseAttachment, ExpenseCategory, MoneyTotals, SmartReminder, Vehicle } from "@/lib/types";
 import { equivalents, km, money, vehicleName } from "@/lib/format";
 import { Badge, EmptyState, Metric } from "../ui";
-import { ExpenseForm } from "../forms";
+import { ExpenseForm } from "../expense-form";
 import { SmartInsightsPanel } from "../smart-insights";
 import { FilePreviewModal } from "../file-preview-modal";
 
@@ -12,32 +12,56 @@ export function DashboardView({ vehicle, expenses, userDocuments, totals, token,
   const [intentCategory, setIntentCategory] = useState<ExpenseCategory>();
   const [preview, setPreview] = useState<DocumentPreview>();
   if (!vehicle) {
-    return <section className="rounded-[28px] bg-[#151712] p-6 text-white sm:p-8"><EmptyState icon={Car} title="Start with the garage" body="Add a vehicle before logging expenses or viewing dashboard metrics." dark /></section>;
+    return <section className="rounded-[28px] bg-[#151712] p-6 text-white sm:p-8"><EmptyState icon={Car} title="Start with the garage" body="Add a vehicle before logging expenses or viewing dashboard metrics. Use the vehicle chip in the header." dark /></section>;
   }
 
+  const widgets = (
+    <>
+      <SmartReminderBar reminders={totals.insights.reminders ?? []} onSelect={setIntentCategory} />
+      <DocumentShortcuts token={token} vehicle={vehicle} expenses={expenses} userDocuments={userDocuments} onOpen={setPreview} />
+      <SmartInsightsPanel insights={totals.insights} />
+    </>
+  );
+
   return (
-    <div className="grid items-start gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.78fr)] 2xl:grid-cols-[minmax(0,1fr)_440px]">
+    <div className="grid items-start gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="grid content-start gap-3 sm:gap-4">
-        <section className="relative overflow-hidden rounded-[24px] bg-[#151712] p-4 text-white shadow-[0_8px_24px_rgba(21,23,18,0.10)] sm:min-h-[24rem] sm:rounded-[28px] sm:p-6 xl:min-h-[21rem]">
+        <section className="relative overflow-hidden rounded-[24px] bg-[#151712] p-4 text-white shadow-[0_8px_24px_rgba(21,23,18,0.10)] sm:rounded-[28px] sm:p-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_88%_-10%,rgba(255,255,255,0.06),transparent_55%)]" />
           <div className="relative flex flex-wrap gap-1.5 sm:gap-2">
             <Badge>{vehicle.plate_number}</Badge>
             {vehicle.engine_type ? <Badge>{vehicle.engine_type}</Badge> : null}
             {vehicle.year ? <Badge>{vehicle.year}</Badge> : null}
           </div>
-          <h2 className="relative mt-4 text-[30px] font-semibold leading-none tracking-tight sm:mt-6 sm:text-5xl">{vehicleName(vehicle)}</h2>
-          <p className="relative mt-2 hidden max-w-xl text-sm leading-6 text-white/68 sm:block">Smart estimates use only records created for this car.</p>
-          <div className="relative mt-5 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-3">
+          <h2 className="relative mt-4 text-[30px] font-semibold leading-none tracking-tight sm:mt-5 sm:text-4xl xl:text-5xl">{vehicleName(vehicle)}</h2>
+          <div className="relative mt-5 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
             <Metric label="Lifetime" value={money(totals.total_expenses_mdl)} sub={equivalents(totals.total_expenses_eur, totals.total_expenses_usd)} />
             <Metric label="Odometer" value={km(vehicle.odometer ?? 0)} sub="Current reading" />
             <Metric label="Cost/km" value={totals.cost_per_km_mdl ? `${totals.cost_per_km_mdl} MDL` : "Learning"} sub={`${totals.expense_count} entries`} />
           </div>
         </section>
-        <SmartReminderBar reminders={totals.insights.reminders ?? []} onSelect={setIntentCategory} />
-        <DocumentShortcuts token={token} vehicle={vehicle} expenses={expenses} userDocuments={userDocuments} onOpen={setPreview} />
-        <SmartInsightsPanel insights={totals.insights} />
+
+        {/* Desktop: compact summaries between hero and the expense column */}
+        <div className="hidden content-start gap-3 xl:grid sm:gap-4">{widgets}</div>
       </div>
-      <ExpenseForm key={vehicle.id} vehicle={vehicle} token={token} baseCurrency={baseCurrency} country={country} saving={savingExpense} odometerSuggestion={odometerSuggestion(vehicle, expenses)} intentCategory={intentCategory} onCreate={onCreateExpense} />
+
+      <div className="grid content-start gap-3 sm:gap-4">
+        <ExpenseForm
+          key={vehicle.id}
+          vehicle={vehicle}
+          token={token}
+          baseCurrency={baseCurrency}
+          country={country}
+          saving={savingExpense}
+          odometerSuggestion={odometerSuggestion(vehicle, expenses)}
+          intentCategory={intentCategory}
+          collapsible
+          onCreate={onCreateExpense}
+        />
+        {/* Mobile: summaries after the log CTA so the first screen stays calm */}
+        <div className="grid content-start gap-3 xl:hidden sm:gap-4">{widgets}</div>
+      </div>
+
       {preview ? <FilePreviewModal title={preview.title} fileName={preview.fileName} load={preview.load} onClose={() => setPreview(undefined)} /> : null}
     </div>
   );
@@ -64,13 +88,13 @@ function DocumentShortcuts({ token, vehicle, expenses, userDocuments, onOpen }: 
   return (
     <section className="flex snap-x gap-2 overflow-x-auto pb-1">
       {items.map((item) => (
-        <button key={`${item.label}-${item.fileName}`} type="button" onClick={() => onOpen({ title: item.label, fileName: item.fileName, load: item.load })} className="flex min-w-44 snap-start items-center gap-2 rounded-[18px] border border-black/[0.055] bg-[#fffffb]/94 px-3 py-2 text-left shadow-[0_8px_24px_rgba(31,41,28,0.055)] ring-1 ring-white/70 transition-[background-color,transform] duration-300 active:scale-[0.985] hover:bg-[#f7faf3]">
-          <span className="flex size-9 items-center justify-center rounded-[14px] bg-[#edf4e7]"><FileText size={16} /></span>
+        <button key={`${item.label}-${item.fileName}`} type="button" onClick={() => onOpen({ title: item.label, fileName: item.fileName, load: item.load })} className="flex min-w-40 snap-start items-center gap-2 rounded-[16px] border border-black/[0.055] bg-[#fffffb]/94 px-3 py-2 text-left shadow-[0_6px_18px_rgba(31,41,28,0.04)] ring-1 ring-white/70 transition-[background-color,transform] duration-300 active:scale-[0.985] hover:bg-[#f7faf3]">
+          <span className="flex size-8 items-center justify-center rounded-[12px] bg-[#edf4e7]"><FileText size={15} /></span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-bold">{item.label}</span>
-            <span className="block truncate text-xs text-[#6b7065]">{item.fileName}</span>
+            <span className="block truncate text-[11px] text-[#6b7065]">{item.fileName}</span>
           </span>
-          <ChevronRight size={15} className="shrink-0 text-[#9aa193]" />
+          <ChevronRight size={14} className="shrink-0 text-[#9aa193]" />
         </button>
       ))}
     </section>
@@ -103,9 +127,9 @@ function SmartReminderBar({ reminders, onSelect }: { reminders: SmartReminder[];
   if (!reminders.length) return null;
   return (
     <section className="flex snap-x gap-2 overflow-x-auto pb-1">
-      {reminders.map((reminder, index) => (
-        <button key={`${reminder.title}-${index}`} type="button" onClick={() => onSelect(reminder.category)} className={`min-w-48 snap-start rounded-[18px] border px-3 py-2 text-left shadow-[0_8px_24px_rgba(31,41,28,0.06)] transition-transform active:scale-[0.985] ${reminder.kind === "expired" ? "border-[#f0b2a8] bg-[#fff0ec] text-[#8b2d20]" : "border-[#efd282] bg-[#fff8df] text-[#7b5a12]"}`}>
-          <span className="block text-[11px] font-bold uppercase tracking-[0.14em]">{reminder.kind === "expired" ? "Due now" : "Upcoming"}</span>
+      {reminders.slice(0, 4).map((reminder, index) => (
+        <button key={`${reminder.title}-${index}`} type="button" onClick={() => onSelect(reminder.category)} className={`min-w-44 snap-start rounded-[16px] border px-3 py-2 text-left transition-transform active:scale-[0.985] ${reminder.kind === "expired" ? "border-[#f0b2a8] bg-[#fff0ec] text-[#8b2d20]" : "border-[#efd282] bg-[#fff8df] text-[#7b5a12]"}`}>
+          <span className="block text-[10px] font-bold uppercase tracking-[0.14em]">{reminder.kind === "expired" ? "Due now" : "Upcoming"}</span>
           <span className="mt-0.5 block text-sm font-bold">{reminder.title}</span>
           <span className="mt-0.5 block text-xs opacity-75">{reminder.date ?? (reminder.odometer ? km(reminder.odometer) : "Tap to log")}</span>
         </button>

@@ -36,7 +36,24 @@ export function CalendarField({ label, name, value, placeholder = "Select date",
     <label className={`relative grid min-w-0 gap-1 text-sm font-semibold ${isOpen ? "z-50" : "z-0"}`}>
       <span className="sr-only">{label}</span>
       <input type="hidden" name={name} value={value} />
-      <button ref={buttonRef} type="button" aria-haspopup="dialog" aria-expanded={isOpen} aria-label={label} onBlur={() => setIsOpen(false)} onClick={() => setIsOpen((open) => !open)} className={`${controls.trigger} pl-10`}>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={label}
+        onBlur={() => setIsOpen(false)}
+        onClick={() => {
+          setIsOpen((open) => {
+            if (!open) {
+              // Always land on the month that shows today (or the selected value).
+              setVisibleMonth(startOfMonth(selectedDate ?? new Date()));
+            }
+            return !open;
+          });
+        }}
+        className={`${controls.trigger} pl-10`}
+      >
         <Calendar size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#62685e]" />
         <span className={value ? "text-[#151712]" : "text-[#62685e]"}>{value ? formatDisplayDate(value) : placeholder}</span>
       </button>
@@ -62,9 +79,25 @@ export function CalendarField({ label, name, value, placeholder = "Select date",
                 <motion.div key={visibleMonth.toISOString()} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.22, ease: calmEase }} className="mt-1.5 grid grid-cols-7 gap-1">
                   {days.map((date) => {
                     const active = value === formatDateValue(date);
+                    const today = isSameDay(date, new Date());
                     const muted = date.getMonth() !== visibleMonth.getMonth();
                     return (
-                      <button key={date.toISOString()} type="button" onClick={() => choose(date)} className={`flex aspect-square min-h-9 touch-manipulation items-center justify-center rounded-xl text-sm ${controls.menuItem} ${active ? "bg-[#151712] font-bold text-white" : muted ? "text-[#a0a69a] hover:bg-[#f1f4ec]" : "text-[#151712] hover:bg-[#e6f0df]"}`}>
+                      <button
+                        key={date.toISOString()}
+                        type="button"
+                        aria-current={today ? "date" : undefined}
+                        aria-pressed={active}
+                        onClick={() => choose(date)}
+                        className={`flex aspect-square min-h-9 touch-manipulation items-center justify-center rounded-xl text-sm ${controls.menuItem} ${
+                          active
+                            ? "bg-[#151712] font-bold text-white"
+                            : today
+                              ? "bg-[#e6f0df] font-bold text-[#151712] ring-1 ring-[#151712]/20"
+                              : muted
+                                ? "text-[#a0a69a] hover:bg-[#f1f4ec]"
+                                : "text-[#151712] hover:bg-[#e6f0df]"
+                        }`}
+                      >
                         {date.getDate()}
                       </button>
                     );
@@ -108,6 +141,10 @@ function parseDate(value: string) {
   if (!value) return undefined;
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 function startOfMonth(date: Date) {

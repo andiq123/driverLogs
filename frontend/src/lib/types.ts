@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-export type View = "Garage" | "Dashboard" | "Timeline" | "Analytics" | "Fuel Prices" | "Reports" | "Settings";
+export type View = "Garage" | "Dashboard" | "Timeline" | "Analytics" | "Fuel Prices" | "Settings";
 
 export type ExpenseCategory =
   | "Fuel"
