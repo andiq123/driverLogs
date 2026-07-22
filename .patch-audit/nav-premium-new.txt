@@ -1,0 +1,7 @@
+/* Nav page transitions — fast; content stays visible (no opacity:0 + both) */
+.nav-page.nav-in {
+  animation: navIn .2s var(--ease-out-soft) forwards;
+}
+.nav-page.nav-in-back {
+  animation: navInBack .2s var(--ease-out-soft) forwards;
+}

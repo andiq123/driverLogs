@@ -1,0 +1,3 @@
+      renderServices({ soft: true, force: true });
+      syncRouteFromState();
+    } else if (id.indexOf('svc:save:') === 0) {

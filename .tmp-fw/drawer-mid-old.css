@@ -1,0 +1,87 @@
+#drawer-root .svc-drawer .settings,
+#drawer-root .svc-drawer .folds-dense,
+#drawer-root .svc-drawer .fold-inner {
+  background: transparent !important;
+  color: var(--drawer-text);
+}
+#drawer-root .svc-drawer .folds-dense > .fold {
+  border-bottom-color: rgba(255,255,255,.06) !important;
+  background: transparent !important;
+}
+#drawer-root .svc-drawer .folds-dense .fold-head { color: var(--drawer-text); }
+#drawer-root .svc-drawer .folds-dense .fold-head:hover { background: rgba(255,255,255,.03) !important; }
+#drawer-root .svc-drawer .folds-dense .fold-title { color: var(--drawer-text) !important; }
+#drawer-root .svc-drawer .folds-dense .fold-summary { color: var(--drawer-muted) !important; }
+#drawer-root .svc-drawer .svc-settings-foot {
+  border-top: 1px solid var(--drawer-border) !important;
+  background: rgba(0,0,0,.22) !important;
+}
+#drawer-root .svc-drawer .svc-settings-hint,
+#drawer-root .svc-drawer .ghost,
+#drawer-root .svc-drawer label,
+#drawer-root .svc-drawer .ui-field-meta { color: var(--drawer-muted) !important; }
+#drawer-root .svc-drawer input,
+#drawer-root .svc-drawer textarea,
+#drawer-root .svc-drawer select,
+#drawer-root .svc-drawer .cselect-trigger,
+#drawer-root .svc-drawer .ui-input {
+  background: var(--drawer-input-bg) !important;
+  border-color: var(--drawer-input-border) !important;
+  color: var(--drawer-text) !important;
+}
+#drawer-root .svc-drawer input::placeholder,
+#drawer-root .svc-drawer textarea::placeholder { color: rgba(156,163,175,.65) !important; }
+#drawer-root .svc-drawer .btn {
+  border-color: rgba(255,255,255,.12) !important;
+  color: var(--drawer-text);
+  background: rgba(255,255,255,.04);
+}
+#drawer-root .svc-drawer .btn.primary {
+  background: var(--drawer-accent) !important;
+  border-color: var(--drawer-accent) !important;
+  color: #fff !important;
+}
+#drawer-root .svc-drawer .btn.btn-secondary,
+#drawer-root .svc-drawer .btn.btn-quiet {
+  background: rgba(255,255,255,.04) !important;
+  color: var(--drawer-text) !important;
+}
+#drawer-root .svc-drawer .env-table,
+#drawer-root .svc-drawer .env-table th,
+#drawer-root .svc-drawer .env-table td {
+  border-color: rgba(255,255,255,.08) !important;
+  color: var(--drawer-text);
+}
+#drawer-root .svc-drawer .env-table th { color: var(--drawer-muted); background: rgba(0,0,0,.2); }
+#drawer-root .svc-drawer .env-table tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+#drawer-root .svc-drawer .sql-box,
+#drawer-root .svc-drawer .sql-out,
+#drawer-root .svc-drawer .sql-input {
+  background: var(--drawer-input-bg) !important;
+  border-color: var(--drawer-input-border) !important;
+  color: var(--drawer-text) !important;
+}
+#drawer-root .svc-drawer .sql-table th,
+#drawer-root .svc-drawer .sql-table td {
+  border-color: rgba(255,255,255,.08) !important;
+  color: var(--drawer-text);
+}
+#drawer-root .svc-drawer .res-slider input[type=range] {
+  accent-color: var(--drawer-accent);
+}
+#drawer-root .svc-drawer .res-labels,
+#drawer-root .svc-drawer .res-val { color: var(--drawer-muted) !important; }
+#drawer-root .svc-drawer .svc-banner {
+  border-top: 1px solid var(--drawer-border) !important;
+  background: rgba(0,0,0,.25) !important;
+}
+#drawer-root .svc-drawer .svc-banner .svc-banner-text { color: var(--drawer-muted) !important; }
+#drawer-root .svc-drawer .cselect-menu {
+  background: #1a1b22 !important;
+  border-color: var(--drawer-input-border) !important;
+  color: var(--drawer-text) !important;
+}
+#drawer-root .svc-drawer .cselect-opt:hover,
+#drawer-root .svc-drawer .cselect-opt.active {
+  background: rgba(139,92,246,.14) !important;
+}

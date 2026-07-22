@@ -1,0 +1,2 @@
+    if (dir || opts.animate) setMotion(true, dir ? 200 : 180);
+    else if (appearAny) setMotion(true, 200);

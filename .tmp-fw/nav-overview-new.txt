@@ -1,0 +1,6 @@
+        dockerOpen = false;
+        render({ animate: true, dir: _navDir });
+        syncRouteFromState();
+        return;
+      }
+      if (view === 'projects') {

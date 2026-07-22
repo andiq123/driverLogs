@@ -1,0 +1,75 @@
+/* Postgres + flat settings — dark drawer (override light panel tokens) */
+#drawer-root .svc-drawer .settings.settings-flat,
+#drawer-root .svc-drawer .settings.settings-dense.settings-flat {
+  background: transparent !important;
+  gap: 10px;
+}
+#drawer-root .svc-drawer .pg-meta,
+#drawer-root .svc-drawer .env-board,
+#drawer-root .svc-drawer .sql-box {
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  color: var(--drawer-text) !important;
+}
+#drawer-root .svc-drawer .pg-meta-row .k,
+#drawer-root .svc-drawer .env-board-head strong {
+  color: var(--drawer-muted) !important;
+}
+#drawer-root .svc-drawer .pg-meta-row .v,
+#drawer-root .svc-drawer .pg-meta-row .mono {
+  color: var(--drawer-text) !important;
+}
+#drawer-root .svc-drawer .env-table {
+  background: rgba(0,0,0,.22) !important;
+  border-color: rgba(255,255,255,.08) !important;
+}
+#drawer-root .svc-drawer .env-row {
+  border-top-color: rgba(255,255,255,.06) !important;
+}
+#drawer-root .svc-drawer .env-row.env-head {
+  background: rgba(0,0,0,.28) !important;
+  color: var(--drawer-muted) !important;
+}
+#drawer-root .svc-drawer .env-key {
+  color: #e2e8f0 !important;
+}
+#drawer-root .svc-drawer .env-val,
+#drawer-root .svc-drawer .env-val.masked {
+  color: var(--drawer-muted) !important;
+}
+#drawer-root .svc-drawer .env-board-head .ghost {
+  color: var(--drawer-muted) !important;
+}
+#drawer-root .svc-drawer .sql-head strong {
+  color: var(--drawer-text) !important;
+}
+#drawer-root .svc-drawer .sql-meta {
+  color: var(--drawer-muted) !important;
+}
+#drawer-root .svc-drawer .sql-table-wrap {
+  border-color: rgba(255,255,255,.08) !important;
+}
+#drawer-root .svc-drawer .sql-table th {
+  background: rgba(0,0,0,.32) !important;
+  color: var(--drawer-muted) !important;
+  border-bottom-color: rgba(255,255,255,.08) !important;
+}
+#drawer-root .svc-drawer .sql-table td {
+  border-bottom-color: rgba(255,255,255,.06) !important;
+  color: var(--drawer-text) !important;
+}
+#drawer-root .svc-drawer .sql-ok {
+  background: rgba(34,197,94,.12) !important;
+  color: #86efac !important;
+}
+#drawer-root .svc-drawer .sql-err {
+  background: rgba(225,29,72,.12) !important;
+  color: #fda4af !important;
+}
+#drawer-root .svc-drawer .ui-footer {
+  border-top: 1px solid var(--drawer-border) !important;
+  background: rgba(0,0,0,.22) !important;
+}
+#drawer-root .svc-drawer .pg-power .ghost {
+  color: var(--drawer-muted) !important;
+}

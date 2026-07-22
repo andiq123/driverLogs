@@ -83,7 +83,7 @@ func (c Config) Validate() error {
 		return nil
 	}
 	if strings.Contains(c.DatabaseURL, "localhost") || c.DatabaseURL == "" {
-		return ValidationError{Field: "DATABASE_URL", Detail: "set DATABASE_URL or Railway POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB"}
+		return ValidationError{Field: "DATABASE_URL", Detail: "set DATABASE_URL or DB_*/POSTGRES_* host, port, user, password, and database"}
 	}
 	if len(c.JWTSecret) < 32 || c.JWTSecret == localJWTSecret || strings.Contains(strings.ToLower(c.JWTSecret), "local") {
 		return ValidationError{Field: "JWT_SECRET", Detail: "must be a production secret with at least 32 characters"}
@@ -179,14 +179,21 @@ func databaseURL() string {
 	if value := os.Getenv("DATABASE_URL"); value != "" {
 		return value
 	}
-	host := os.Getenv("POSTGRES_HOST")
-	port := env("POSTGRES_PORT", "5432")
-	user := os.Getenv("POSTGRES_USER")
-	password := os.Getenv("POSTGRES_PASSWORD")
-	database := os.Getenv("POSTGRES_DB")
+	host := firstEnv("DB_HOST", "POSTGRES_HOST")
+	port := firstEnv("DB_PORT", "POSTGRES_PORT")
+	if port == "" {
+		port = "5432"
+	}
+	user := firstEnv("DB_USER", "POSTGRES_USER")
+	password := firstEnv("DB_PASSWORD", "POSTGRES_PASSWORD")
+	database := firstEnv("DB_NAME", "POSTGRES_DB")
+	sslmode := firstEnv("DB_SSLMODE", "POSTGRES_SSLMODE")
+	if sslmode == "" {
+		sslmode = "disable"
+	}
 	if host != "" && user != "" && password != "" && database != "" {
 		values := url.Values{}
-		values.Set("sslmode", "disable")
+		values.Set("sslmode", sslmode)
 		return (&url.URL{
 			Scheme:   "postgres",
 			User:     url.UserPassword(user, password),

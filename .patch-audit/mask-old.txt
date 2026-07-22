@@ -1,0 +1,6 @@
+  function maskEnvValue(v) {
+    v = String(v || '');
+    if (!v) return '—';
+    var n = Math.min(14, Math.max(8, v.length));
+    return Array(n + 1).join('•');
+  }

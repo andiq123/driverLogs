@@ -1,0 +1,451 @@
+/* === CRM workspace overhaul (2026-07) === */
+
+.app-content {
+  min-height: calc(100dvh - 52px);
+  min-height: calc(100vh - 52px);
+}
+
+.layout-overview,
+.layout-main,
+.layout-projects,
+.layout-settings,
+.layout-activity {
+  min-height: calc(100dvh - 72px);
+  min-height: calc(100vh - 72px);
+}
+
+.layout-overview .rack-live,
+.layout-overview .rack-live .rack-row {
+  min-height: 100%;
+  align-items: stretch;
+}
+
+.layout-overview .rack-live .rack-row > .panel {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-settings .panel-settings,
+.layout-projects .panel-projects-crm,
+.layout-activity .nav-page {
+  min-height: calc(100dvh - 88px);
+  min-height: calc(100vh - 88px);
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-settings .panel-settings .ws-body.settings-body,
+.layout-projects .panel-projects-crm .ws-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Projects — CRM split */
+.panel-projects-crm {
+  padding: 12px 14px 14px !important;
+}
+
+.panel-projects-crm .ws-body.projects-split {
+  display: grid !important;
+  grid-template-columns: 320px minmax(0, 1fr) !important;
+  gap: 0 !important;
+  align-items: stretch !important;
+  min-height: calc(100dvh - 148px);
+  min-height: calc(100vh - 148px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f4f6f9;
+}
+
+.panel-projects-crm .ws-col-groups {
+  border-right: 1px solid var(--line);
+  background: #fff;
+  padding: 12px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.panel-projects-crm .ws-col-main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f4f6f9;
+}
+
+.panel-projects-crm .ws-col-main.panel-group-detail {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #f4f6f9;
+}
+
+.panel-projects-crm .group-tile-list-col {
+  grid-template-columns: 1fr !important;
+}
+
+.group-tile.active {
+  border-color: rgba(139, 92, 246, .45) !important;
+  background: #faf5ff !important;
+  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, .18), 0 2px 8px rgba(15, 23, 42, .04) !important;
+}
+
+.group-tile.active .group-tile-title {
+  color: #6d28d9;
+}
+
+.projects-welcome {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.projects-welcome-inner {
+  text-align: center;
+  max-width: 360px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.projects-welcome-inner h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -.02em;
+}
+
+.projects-welcome-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: #8b5cf6;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, .06);
+}
+
+.projects-welcome-icon .ico {
+  width: 24px;
+  height: 24px;
+}
+
+.ws-empty-compact {
+  padding: 20px 12px !important;
+}
+
+.panel-projects-crm .gd-head {
+  flex-shrink: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.panel-projects-crm .gd-body.rw-canvas-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 0 !important;
+  margin: 0;
+}
+
+/* Light CRM canvas — override dark Railway tokens */
+.panel-group-detail {
+  --rw-bg: #f4f6f9;
+  --rw-node: #ffffff;
+  --rw-border: rgba(15, 23, 42, .08);
+  --rw-text: #0f172a;
+  --rw-muted: #64748b;
+  --rw-online: #10b981;
+  --rw-accent: #8b5cf6;
+  --rw-accent-glow: rgba(139, 92, 246, .18);
+  --rw-drawer-bg: #ffffff;
+  --rw-drawer-w: min(420px, 92vw);
+}
+
+.panel-group-detail .gd-body.rw-canvas-wrap {
+  background: var(--rw-bg) !important;
+  background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, .06) 1px, transparent 0) !important;
+}
+
+.panel-group-detail .svc-lane-title h3,
+.panel-group-detail .svc-lane-title .ico {
+  color: var(--rw-muted) !important;
+}
+
+.panel-group-detail .gd-count {
+  background: rgba(15, 23, 42, .06) !important;
+  color: var(--rw-muted) !important;
+}
+
+.panel-group-detail .svc-lane-empty {
+  border-color: rgba(15, 23, 42, .1) !important;
+  background: rgba(255, 255, 255, .72) !important;
+  color: var(--rw-muted) !important;
+}
+
+.panel-group-detail .rw-add-btn {
+  border-color: rgba(15, 23, 42, .14);
+  color: var(--rw-muted);
+}
+
+.panel-group-detail .rw-add-btn:hover {
+  border-color: rgba(15, 23, 42, .22);
+  color: var(--rw-text);
+  background: rgba(255, 255, 255, .85);
+}
+
+.panel-group-detail .rw-add-btn.rw-add-primary {
+  border-color: rgba(139, 92, 246, .35);
+  color: #7c3aed;
+}
+
+.panel-group-detail .rw-add-btn.rw-add-primary:hover {
+  border-color: rgba(139, 92, 246, .5);
+  background: rgba(139, 92, 246, .06);
+  color: #6d28d9;
+}
+
+.panel-group-detail .svc-card,
+.panel-group-detail .svc-card.open,
+.panel-group-detail .svc-card:not(.open) {
+  background: var(--rw-node) !important;
+  border-color: var(--rw-border) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 16px rgba(15, 23, 42, .06) !important;
+}
+
+.panel-group-detail .svc-node.selected {
+  border-color: rgba(139, 92, 246, .45) !important;
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, .25), 0 0 0 4px var(--rw-accent-glow), 0 8px 20px rgba(15, 23, 42, .08) !important;
+}
+
+.panel-group-detail .svc-node:not(.selected):hover {
+  border-color: rgba(15, 23, 42, .14) !important;
+}
+
+.panel-group-detail .svc-title {
+  color: var(--rw-text) !important;
+}
+
+.panel-group-detail .svc-sub,
+.panel-group-detail .svc-widget-status,
+.panel-group-detail .svc-status-label {
+  color: var(--rw-muted) !important;
+}
+
+.panel-group-detail .svc-node.is-up .svc-status-label {
+  color: #059669 !important;
+}
+
+.panel-group-detail .svc-widget-icon {
+  background: #f8fafc !important;
+  border-color: rgba(15, 23, 42, .08) !important;
+}
+
+.panel-group-detail .svc-widget-divider {
+  background: rgba(15, 23, 42, .06) !important;
+}
+
+.panel-group-detail .svc-widget-hover .btn.svc-act {
+  background: #fff !important;
+  border-color: rgba(15, 23, 42, .1) !important;
+  color: var(--rw-text) !important;
+}
+
+.panel-group-detail .svc-node-link {
+  border-color: rgba(15, 23, 42, .1);
+  background: #fff;
+  color: var(--rw-muted);
+}
+
+.panel-group-detail .svc-banner {
+  border-top: 1px solid rgba(15, 23, 42, .06) !important;
+  background: #f8fafc !important;
+}
+
+.panel-group-detail .svc-prog-track {
+  background: rgba(15, 23, 42, .08) !important;
+}
+
+.panel-group-detail .svc-drawer-backdrop {
+  background: rgba(15, 23, 42, .28) !important;
+}
+
+/* Light config drawer portal */
+#drawer-root {
+  --drawer-bg: #ffffff;
+  --drawer-border: rgba(15, 23, 42, .08);
+  --drawer-text: #0f172a;
+  --drawer-muted: #64748b;
+  --drawer-input-bg: #f8fafc;
+  --drawer-input-border: rgba(15, 23, 42, .1);
+  --drawer-accent: #8b5cf6;
+}
+
+html.drawer-open body {
+  background: #eef1f6 !important;
+}
+
+#drawer-root .svc-drawer-backdrop {
+  background: rgba(15, 23, 42, .32) !important;
+}
+
+#drawer-root .svc-drawer {
+  background: var(--drawer-bg) !important;
+  border-left: 1px solid var(--drawer-border) !important;
+  box-shadow: -12px 0 40px rgba(15, 23, 42, .12) !important;
+  color: var(--drawer-text) !important;
+}
+
+#drawer-root .svc-drawer-head {
+  border-bottom: 1px solid var(--drawer-border) !important;
+  background: #fff !important;
+}
+
+#drawer-root .svc-drawer-icon {
+  border-color: rgba(15, 23, 42, .08) !important;
+  background: #f8fafc !important;
+}
+
+#drawer-root .svc-drawer-name {
+  color: var(--drawer-text) !important;
+}
+
+#drawer-root .svc-drawer-close {
+  color: var(--drawer-muted) !important;
+}
+
+#drawer-root .svc-drawer-close:hover {
+  color: var(--drawer-text) !important;
+  background: rgba(15, 23, 42, .04) !important;
+}
+
+#drawer-root .svc-drawer .folds-dense > .fold {
+  border-bottom-color: rgba(15, 23, 42, .06) !important;
+}
+
+#drawer-root .svc-drawer .folds-dense .fold-head:hover {
+  background: rgba(15, 23, 42, .03) !important;
+}
+
+#drawer-root .svc-drawer input,
+#drawer-root .svc-drawer textarea,
+#drawer-root .svc-drawer select,
+#drawer-root .svc-drawer .cselect-trigger,
+#drawer-root .svc-drawer .ui-input {
+  background: var(--drawer-input-bg) !important;
+  border-color: var(--drawer-input-border) !important;
+  color: var(--drawer-text) !important;
+}
+
+#drawer-root .svc-drawer input::placeholder,
+#drawer-root .svc-drawer textarea::placeholder {
+  color: rgba(100, 116, 139, .75) !important;
+}
+
+#drawer-root .svc-drawer .btn {
+  border-color: rgba(15, 23, 42, .1) !important;
+  color: var(--drawer-text);
+  background: #fff;
+}
+
+#drawer-root .svc-drawer .btn.btn-secondary,
+#drawer-root .svc-drawer .btn.btn-quiet {
+  background: #f8fafc !important;
+  color: var(--drawer-text) !important;
+}
+
+#drawer-root .svc-drawer .env-table th {
+  color: var(--drawer-muted);
+  background: #f1f5f9;
+}
+
+#drawer-root .svc-drawer .env-table tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+#drawer-root .svc-drawer .sql-box,
+#drawer-root .svc-drawer .sql-out,
+#drawer-root .svc-drawer .sql-input {
+  background: var(--drawer-input-bg) !important;
+  border-color: var(--drawer-input-border) !important;
+  color: var(--drawer-text) !important;
+}
+
+#drawer-root .svc-drawer .cselect-menu {
+  background: #fff !important;
+  border-color: var(--drawer-input-border) !important;
+  color: var(--drawer-text) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .12);
+}
+
+#drawer-root .svc-drawer .cselect-opt:hover,
+#drawer-root .svc-drawer .cselect-opt.active {
+  background: rgba(139, 92, 246, .08) !important;
+}
+
+#drawer-root .svc-drawer .ui-footer,
+#drawer-root .svc-drawer .svc-settings-foot {
+  background: rgba(255, 255, 255, .94) !important;
+  border-top: 1px solid var(--drawer-border) !important;
+}
+
+#drawer-root .svc-drawer .access-url,
+#drawer-root .svc-drawer .svc-foot-url,
+#drawer-root .svc-drawer code {
+  background: var(--drawer-input-bg) !important;
+  border: 1px solid var(--drawer-input-border) !important;
+  color: #334155 !important;
+}
+
+#drawer-root .svc-drawer .res-panel {
+  background: #f8fafc !important;
+  border: 1px solid rgba(15, 23, 42, .06) !important;
+}
+
+#drawer-root .svc-drawer .svc-banner {
+  background: #f8fafc !important;
+  border-top: 1px solid var(--drawer-border) !important;
+}
+
+#drawer-root .svc-drawer .svc-live-track {
+  background: rgba(15, 23, 42, .08) !important;
+}
+
+.layout-settings .settings-body {
+  min-height: calc(100dvh - 200px);
+  min-height: calc(100vh - 200px);
+}
+
+.layout-activity .activity-main-placeholder.page-hint {
+  min-height: calc(100dvh - 160px);
+  min-height: calc(100vh - 160px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .panel-projects-crm .ws-body.projects-split {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto minmax(280px, 1fr);
+  }
+
+  .panel-projects-crm .ws-col-groups {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    max-height: 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .panel-projects-crm .ws-body.projects-split {
+    min-height: calc(100vh - 180px);
+  }
+}

@@ -1,0 +1,5 @@
+        dockerOpen = false;
+        render({ animate: true, dir: _navDir });
+        return;
+      }
+      if (view === 'projects') {

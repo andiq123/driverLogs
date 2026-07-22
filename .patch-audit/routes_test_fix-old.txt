@@ -1,0 +1,3 @@
+	if len(maskEnvValue("x")) != 8 {
+		t.Fatalf("mask length = %d, want 8", len(maskEnvValue("x")))
+	}

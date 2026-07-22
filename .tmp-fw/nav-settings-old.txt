@@ -1,0 +1,5 @@
+          refreshManage({ animate: true });
+        }
+        return;
+      }
+    } else if (id.indexOf('group:open:') === 0) {

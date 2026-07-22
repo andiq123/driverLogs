@@ -1,0 +1,4 @@
+        else renderServices({ animate: true, dir: _navDir });
+        return;
+      }
+      if (view === 'settings') {

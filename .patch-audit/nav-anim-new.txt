@@ -1,0 +1,2 @@
+    .nav-page.nav-in { animation: navIn .18s var(--ease-out) forwards; }
+    .nav-page.nav-in-back { animation: navInBack .18s var(--ease-out) forwards; }

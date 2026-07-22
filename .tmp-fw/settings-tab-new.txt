@@ -1,0 +1,6 @@
+        refreshManage({ animate: true });
+      } else {
+        renderServices({ animate: true, dir: _navDir });
+      }
+      syncRouteFromState();
+    } else if (id.indexOf('manage:tab:') === 0) {

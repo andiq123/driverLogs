@@ -1,0 +1,21 @@
+    details.settings > summary {
+      cursor: pointer; list-style: none; color: var(--muted); font-size: 12px; font-weight: 700;
+      user-select: none;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    details.settings > summary::-webkit-details-marker { display: none; }
+    details.settings > summary::before {
+      content: "";
+      width: 0; height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      border-left: 5px solid currentColor;
+      opacity: .65;
+      transition: transform .15s var(--ease, ease);
+    }
+    details.settings[open] > summary::before { transform: rotate(90deg); }
+    details.settings > summary:focus-visible {
+      outline: 2px solid rgba(29,110,245,.35);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }

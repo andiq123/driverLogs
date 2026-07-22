@@ -1,0 +1,2 @@
+          +'<p class="ghost">Choose a project from the list or create a new group to deploy services.</p>'
+          +'<button type="button" class="btn primary" data-action="wizard:group">New group</button>'

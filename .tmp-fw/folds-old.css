@@ -1,0 +1,66 @@
+/* Config drawer — single-column folds + sticky footer */
+#drawer-root .svc-drawer .folds-dense,
+#drawer-root .svc-drawer .folds-dense.folds-compact {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  grid-template-columns: none !important;
+}
+#drawer-root .svc-drawer .folds-dense > .fold,
+#drawer-root .svc-drawer .folds-dense > .fold.open {
+  grid-column: auto !important;
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.06) !important;
+  border-radius: 10px !important;
+}
+#drawer-root .svc-drawer .folds-dense .fold-head {
+  display: grid !important;
+  grid-template-columns: 14px minmax(0, 1fr) minmax(0, 38%) !important;
+  gap: 8px !important;
+  align-items: center !important;
+  min-height: 42px !important;
+  padding: 8px 10px !important;
+}
+#drawer-root .svc-drawer .folds-dense .fold-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#drawer-root .svc-drawer .folds-dense .fold-summary {
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: right;
+  font-size: 11px !important;
+}
+#drawer-root .svc-drawer .folds-dense .fold-body {
+  transition: grid-template-rows .18s var(--ease-smooth, ease) !important;
+}
+#drawer-root .svc-drawer .svc-settings-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin-top: auto;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.35);
+}
+#drawer-root .svc-drawer .svc-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+#drawer-root .svc-drawer .svc-settings-actions .btn.primary {
+  order: -1;
+}
+@media (max-width: 720px) {
+  #drawer-root .svc-drawer:not(.enter) {
+    transform: translateY(0) !important;
+  }
+  #drawer-root .svc-drawer.enter {
+    animation: rw-drawer-sheet-in var(--motion-slow) var(--ease-out-soft) forwards !important;
+  }
+}

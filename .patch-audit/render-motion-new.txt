@@ -1,0 +1,1 @@
+      setMotion(true, dir ? 200 : 180);

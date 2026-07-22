@@ -1,0 +1,10 @@
+#drawer-root {
+  --drawer-bg: #14151b;
+  --drawer-border: rgba(255,255,255,.08);
+  --drawer-text: #f4f4f5;
+  --drawer-muted: #9ca3af;
+  --drawer-input-bg: #0c0d12;
+  --drawer-input-border: rgba(255,255,255,.12);
+  --drawer-accent: #8b5cf6;
+  --drawer-w: min(420px, 92vw);
+}

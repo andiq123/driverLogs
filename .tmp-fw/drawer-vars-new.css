@@ -1,0 +1,11 @@
+#drawer-root {
+  --drawer-bg: #ffffff;
+  --drawer-border: #e2e8f0;
+  --drawer-text: #0f172a;
+  --drawer-muted: #64748b;
+  --drawer-input-bg: #f8fafc;
+  --drawer-input-border: #e2e8f0;
+  --drawer-accent: #8b5cf6;
+  --drawer-surface: #f8fafc;
+  --drawer-w: clamp(480px, 46vw, 620px);
+}

@@ -1,0 +1,6 @@
+    var empty = ''
+      +'<div class="ws-empty ws-empty-compact">'
+        +'<strong>No groups yet</strong>'
+        +'<p>Create a group to deploy databases and Go apps.</p>'
+        +'<button type="button" class="btn primary btn-compact" data-action="wizard:group">New group</button>'
+      +'</div>';

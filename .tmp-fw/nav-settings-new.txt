@@ -1,0 +1,6 @@
+          refreshManage({ animate: true });
+        }
+        syncRouteFromState();
+        return;
+      }
+    } else if (id.indexOf('group:open:') === 0) {

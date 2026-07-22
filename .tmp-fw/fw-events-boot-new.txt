@@ -1,0 +1,19 @@
+  document.documentElement.dataset.motion = 'off';
+  document.documentElement.dataset.boot = 'off';
+  _routeSync = true;
+  applyRoute(parseRoute(location.pathname), { render: false });
+  history.replaceState({ fw: 1, path: routePath() }, '', routePath());
+  _routeSync = false;
+  render({animate:true});
+  refreshConfig(true);
+  refreshServices();
+  connectEvents();
+  watchActivity();
+  document.querySelectorAll('[data-res-panel]').forEach(syncResLabels);
+  setInterval(function(){ if (!wizard && !picker) refreshServices(); }, 8000);
+
+  window.addEventListener('popstate', function() {
+    _routeSync = true;
+    applyRoute(parseRoute(location.pathname), { animate: true });
+    _routeSync = false;
+  });

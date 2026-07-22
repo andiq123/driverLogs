@@ -1,0 +1,8 @@
+  .panel-projects-crm .panel-group-detail .svc-list:not(.svc-grid) {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+}
+
+/* === UX audit fixes: mobile rail active + drawer sheet timing === */

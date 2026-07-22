@@ -1,0 +1,33 @@
+    ]).then(function(){
+      navLoading = false;
+      if (activeGroup && !(groups || []).some(function(g){ return g.slug === activeGroup; })) {
+        activeGroup = null;
+        settingsSlug = null;
+        syncRouteFromState(true);
+      }
+      if (settingsSlug && activeGroup) {
+        var urlSvc = (deployed || []).filter(function(x){ return x.slug === settingsSlug; })[0];
+        if (!urlSvc) {
+          settingsSlug = null;
+          syncRouteFromState(true);
+        } else if (!settingsDraft[settingsSlug]) {
+          Object.keys(folds).forEach(function(k){ if (k.indexOf(settingsSlug+':')===0) delete folds[k]; });
+          var urlDeploys = !!(urlSvc.type !== 'postgres' && (
+            (urlSvc.deployments && urlSvc.deployments.length) ||
+            urlSvc.status === 'building' ||
+            (urlSvc.deployments || []).some(function(d){ return d.status === 'building' || d.status === 'queued'; })
+          ));
+          folds[settingsSlug + (urlDeploys ? ':deploys' : ':access')] = true;
+          settingsDraft[settingsSlug] = {
+            name: urlSvc.name || '', branch: urlSvc.branch || 'main',
+            linked_database: urlSvc.linked_database || '',
+            root_dir: urlSvc.root_dir || '',
+            env: '',
+            build_cmd: urlSvc.build_cmd || '',
+            memory_mb: urlSvc.memory_mb || 512,
+            cpus: urlSvc.cpus || 1,
+            auto_deploy: !!urlSvc.auto_deploy
+          };
+        }
+      }
+      if (picker) return;

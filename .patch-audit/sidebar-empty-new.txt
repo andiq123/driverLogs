@@ -1,0 +1,5 @@
+    var empty = ''
+      +'<div class="ws-empty ws-empty-compact">'
+        +'<strong>No groups yet</strong>'
+        +'<p>Create a group with <strong>New group</strong> in the header to deploy databases and Go apps.</p>'
+      +'</div>';

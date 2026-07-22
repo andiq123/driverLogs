@@ -1,0 +1,5 @@
+    details.settings > summary {
+      cursor: pointer; list-style: none; color: var(--muted); font-size: 12px; font-weight: 700;
+      user-select: none;
+    }
+    details.settings > summary::-webkit-details-marker { display: none; }

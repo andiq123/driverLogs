@@ -1,0 +1,3 @@
+    ]).then(function(){
+      navLoading = false;
+      if (picker) return;

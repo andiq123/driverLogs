@@ -1,0 +1,14 @@
+  function setMotion(on, ms) {
+    var html = document.documentElement;
+    if (_motionTimer) clearTimeout(_motionTimer);
+    if (!on) {
+      html.dataset.motion = 'off';
+      html.dataset.boot = 'off';
+      return;
+    }
+    html.dataset.motion = 'on';
+    _motionTimer = setTimeout(function(){
+      html.dataset.motion = 'off';
+      html.dataset.boot = 'off';
+    }, ms || 280);
+  }

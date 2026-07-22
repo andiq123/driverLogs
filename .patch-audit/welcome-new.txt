@@ -1,0 +1,1 @@
+          +'<p class="ghost">Choose a project from the list. Use <strong>New group</strong> in the header to get started.</p>'

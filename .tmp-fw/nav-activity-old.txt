@@ -1,0 +1,3 @@
+        openActivityConsole({ forceExpand: true });
+        render({ animate: true, dir: _navDir });
+        return;

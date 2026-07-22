@@ -1,0 +1,3 @@
+  --motion-slow: .42s;
+  --motion-med: .28s;
+  --motion-fast: .16s;

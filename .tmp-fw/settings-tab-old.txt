@@ -1,0 +1,5 @@
+        refreshManage({ animate: true });
+      } else {
+        renderServices({ animate: true, dir: _navDir });
+      }
+    } else if (id.indexOf('manage:tab:') === 0) {

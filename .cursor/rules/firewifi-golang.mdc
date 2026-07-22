@@ -1,0 +1,13 @@
+---
+description: FireWifi dashboard — Go-only tooling (no Python patches)
+alwaysApply: true
+---
+
+# FireWifi / Raspberry dashboard
+
+When working on the FireWifi dashboard (`ssh rasp`, `~/sources/dashboard`):
+
+- The stack is **Go + embedded JS/CSS**. Do not introduce Python.
+- For remote file edits/patches, use Go: `go run ./scripts/cmd/fwpatch` (or edit with `scp` + rebuild).
+- Before writing any `.py` helper, stop and use Go/`fwpatch`/bash/`go generate` instead.
+- Rebuild with `~/sources/dashboard/scripts/rebuild-dashboard.sh` only.

@@ -1,0 +1,5 @@
+  function maskEnvValue(v) {
+    v = String(v || '');
+    if (!v) return '—';
+    return '••••••••';
+  }

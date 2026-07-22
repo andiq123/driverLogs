@@ -1,0 +1,4 @@
+#drawer-root .svc-drawer .ui-footer,
+#drawer-root .svc-drawer .svc-settings-foot {
+  background: rgba(0,0,0,.28);
+}

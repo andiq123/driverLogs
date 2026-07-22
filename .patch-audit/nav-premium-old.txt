@@ -1,0 +1,7 @@
+/* Nav page transitions — smooth slow */
+.nav-page.nav-in {
+  animation: navIn var(--motion-slow) var(--ease-out-soft) both;
+}
+.nav-page.nav-in-back {
+  animation: navInBack var(--motion-slow) var(--ease-out-soft) both;
+}

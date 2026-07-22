@@ -1,0 +1,5 @@
+        else renderServices({ animate: true, dir: _navDir });
+        syncRouteFromState();
+        return;
+      }
+      if (view === 'settings') {

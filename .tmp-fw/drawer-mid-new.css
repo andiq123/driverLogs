@@ -1,0 +1,31 @@
+#drawer-root .svc-drawer .settings,
+#drawer-root .svc-drawer .folds-drawer,
+#drawer-root .svc-drawer .fold-inner {
+  background: transparent !important;
+  color: var(--drawer-text);
+}
+#drawer-root .svc-drawer .svc-settings-foot {
+  border-top: 1px solid var(--drawer-border) !important;
+  background: rgba(255, 255, 255, .96) !important;
+  backdrop-filter: none;
+}
+#drawer-root .svc-drawer .svc-settings-hint,
+#drawer-root .svc-drawer .ghost,
+#drawer-root .svc-drawer label,
+#drawer-root .svc-drawer .ui-field-meta {
+  color: var(--drawer-muted) !important;
+}
+#drawer-root .svc-drawer input::placeholder,
+#drawer-root .svc-drawer textarea::placeholder {
+  color: rgba(100, 116, 139, .75) !important;
+}
+#drawer-root .svc-drawer .res-slider input[type=range] {
+  accent-color: var(--drawer-accent);
+}
+#drawer-root .svc-drawer .res-labels,
+#drawer-root .svc-drawer .res-val {
+  color: var(--drawer-muted) !important;
+}
+#drawer-root .svc-drawer .svc-banner .svc-banner-text {
+  color: var(--drawer-muted) !important;
+}

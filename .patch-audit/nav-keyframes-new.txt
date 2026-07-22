@@ -1,0 +1,8 @@
+    @keyframes navIn {
+      from { opacity: 1; transform: translate3d(8px, 0, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    @keyframes navInBack {
+      from { opacity: 1; transform: translate3d(-8px, 0, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }

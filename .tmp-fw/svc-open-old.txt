@@ -1,0 +1,2 @@
+      renderServices({ soft: true, force: true });
+    } else if (id.indexOf('svc:save:') === 0) {

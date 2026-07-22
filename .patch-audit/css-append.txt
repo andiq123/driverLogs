@@ -1,0 +1,14 @@
+
+/* === UX audit fixes: mobile rail active + drawer sheet timing === */
+@media (max-width: 720px) {
+  .rail-item.active {
+    color: #ddd6fe;
+    background: rgba(139, 92, 246, .24);
+    box-shadow: inset 0 2px 0 0 #a78bfa, inset 0 0 0 1px rgba(139, 92, 246, .38);
+    border-radius: 12px;
+  }
+  .rail-item.active .ico { color: #c4b5fd; opacity: 1; }
+  .rail-item.active .rail-label { color: #ddd6fe; font-weight: 700; }
+  #drawer-root .svc-drawer.enter { animation: rw-drawer-sheet-in .22s ease forwards; }
+  .panel-group-detail .svc-drawer.enter { animation: rw-drawer-sheet-in .22s ease forwards; }
+}
