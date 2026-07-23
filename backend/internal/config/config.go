@@ -249,7 +249,9 @@ func uniqueStrings(values []string) []string {
 	seen := map[string]struct{}{}
 	unique := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimRight(strings.TrimSpace(value), "/")
+		value = strings.TrimSpace(value)
+		value = strings.Trim(value, `"'`)
+		value = strings.TrimRight(value, "/")
 		if value == "" {
 			continue
 		}
@@ -263,6 +265,9 @@ func uniqueStrings(values []string) []string {
 }
 
 func validProductionOrigin(origin string) bool {
+	origin = strings.TrimSpace(origin)
+	origin = strings.Trim(origin, `"'`)
+	origin = strings.TrimRight(origin, "/")
 	if origin == "*" || strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
 		return false
 	}
