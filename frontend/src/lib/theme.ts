@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Car, CheckCircle2, Fuel, Gauge, PackagePlus, ReceiptText, Settings, ShieldCheck, Sparkles, TrendingUp, Wrench } from "lucide-react";
+import { Activity, BarChart3, Car, CheckCircle2, Fuel, Gauge, PackagePlus, ReceiptText, Settings, ShieldCheck, Sparkles, TrendingUp, Wrench, type LucideIcon } from "lucide-react";
 import type { ExpenseCategory, MoneyTotals, NavItem } from "./types";
 
 export const palette = ["#0a7aff", "#23a05e", "#ff5d4f", "#f5a300", "#6a5cf5", "#151712"];
@@ -129,7 +129,7 @@ export const emptyTotals: MoneyTotals = {
   },
 };
 
-export function categoryIcon(category: ExpenseCategory) {
+export function categoryIcon(category: ExpenseCategory): LucideIcon {
   const icons = {
     Fuel,
     Maintenance: Wrench,

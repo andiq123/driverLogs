@@ -5,7 +5,7 @@ import { apiBaseHost, errorMessage, getAppData, isUnauthorizedError, logClientEr
 import { readToken } from "./auth-storage";
 import { isLocalDemoEnabled } from "./demo-mode";
 import { emptyTotals } from "./theme";
-import type { DocumentAttachment, Expense, ToastKind, UserSettings, Vehicle, View } from "./types";
+import type { DocumentAttachment, Expense, ToastKind, Trip, UserSettings, Vehicle, View } from "./types";
 
 export const selectedVehicleStorageKey = "driverlogs:selected-vehicle-id";
 const healthToastKey = "api-health";
@@ -20,6 +20,7 @@ type UseAppDataDeps = {
 export function useAppData({ token, logout, showToast, changeView }: UseAppDataDeps) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [userDocuments, setUserDocuments] = useState<DocumentAttachment[]>([]);
   const [activeVehicleID, setActiveVehicleID] = useState("");
   const [vehicleTotalsByID, setVehicleTotalsByID] = useState<Record<string, typeof emptyTotals>>({});
@@ -34,6 +35,7 @@ export function useAppData({ token, logout, showToast, changeView }: UseAppDataD
 
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleID) ?? vehicles[0];
   const activeExpenses = useMemo(() => activeVehicle ? expenses.filter((expense) => expense.vehicle_id === activeVehicle.id) : [], [activeVehicle, expenses]);
+  const activeTrips = useMemo(() => activeVehicle ? trips.filter((trip) => trip.vehicle_id === activeVehicle.id) : [], [activeVehicle, trips]);
   const vehicleTotals = activeVehicle?.id ? vehicleTotalsByID[activeVehicle.id] ?? emptyTotals : emptyTotals;
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export function useAppData({ token, logout, showToast, changeView }: UseAppDataD
       const data = await getAppData(requestToken);
       setVehicles(data.vehicles);
       setExpenses(data.expenses);
+      setTrips(data.trips ?? []);
       setUserDocuments(data.user_documents ?? []);
       setSettings(data.settings);
       setVehicleTotalsByID(data.vehicle_totals);
@@ -102,6 +105,7 @@ export function useAppData({ token, logout, showToast, changeView }: UseAppDataD
     setIsDemo(false);
     setVehicles([]);
     setExpenses([]);
+    setTrips([]);
     setUserDocuments([]);
     setVehicleTotalsByID({});
     setActiveVehicleID("");
@@ -134,6 +138,7 @@ export function useAppData({ token, logout, showToast, changeView }: UseAppDataD
     setIsLoadingData(false);
     setVehicles(demoAppData.vehicles);
     setExpenses(demoAppData.expenses);
+    setTrips(demoAppData.trips ?? []);
     setUserDocuments(demoAppData.user_documents ?? []);
     setSettings(demoAppData.settings);
     setVehicleTotalsByID(demoAppData.vehicle_totals);
@@ -146,6 +151,7 @@ export function useAppData({ token, logout, showToast, changeView }: UseAppDataD
 
   return {
     activeExpenses,
+    activeTrips,
     activeVehicle,
     activeVehicleIDRef,
     expenses,
@@ -164,6 +170,7 @@ export function useAppData({ token, logout, showToast, changeView }: UseAppDataD
     settings,
     startDemo: isLocalDemoEnabled ? startDemo : undefined,
     status,
+    trips,
     userDocuments,
     vehicleTotals,
     vehicleTotalsByID,

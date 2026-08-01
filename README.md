@@ -10,6 +10,7 @@ It helps a user keep one focused dashboard per selected car, record fuel and ser
 - Up to 4 cars per user
 - Vehicle profiles with VIN decode support
 - Fuel, service, insurance, tires, parking, upgrades, and other expense tracking
+- Start/finish trips with automatic fuel grouping, distance, spend, liters, and cost-per-kilometer summaries
 - Backend-stamped currency conversion for historical expense accuracy
 - Fuel price references and Moldova/Romania comparison in MDL
 - Smart estimates for oil change and service trends based on logged records
@@ -29,11 +30,6 @@ It helps a user keep one focused dashboard per selected car, record fuel and ser
 ./start.sh
 ```
 
-Starts Colima (if needed), Postgres, the Go API (Air), and the Next.js frontend.  
-`Ctrl-C` stops the apps, tears down compose, and stops Colima.
-
-Leave Colima running between sessions:
-
-```bash
-KEEP_COLIMA=1 ./start.sh
-```
+Starts Docker Desktop when needed, then PostgreSQL, the Go API with live reload,
+and the Next.js frontend. `Ctrl-C` stops the app processes and PostgreSQL while
+leaving Docker Desktop open for faster restarts.

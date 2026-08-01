@@ -1,4 +1,4 @@
-import type { AppDataResponse, AuthSession, DocumentAttachment, Expense, ExpenseAttachment, FuelComparisonResponse, FuelMarketResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, UserSettings, Vehicle, VinDecode } from "./types";
+import type { AppDataResponse, AuthSession, DocumentAttachment, Expense, ExpenseAttachment, FuelComparisonResponse, FuelMarketResponse, FuelPriceResponse, FuelTrendResponse, MoneyTotals, Trip, UserSettings, Vehicle, VinDecode } from "./types";
 
 export const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:18080").replace(/\/+$/, "");
 let tokenHandler: ((token: string) => void) | undefined;
@@ -67,6 +67,19 @@ export async function decodeVIN(vin: string) {
 
 export async function getExpenses(token: string) {
   return getJSON<Expense[]>("/expenses", token);
+}
+
+export async function getTrips(token: string, vehicleID?: string) {
+  const query = vehicleID ? `?vehicle_id=${encodeURIComponent(vehicleID)}` : "";
+  return getJSON<Trip[]>(`/trips${query}`, token);
+}
+
+export async function startTrip(token: string, trip: { vehicle_id: string; name?: string; start_odometer?: number }) {
+  return sendJSON<Trip>("/trips", "POST", trip, token);
+}
+
+export async function endTrip(token: string, id: string, endOdometer?: number) {
+  return sendJSON<Trip>(`/trips/${encodeURIComponent(id)}/end`, "PATCH", { end_odometer: endOdometer ?? 0 }, token);
 }
 
 export async function getAnalytics(token: string, vehicleID?: string) {

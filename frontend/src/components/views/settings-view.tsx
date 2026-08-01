@@ -12,7 +12,7 @@ import { DocumentManager } from "../document-manager";
 import { CustomSelect } from "../custom-select";
 import { ActionButton, Input, Panel } from "../ui";
 
-export function SettingsView({ token, settings, loginID, vehicles, userDocuments, activeVehicleID, saving, onCopyLoginID, onOpenGarage, onSelectVehicle, onSave, onUpdateVehicle }: { token: string; settings: UserSettings; loginID: string; vehicles: Vehicle[]; userDocuments: DocumentAttachment[]; activeVehicleID: string; saving?: boolean; onCopyLoginID: () => void; onOpenGarage: () => void; onSelectVehicle: (id: string) => void; onSave: (settings: UserSettings) => Promise<void> | void; onUpdateVehicle: (id: string, vehicle: Partial<Vehicle>) => Promise<void> | void }) {
+export function SettingsView({ token, isDemo, settings, loginID, vehicles, userDocuments, activeVehicleID, saving, onCopyLoginID, onOpenGarage, onSelectVehicle, onSave, onUpdateVehicle }: { token: string; isDemo?: boolean; settings: UserSettings; loginID: string; vehicles: Vehicle[]; userDocuments: DocumentAttachment[]; activeVehicleID: string; saving?: boolean; onCopyLoginID: () => void; onOpenGarage: () => void; onSelectVehicle: (id: string) => void; onSave: (settings: UserSettings) => Promise<void> | void; onUpdateVehicle: (id: string, vehicle: Partial<Vehicle>) => Promise<void> | void }) {
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleID);
   const [currency, setCurrency] = useState(settings.default_currency);
   const [country, setCountry] = useState(settings.country);
@@ -96,6 +96,7 @@ export function SettingsView({ token, settings, loginID, vehicles, userDocuments
             upload={(file) => uploadUserDocument(token, "driver_license", file)}
             preview={(documentID) => getUserDocumentPreview(token, documentID)}
             remove={(documentID) => deleteUserDocument(token, documentID)}
+            readOnly={isDemo}
           />
           <ActionButton icon={Save} loading={saving} className="mt-2">Save settings</ActionButton>
         </form>

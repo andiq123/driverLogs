@@ -18,16 +18,17 @@ type DocumentManagerProps = {
   upload: (file: File) => Promise<DocumentAttachment>;
   preview: (documentID: string) => Promise<Blob>;
   remove: (documentID: string) => Promise<void>;
+  readOnly?: boolean;
 };
 
-export function DocumentManager({ title, body, reloadKey, initialDocuments = [], load, upload, preview, remove }: DocumentManagerProps) {
+export function DocumentManager({ title, body, reloadKey, initialDocuments = [], load, upload, preview, remove, readOnly = false }: DocumentManagerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const loadRef = useRef(load);
   const uploadRef = useRef(upload);
   const previewRef = useRef(preview);
   const removeRef = useRef(remove);
   const [documents, setDocuments] = useState(initialDocuments);
-  const [loading, setLoading] = useState(!initialDocuments.length);
+  const [loading, setLoading] = useState(!readOnly && !initialDocuments.length);
   const [action, setAction] = useState<"upload" | "preview" | "delete" | undefined>();
   const [message, setMessage] = useState("");
   const [previewDocument, setPreviewDocument] = useState<DocumentAttachment>();
@@ -40,6 +41,7 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
   }, [load, upload, preview, remove]);
 
   useEffect(() => {
+    if (readOnly) return;
     let active = true;
     loadRef.current()
       .then((items) => {
@@ -54,7 +56,7 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [readOnly, reloadKey]);
 
   async function uploadFile(file?: File | null) {
     if (!file) return;
@@ -108,15 +110,15 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
           <p className="text-xs leading-5 text-[#6b7065]">{body}</p>
         </div>
         <input ref={inputRef} className="hidden" type="file" accept={attachmentAccept} onChange={(event) => void uploadFile(event.target.files?.[0])} />
-        <IconButton type="button" icon={Paperclip} label="Attach file" loading={action === "upload"} onClick={() => inputRef.current?.click()} className="shrink-0" />
+        <IconButton type="button" icon={Paperclip} label={readOnly ? "Attachments are unavailable in demo mode" : "Attach file"} loading={action === "upload"} disabled={readOnly} onClick={() => inputRef.current?.click()} className="shrink-0" />
       </div>
       {message ? <p className="mt-2 rounded-[14px] bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9b3226]">{message}</p> : null}
       {loading ? (
         <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-xs font-semibold text-[#6b7065]"><Loader2 size={15} className="animate-spin" />Loading documents</div>
       ) : documents.length === 0 ? (
-        <button type="button" onClick={() => inputRef.current?.click()} className="mt-3 flex w-full items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-left text-xs font-semibold text-[#6b7065] ring-1 ring-black/[0.04] transition-colors hover:text-[#151712]">
+        <button type="button" disabled={readOnly} onClick={() => inputRef.current?.click()} className="mt-3 flex min-h-11 w-full items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-left text-xs font-semibold text-[#6b7065] ring-1 ring-black/[0.04] transition-colors hover:text-[#151712] disabled:cursor-default disabled:opacity-80">
           <FileText size={16} />
-          No file attached.
+          {readOnly ? "Documents are unavailable in demo mode." : "No file attached."}
         </button>
       ) : (
         <div className="mt-3 grid gap-2">
@@ -127,7 +129,7 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
                 <span className="block truncate text-sm font-semibold">{document.file_name}</span>
                 <span className="text-xs text-[#6b7065]">{fileSize(document.size_bytes)}</span>
               </button>
-              <IconButton type="button" icon={Trash2} label={`Remove ${document.file_name}`} variant="danger" onClick={() => void removeFile(document)} className="shrink-0" />
+              <IconButton type="button" icon={Trash2} label={`Remove ${document.file_name}`} variant="danger" disabled={readOnly} onClick={() => void removeFile(document)} className="shrink-0" />
             </div>
           ))}
         </div>

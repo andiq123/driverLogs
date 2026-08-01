@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { createElement, useState } from "react";
 import { primaryCategories, secondaryCategories, categoryIcon, softSpring } from "@/lib/theme";
 import type { ExpenseCategory } from "@/lib/types";
 
@@ -53,7 +53,6 @@ export function ExpenseCategoryPicker({ name, value, onChange }: ExpenseCategory
 }
 
 function CategoryChip({ category, active, onChange }: { category: ExpenseCategory; active: boolean; onChange: (value: ExpenseCategory) => void }) {
-  const Icon = categoryIcon(category);
   return (
     <button
       type="button"
@@ -65,7 +64,7 @@ function CategoryChip({ category, active, onChange }: { category: ExpenseCategor
     >
       {active ? <motion.span layoutId="expense-category-active" className="absolute inset-0 bg-[#e6f0df]" transition={softSpring} /> : null}
       <span className="relative flex size-6 items-center justify-center rounded-full bg-white/70">
-        <Icon size={14} />
+        {createElement(categoryIcon(category), { size: 14 })}
       </span>
       <span className="relative max-w-full truncate">{categoryLabel(category)}</span>
     </button>

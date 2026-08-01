@@ -55,6 +55,7 @@ export type VinDecode = {
 export type Expense = {
   id: string;
   vehicle_id: string;
+  trip_id?: string;
   category: ExpenseCategory;
   amount_base?: number;
   base_currency?: string;
@@ -78,6 +79,24 @@ export type Expense = {
   exclude_from_analytics?: boolean;
   attachment_count?: number;
   latest_attachment?: ExpenseAttachment;
+};
+
+export type Trip = {
+  id: string;
+  vehicle_id: string;
+  name: string;
+  start_odometer: number;
+  end_odometer?: number;
+  started_at: string;
+  ended_at?: string;
+  distance_km: number;
+  fuel_spend_mdl: number;
+  fuel_spend_eur: number;
+  fuel_spend_usd: number;
+  fuel_liters: number;
+  fill_count: number;
+  average_price_per_liter_mdl: number;
+  cost_per_km_mdl: number;
 };
 
 export type ExpenseAttachment = {
@@ -202,6 +221,7 @@ export type MoneyTotals = {
 export type AppDataResponse = {
   vehicles: Vehicle[];
   expenses: Expense[];
+  trips: Trip[];
   settings: UserSettings;
   user_documents: DocumentAttachment[];
   vehicle_totals: Record<string, MoneyTotals>;

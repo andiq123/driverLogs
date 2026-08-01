@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
-import { createExpense, createVehicle, deleteExpense, deleteVehicle, errorMessage, updateExpense, updateExpenseAnalytics, updateUserSettings, updateVehicle, uploadExpenseAttachment } from "./api";
+import { createExpense, createVehicle, deleteExpense, deleteVehicle, endTrip, errorMessage, startTrip, updateExpense, updateExpenseAnalytics, updateUserSettings, updateVehicle, uploadExpenseAttachment } from "./api";
 import type { Expense, ToastKind, UserSettings, Vehicle, View } from "./types";
 
 type UseAppMutationsDeps = {
@@ -35,7 +35,7 @@ export function useAppMutations({
   closeLoginNotice,
   expenses,
 }: UseAppMutationsDeps) {
-  const [action, setAction] = useState<"vehicle" | "expense" | "settings" | "delete" | "profile" | "">("");
+  const [action, setAction] = useState<"vehicle" | "expense" | "settings" | "delete" | "profile" | "trip" | "">("");
   const [openExpenseFilesID, setOpenExpenseFilesID] = useState("");
 
   const blockedInDemo = useCallback(() => {
@@ -130,9 +130,9 @@ export function useAppMutations({
   }, [blockedInDemo, loadData, setStatus, showToast, token, uploadExpenseFiles]);
 
   const toggleExpenseAnalytics = useCallback(async (expense: Expense, excluded: boolean) => {
+    if (blockedInDemo()) return;
     const previousExpenses = expenses;
     setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, exclude_from_analytics: excluded } : item));
-    if (blockedInDemo()) return;
     setAction("expense");
     try {
       await updateExpenseAnalytics(token, expense.id, excluded);
@@ -163,7 +163,7 @@ export function useAppMutations({
   }, [blockedInDemo, loadData, setStatus, showToast, token]);
 
   const saveSettings = useCallback(async (nextSettings: UserSettings) => {
-    if (blockedInDemo()) { setSettings(nextSettings); return; }
+    if (blockedInDemo()) return;
     setAction("settings");
     setStatus("Saving settings...");
     try {
@@ -203,10 +203,39 @@ export function useAppMutations({
     }
   }, [blockedInDemo, clearSelectedVehicle, loadData, setStatus, showToast, token]);
 
+  const startVehicleTrip = useCallback(async (vehicleID: string, name?: string, startOdometer?: number) => {
+    if (blockedInDemo()) return;
+    setAction("trip");
+    try {
+      await startTrip(token, { vehicle_id: vehicleID, name, start_odometer: startOdometer });
+      await loadData(false);
+      showToast("success", "Trip started", "New fuel fills will be grouped automatically.");
+    } catch (error) {
+      showToast("error", "Trip was not started", errorMessage(error, "Please try again."));
+    } finally {
+      setAction("");
+    }
+  }, [blockedInDemo, loadData, showToast, token]);
+
+  const endVehicleTrip = useCallback(async (tripID: string, endOdometer?: number) => {
+    if (blockedInDemo()) return;
+    setAction("trip");
+    try {
+      await endTrip(token, tripID, endOdometer);
+      await loadData(false);
+      showToast("success", "Trip finished", "Your fuel and distance summary is ready.");
+    } catch (error) {
+      showToast("error", "Trip was not finished", errorMessage(error, "Check the odometer and try again."));
+    } finally {
+      setAction("");
+    }
+  }, [blockedInDemo, loadData, showToast, token]);
+
   return {
     action,
     editExpense,
     editVehicle,
+    endVehicleTrip,
     openExpenseFilesID,
     removeExpense,
     removeVehicle,
@@ -214,6 +243,7 @@ export function useAppMutations({
     saveProfileName,
     saveSettings,
     saveVehicle,
+    startVehicleTrip,
     setOpenExpenseFilesID,
     toggleExpenseAnalytics,
   };

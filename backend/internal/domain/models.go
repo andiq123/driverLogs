@@ -29,6 +29,7 @@ type Expense struct {
 	ID                    string             `json:"id"`
 	UserID                string             `json:"-"`
 	VehicleID             string             `json:"vehicle_id"`
+	TripID                string             `json:"trip_id,omitempty"`
 	Category              string             `json:"category"`
 	AmountBase            float64            `json:"amount_base,omitempty"`
 	BaseCurrency          string             `json:"base_currency,omitempty"`
@@ -53,6 +54,25 @@ type Expense struct {
 	AttachmentCount       int                `json:"attachment_count,omitempty"`
 	LatestAttachment      *ExpenseAttachment `json:"latest_attachment,omitempty"`
 	CreatedAt             time.Time          `json:"created_at"`
+}
+
+type Trip struct {
+	ID                      string     `json:"id"`
+	UserID                  string     `json:"-"`
+	VehicleID               string     `json:"vehicle_id"`
+	Name                    string     `json:"name"`
+	StartOdometer           int        `json:"start_odometer"`
+	EndOdometer             int        `json:"end_odometer,omitempty"`
+	StartedAt               time.Time  `json:"started_at"`
+	EndedAt                 *time.Time `json:"ended_at,omitempty"`
+	DistanceKM              int        `json:"distance_km"`
+	FuelSpendMDL            float64    `json:"fuel_spend_mdl"`
+	FuelSpendEUR            float64    `json:"fuel_spend_eur"`
+	FuelSpendUSD            float64    `json:"fuel_spend_usd"`
+	FuelLiters              float64    `json:"fuel_liters"`
+	FillCount               int        `json:"fill_count"`
+	AveragePricePerLiterMDL float64    `json:"average_price_per_liter_mdl"`
+	CostPerKMMDL            float64    `json:"cost_per_km_mdl"`
 }
 
 type ExpenseAttachment struct {

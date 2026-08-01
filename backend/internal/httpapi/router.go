@@ -38,6 +38,10 @@ type Store interface {
 	UpdateExpense(userID, id string, expense domain.Expense) (domain.Expense, error)
 	UpdateExpenseAnalytics(userID, id string, excludeFromAnalytics bool) (domain.Expense, error)
 	DeleteExpense(userID, id string) error
+	UserTrips(userID, vehicleID string) ([]domain.Trip, error)
+	Trip(userID, id string) (domain.Trip, error)
+	CreateTrip(userID string, trip domain.Trip) (domain.Trip, error)
+	EndTrip(userID, id string, endOdometer int) (domain.Trip, error)
 	ExpenseAttachments(userID, expenseID string) ([]domain.ExpenseAttachment, error)
 	ExpenseAttachment(userID, expenseID, attachmentID string) (domain.ExpenseAttachment, error)
 	CreateExpenseAttachment(userID, expenseID string, attachment domain.ExpenseAttachment) (domain.ExpenseAttachment, error)
@@ -110,6 +114,9 @@ func NewRouter(repo Store, fuelPrices fuelprices.Service, files filestorage.Clie
 	mux.HandleFunc("POST /expenses/{id}/attachments", h.requireAuth(h.uploadExpenseAttachment))
 	mux.HandleFunc("GET /expenses/{id}/attachments/{attachment_id}/preview", h.requireAuth(h.previewExpenseAttachment))
 	mux.HandleFunc("DELETE /expenses/{id}/attachments/{attachment_id}", h.requireAuth(h.deleteExpenseAttachment))
+	mux.HandleFunc("GET /trips", h.requireAuth(h.listTrips))
+	mux.HandleFunc("POST /trips", h.requireAuth(h.createTrip))
+	mux.HandleFunc("PATCH /trips/{id}/end", h.requireAuth(h.endTrip))
 	mux.HandleFunc("GET /timeline", h.requireAuth(h.timeline))
 	mux.HandleFunc("GET /analytics", h.requireAuth(h.analytics))
 	mux.HandleFunc("GET /reports", h.requireAuth(h.reports))
@@ -308,6 +315,11 @@ func (h Handler) appData(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "expenses unavailable"})
 		return
 	}
+	trips, err := h.store.UserTrips(userID, "")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "trips unavailable"})
+		return
+	}
 	settings, err := h.store.UserSettings(userID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings unavailable"})
@@ -330,10 +342,66 @@ func (h Handler) appData(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"vehicles":       vehicles,
 		"expenses":       expenses,
+		"trips":          trips,
 		"settings":       settings,
 		"user_documents": userDocuments,
 		"vehicle_totals": totals,
 	})
+}
+
+func (h Handler) listTrips(w http.ResponseWriter, r *http.Request) {
+	trips, err := h.store.UserTrips(userID(r), r.URL.Query().Get("vehicle_id"))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "trips unavailable"})
+		return
+	}
+	writeJSON(w, http.StatusOK, trips)
+}
+
+func (h Handler) createTrip(w http.ResponseWriter, r *http.Request) {
+	var trip domain.Trip
+	if err := json.NewDecoder(r.Body).Decode(&trip); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid trip payload"})
+		return
+	}
+	if strings.TrimSpace(trip.VehicleID) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "vehicle_id is required"})
+		return
+	}
+	created, err := h.store.CreateTrip(userID(r), trip)
+	switch {
+	case errors.Is(err, store.ErrInvalidTripOdometer):
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "start odometer cannot be lower than the current reading"})
+	case errors.Is(err, store.ErrActiveTrip):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this vehicle already has an active trip"})
+	case errors.Is(err, store.ErrNotFound):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "vehicle not found"})
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	default:
+		writeJSON(w, http.StatusCreated, created)
+	}
+}
+
+func (h Handler) endTrip(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		EndOdometer int `json:"end_odometer"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil && !errors.Is(err, io.EOF) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid trip payload"})
+		return
+	}
+	ended, err := h.store.EndTrip(userID(r), r.PathValue("id"), request.EndOdometer)
+	switch {
+	case errors.Is(err, store.ErrInvalidTripOdometer):
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "end odometer cannot be lower than the trip start"})
+	case errors.Is(err, store.ErrNotFound):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "active trip not found"})
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	default:
+		writeJSON(w, http.StatusOK, ended)
+	}
 }
 
 func (h Handler) getSettings(w http.ResponseWriter, r *http.Request) {

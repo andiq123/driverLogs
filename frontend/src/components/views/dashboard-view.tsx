@@ -1,23 +1,27 @@
 import { ChevronRight, FileText, Car } from "lucide-react";
+import { motion } from "framer-motion";
 import { useState } from "react";
 import { getExpenseAttachmentPreview, getUserDocumentPreview, getVehicleDocumentPreview } from "@/lib/api";
-import type { DocumentAttachment, Expense, ExpenseAttachment, ExpenseCategory, MoneyTotals, SmartReminder, Vehicle } from "@/lib/types";
+import type { DocumentAttachment, Expense, ExpenseAttachment, ExpenseCategory, MoneyTotals, SmartReminder, Trip, Vehicle } from "@/lib/types";
 import { equivalents, km, money, vehicleName } from "@/lib/format";
 import { Badge, EmptyState, Metric } from "../ui";
 import { ExpenseForm } from "../expense-form";
 import { SmartInsightsPanel } from "../smart-insights";
 import { FilePreviewModal } from "../file-preview-modal";
+import { TripCard } from "../trip-card";
 
-export function DashboardView({ vehicle, expenses, userDocuments, totals, token, baseCurrency, country, savingExpense, onCreateExpense }: { vehicle?: Vehicle; expenses: Expense[]; userDocuments: DocumentAttachment[]; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; onCreateExpense: (expense: Partial<Expense>, files?: File[]) => void }) {
-  const [intentCategory, setIntentCategory] = useState<ExpenseCategory>();
+export function DashboardView({ vehicle, expenses, trips, userDocuments, totals, token, baseCurrency, country, savingExpense, savingTrip, isDemo, onCreateExpense, onStartTrip, onEndTrip }: { vehicle?: Vehicle; expenses: Expense[]; trips: Trip[]; userDocuments: DocumentAttachment[]; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; savingTrip?: boolean; isDemo?: boolean; onCreateExpense: (expense: Partial<Expense>, files?: File[]) => void; onStartTrip: (vehicleID: string, name?: string, startOdometer?: number) => void; onEndTrip: (tripID: string, endOdometer?: number) => void }) {
+  const [expenseIntent, setExpenseIntent] = useState<{ category?: ExpenseCategory; key: number }>({ key: 0 });
   const [preview, setPreview] = useState<DocumentPreview>();
   if (!vehicle) {
     return <section className="rounded-[28px] bg-[#151712] p-6 text-white sm:p-8"><EmptyState icon={Car} title="Start with the garage" body="Add a vehicle before logging expenses or viewing dashboard metrics. Use the vehicle chip in the header." dark /></section>;
   }
+  const activeTrip = trips.find((trip) => !trip.ended_at);
+  const tripCard = <TripCard vehicle={vehicle} trips={trips} busy={savingTrip} isDemo={isDemo} onStart={onStartTrip} onEnd={onEndTrip} />;
 
   const widgets = (
     <>
-      <SmartReminderBar reminders={totals.insights.reminders ?? []} onSelect={setIntentCategory} />
+      <SmartReminderBar reminders={totals.insights.reminders ?? []} onSelect={(category) => setExpenseIntent((intent) => ({ category, key: intent.key + 1 }))} />
       <DocumentShortcuts token={token} vehicle={vehicle} expenses={expenses} userDocuments={userDocuments} onOpen={setPreview} />
       <SmartInsightsPanel insights={totals.insights} />
     </>
@@ -26,12 +30,14 @@ export function DashboardView({ vehicle, expenses, userDocuments, totals, token,
   return (
     <div className="grid items-start gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="grid content-start gap-3 sm:gap-4">
-        <section className="relative overflow-hidden rounded-[24px] bg-[#151712] p-4 text-white shadow-[0_8px_24px_rgba(21,23,18,0.10)] sm:rounded-[28px] sm:p-6">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_88%_-10%,rgba(255,255,255,0.06),transparent_55%)]" />
+        {activeTrip ? tripCard : null}
+        <motion.section layout className={`relative overflow-hidden rounded-[24px] p-4 text-white shadow-[0_8px_24px_rgba(21,23,18,0.10)] transition-colors duration-500 sm:rounded-[28px] sm:p-6 ${activeTrip ? "bg-[#17251c] ring-1 ring-[#8fb488]/20" : "bg-[#151712]"}`}>
+          <div className={`pointer-events-none absolute inset-0 ${activeTrip ? "bg-[radial-gradient(110%_130%_at_88%_-10%,rgba(164,209,151,0.16),transparent_58%)]" : "bg-[radial-gradient(120%_120%_at_88%_-10%,rgba(255,255,255,0.06),transparent_55%)]"}`} />
           <div className="relative flex flex-wrap gap-1.5 sm:gap-2">
             <Badge>{vehicle.plate_number}</Badge>
             {vehicle.engine_type ? <Badge>{vehicle.engine_type}</Badge> : null}
             {vehicle.year ? <Badge>{vehicle.year}</Badge> : null}
+            {activeTrip ? <motion.span initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[#b9e2a9]/20 bg-[#b9e2a9]/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.13em] text-[#d4efca]"><motion.span className="size-1.5 rounded-full bg-[#b9e2a9]" animate={{ opacity: [0.45, 1, 0.45] }} transition={{ duration: 2, repeat: Infinity }} />Trip mode</motion.span> : null}
           </div>
           <h2 className="relative mt-4 text-[30px] font-semibold leading-none tracking-tight sm:mt-5 sm:text-4xl xl:text-5xl">{vehicleName(vehicle)}</h2>
           <div className="relative mt-5 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
@@ -39,7 +45,9 @@ export function DashboardView({ vehicle, expenses, userDocuments, totals, token,
             <Metric label="Odometer" value={km(vehicle.odometer ?? 0)} sub="Current reading" />
             <Metric label="Cost/km" value={totals.cost_per_km_mdl ? `${totals.cost_per_km_mdl} MDL` : "Learning"} sub={`${totals.expense_count} entries`} />
           </div>
-        </section>
+        </motion.section>
+
+        {!activeTrip ? tripCard : null}
 
         {/* Desktop: compact summaries between hero and the expense column */}
         <div className="hidden content-start gap-3 xl:grid sm:gap-4">{widgets}</div>
@@ -47,14 +55,15 @@ export function DashboardView({ vehicle, expenses, userDocuments, totals, token,
 
       <div className="grid content-start gap-3 sm:gap-4">
         <ExpenseForm
-          key={vehicle.id}
+          key={`${vehicle.id}-${expenseIntent.key}`}
           vehicle={vehicle}
           token={token}
           baseCurrency={baseCurrency}
           country={country}
           saving={savingExpense}
           odometerSuggestion={odometerSuggestion(vehicle, expenses)}
-          intentCategory={intentCategory}
+          intentCategory={expenseIntent.category}
+          activeTrip={activeTrip}
           collapsible
           onCreate={onCreateExpense}
         />

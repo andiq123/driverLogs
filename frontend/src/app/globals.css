@@ -60,6 +60,26 @@ html::-webkit-scrollbar-track {
   background: transparent;
 }
 
+@media (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(91, 101, 86, 0.28) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    display: block;
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: rgba(91, 101, 86, 0.28);
+    background-clip: padding-box;
+  }
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
@@ -71,6 +91,11 @@ button {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid #5f7f5b;
+  outline-offset: 3px;
 }
 
 ::selection {

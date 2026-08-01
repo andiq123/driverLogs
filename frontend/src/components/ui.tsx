@@ -75,7 +75,7 @@ export function IconButton({ icon: Icon, label, loading = false, variant = "soft
       disabled={disabled || loading}
       aria-label={label}
       title={label}
-      className={`flex size-9 touch-manipulation items-center justify-center rounded-[14px] transition-[background-color,box-shadow,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-70 ${styles[variant]} ${className}`}
+      className={`flex size-11 touch-manipulation items-center justify-center rounded-[15px] transition-[background-color,box-shadow,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-70 sm:size-9 sm:rounded-[14px] ${styles[variant]} ${className}`}
       {...props}
     >
       {loading ? <Loader2 size={17} className="animate-spin" /> : <Icon size={17} />}
@@ -114,8 +114,8 @@ export function Metric({ label, value, sub }: { label: string; value: string; su
   return (
     <div className="min-w-0 rounded-[16px] border border-white/10 bg-white/[0.115] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:rounded-[22px] sm:p-3">
       <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-white/50 sm:text-[11px] sm:tracking-[0.14em]">{label}</p>
-      <p className="mt-1 truncate text-sm font-bold sm:mt-2 sm:text-base">{value}</p>
-      <p className="mt-0.5 truncate text-[10px] text-white/52 sm:mt-1 sm:text-[11px]">{sub}</p>
+      <p className="mt-1 break-words text-[13px] font-bold leading-tight sm:mt-2 sm:text-base">{value}</p>
+      <p className="mt-0.5 line-clamp-2 text-[9px] leading-tight text-white/55 sm:mt-1 sm:text-[11px]">{sub}</p>
     </div>
   );
 }

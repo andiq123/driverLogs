@@ -15,11 +15,11 @@ import {
   serviceTypeKeys,
   toggleServiceTypeKey,
 } from "@/lib/expense-form";
-import { intValue, km, numberValue, todayDateValue, vehicleName } from "@/lib/format";
+import { intValue, numberValue, todayDateValue, vehicleName } from "@/lib/format";
 import { calmEase } from "@/lib/theme";
-import type { Expense, ExpenseCategory, FuelPriceSuggestion, Vehicle } from "@/lib/types";
+import type { Expense, ExpenseCategory, FuelPriceSuggestion, Trip, Vehicle } from "@/lib/types";
 import { useFuelPriceSuggestions } from "@/lib/use-fuel-price-suggestions";
-import { BadgeDollarSign, ChevronDown, CircleGauge, Droplets, FileText, Fuel, Landmark, MapPin, Milestone, Paperclip, Plus, Text, Trash2 } from "lucide-react";
+import { BadgeDollarSign, ChevronDown, CircleGauge, Droplets, FileText, Fuel, Landmark, MapPin, Milestone, Paperclip, Plus, Route, Text, Trash2 } from "lucide-react";
 import { Autocomplete } from "./autocomplete";
 import { CalendarField } from "./calendar-field";
 import { CustomSelect } from "./custom-select";
@@ -36,6 +36,7 @@ type ExpenseFormProps = {
   expense?: Expense;
   odometerSuggestion?: number;
   intentCategory?: ExpenseCategory;
+  activeTrip?: Trip;
   /** Mobile dashboard: start collapsed behind a single CTA. */
   collapsible?: boolean;
   onCreate?: (expense: Partial<Expense>, files?: File[]) => void;
@@ -43,13 +44,13 @@ type ExpenseFormProps = {
   onCancel?: () => void;
 };
 
-export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, expense, odometerSuggestion, intentCategory, collapsible = false, onCreate, onUpdate, onCancel }: ExpenseFormProps) {
+export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, expense, odometerSuggestion, intentCategory, activeTrip, collapsible = false, onCreate, onUpdate, onCancel }: ExpenseFormProps) {
   const isEditing = Boolean(expense);
   const isDesktop = useMinWidth("(min-width: 1280px)");
   const canCollapse = collapsible && !isDesktop && !isEditing;
-  const [open, setOpen] = useState(!collapsible || isEditing);
+  const [open, setOpen] = useState(!collapsible || isEditing || Boolean(intentCategory));
   const [showDetails, setShowDetails] = useState(isEditing);
-  const [category, setCategory] = useState<ExpenseCategory>(expense?.category ?? "Fuel");
+  const [category, setCategory] = useState<ExpenseCategory>(expense?.category ?? intentCategory ?? "Fuel");
   const [date, setDate] = useState(expense?.date ?? (isEditing ? "" : todayDateValue()));
   const [fuelType, setFuelType] = useState(() => normalizeFuelType(expense?.fuel_type || draftFuelTypeByVehicle.get(vehicle.id) || vehicle.preferred_fuel_type));
   const [fuelPriceCurrency, setFuelPriceCurrency] = useState(expense?.fuel_price_currency || baseCurrency);
@@ -69,31 +70,12 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const fuelSuggestion = useFuelPriceSuggestions({ category, country, fuelType, token });
   const needsOdometer = category === "Maintenance";
   const showFuelTypeInEssentials = !vehicle.preferred_fuel_type || isEditing;
-
-  useEffect(() => {
-    if (!intentCategory || isEditing) return;
-    setCategory(intentCategory);
-    if (collapsible) setOpen(true);
-  }, [intentCategory, isEditing, collapsible]);
-
-  useEffect(() => {
-    if (isDesktop && collapsible) setOpen(true);
-  }, [isDesktop, collapsible]);
-
-  useEffect(() => {
-    if (category !== "Fuel" || fuelPriceEdited) return;
-    if (fuelSuggestion.fuelType !== normalizeFuelType(fuelType)) return;
-    const reference = fuelSuggestion.suggestions.find((suggestion) => suggestion.fuel_type === fuelType);
-    if (!reference) return;
-    setFuelPriceCurrency(reference.currency);
-    setFuelPrice(String(reference.price));
-  }, [category, fuelPriceEdited, fuelSuggestion.fuelType, fuelSuggestion.suggestions, fuelType]);
-
-  useEffect(() => {
-    if ((category === "Insurance" || category === "Inspection") && date && !expiresDate) {
-      setExpiresDate(addYear(date));
-    }
-  }, [category, date, expiresDate]);
+  const referenceFuelPrice = category === "Fuel" && fuelSuggestion.fuelType === normalizeFuelType(fuelType)
+    ? fuelSuggestion.suggestions.find((suggestion) => suggestion.fuel_type === fuelType)
+    : undefined;
+  const shownFuelPrice = fuelPriceEdited || fuelPrice ? fuelPrice : referenceFuelPrice ? String(referenceFuelPrice.price) : "";
+  const shownFuelPriceCurrency = fuelPriceEdited || fuelPrice ? fuelPriceCurrency : referenceFuelPrice?.currency || fuelPriceCurrency;
+  const shownExpiresDate = expiresDate || ((category === "Insurance" || category === "Inspection") && date ? addYear(date) : "");
 
   function resetCreateForm() {
     setCategory("Fuel");
@@ -144,7 +126,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   function applyFuelSuggestion(suggestion: FuelPriceSuggestion) {
     setFuelPriceCurrency(suggestion.currency);
     setFuelPrice(String(suggestion.price));
-    setFuelPriceEdited(false);
+    setFuelPriceEdited(true);
   }
 
   function changeFuelType(nextFuelType: string) {
@@ -164,20 +146,27 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     }
   }
 
-  if (canCollapse && !open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-[22px] bg-[#151712] text-sm font-bold text-white shadow-[0_12px_30px_rgba(21,23,18,0.16)] transition-[transform,opacity] duration-300 active:scale-[0.985]"
-      >
-        <Plus size={18} />
-        Log expense
-      </button>
-    );
-  }
-
   return (
+    <motion.div layout transition={{ layout: { duration: 0.42, ease: calmEase } }} className="min-w-0">
+      <AnimatePresence initial={false} mode="popLayout">
+        {canCollapse && !open ? (
+          <motion.button
+            key="expense-trigger"
+            layoutId={`expense-composer-${vehicle.id}`}
+            type="button"
+            onClick={() => setOpen(true)}
+            initial={{ opacity: 0, scale: 0.985, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: -8 }}
+            transition={{ duration: 0.26, ease: calmEase }}
+            className={`flex min-h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-[22px] px-4 text-sm font-bold text-white shadow-[0_12px_30px_rgba(21,23,18,0.16)] active:scale-[0.985] ${activeTrip ? "bg-[#203729] ring-1 ring-[#93b98a]/30" : "bg-[#151712]"}`}
+          >
+            <Plus size={18} />
+            <span>Log expense</span>
+            {activeTrip ? <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-white/70"><span className="size-1.5 rounded-full bg-[#b9e2a9]" />Trip mode</span> : null}
+          </motion.button>
+        ) : (
+          <motion.div key="expense-panel" layoutId={`expense-composer-${vehicle.id}`} initial={{ opacity: 0, scale: 0.985, y: 14 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.985, y: 8 }} transition={{ duration: 0.34, ease: calmEase }}>
     <Panel
       title={isEditing ? "Edit expense" : "Log expense"}
       eyebrow={vehicleName(vehicle)}
@@ -189,6 +178,16 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
         ) : undefined
       }
     >
+      {activeTrip && !isEditing ? (
+        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08, duration: 0.28, ease: calmEase }} className="mb-3 flex items-center gap-2.5 rounded-[17px] border border-[#8aae82]/20 bg-[#eef6e9] p-2.5 text-[#284d35]">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-[12px] bg-white"><Route size={15} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-bold uppercase tracking-[0.13em] text-[#57745d]">Trip mode</span>
+            <span className="block truncate text-xs font-bold">Fuel will join {activeTrip.name}</span>
+          </span>
+          <span className="size-2 shrink-0 rounded-full bg-[#69a36c]" />
+        </motion.div>
+      ) : null}
       <form onSubmit={submit} className="grid gap-3">
         <ExpenseCategoryPicker name="category" value={category} onChange={changeCategory} />
         <Input name="amount_base" label={`Amount ${baseCurrency}`} icon={BadgeDollarSign} inputMode="decimal" defaultValue={expense?.amount_base || ""} placeholder={amountPlaceholder(category, baseCurrency)} required />
@@ -200,7 +199,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
             <motion.div key="fuel-fields" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.28, ease: calmEase }} className="grid gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <Input name="fuel_liters" label="Liters" icon={Droplets} inputMode="decimal" defaultValue={expense?.fuel_liters || ""} placeholder="Liters" />
-                <Input name="fuel_price_per_liter_base" label="Price / L" icon={CircleGauge} inputMode="decimal" value={fuelPrice} onChange={(event) => { setFuelPrice(event.currentTarget.value); setFuelPriceEdited(true); }} placeholder="Price / L" />
+                <Input name="fuel_price_per_liter_base" label="Price / L" icon={CircleGauge} inputMode="decimal" value={shownFuelPrice} onChange={(event) => { setFuelPrice(event.currentTarget.value); setFuelPriceEdited(true); }} placeholder="Price / L" />
               </div>
               {showFuelTypeInEssentials ? (
                 <CustomSelect name="fuel_type_visible" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} />
@@ -225,7 +224,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
         <AnimatePresence initial={false} mode="popLayout">
           {(category === "Insurance" || category === "Inspection") ? (
             <motion.div key="expiry-field" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.28, ease: calmEase }}>
-              <CalendarField name="expires_date" label="Expires" value={expiresDate} placeholder="Expiry date" onChange={setExpiresDate} />
+              <CalendarField name="expires_date" label="Expires" value={shownExpiresDate} placeholder="Expiry date" onChange={setExpiresDate} />
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -233,7 +232,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
         <CalendarField name="date" label="Date" value={date} placeholder="Choose date" onChange={setDate} />
 
         {!needsOdometer && !showDetails ? <input type="hidden" name="odometer" value={odometerValue} /> : null}
-        {!showDetails || category !== "Fuel" ? <input type="hidden" name="fuel_price_currency" value={fuelPriceCurrency} /> : null}
+        {!showDetails || category !== "Fuel" ? <input type="hidden" name="fuel_price_currency" value={shownFuelPriceCurrency} /> : null}
 
         <button
           type="button"
@@ -257,7 +256,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
               {category === "Fuel" ? (
                 <>
                   {!showFuelTypeInEssentials ? <CustomSelect name="fuel_type_detail" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} /> : null}
-                  <CustomSelect name="fuel_price_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={fuelPriceCurrency} onChange={setFuelPriceCurrency} />
+                  <CustomSelect name="fuel_price_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={shownFuelPriceCurrency} onChange={(value) => { setFuelPriceCurrency(value); setFuelPriceEdited(true); }} />
                   <Autocomplete name="gas_station" label="Gas station" icon={MapPin} options={gasStationBrands} value={gasStation} onChange={setGasStation} />
                 </>
               ) : null}
@@ -276,6 +275,10 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
         </div>
       </form>
     </Panel>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
 

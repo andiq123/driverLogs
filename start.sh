@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# DriverLogs local stack — Colima → Postgres → API → frontend.
-# Ctrl-C stops apps, compose, then Colima (unless KEEP_COLIMA=1).
-#
-# Requires Bash. macOS ships Bash 3.2 — keep syntax compatible.
+# Start the DriverLogs development stack with Docker, Go, and Next.js.
+# Docker stays open; Ctrl-C stops the app processes and Postgres container.
+# Compatible with the Bash 3.2 bundled with macOS.
 set -euo pipefail
 
-# ── PATH: nvm Node first, then Go tooling / Homebrew ───────────────────────────
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 # shellcheck source=/dev/null
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
@@ -17,10 +15,7 @@ BACKEND_DIR="$ROOT/backend"
 FRONTEND_DIR="$ROOT/frontend"
 COMPOSE_FILE="$ROOT/docker-compose.yml"
 
-# KEEP_COLIMA=1 leaves Colima running after Ctrl-C.
-KEEP_COLIMA="${KEEP_COLIMA:-0}"
-
-# CLI / shell overrides win over values loaded from .env files.
+# Values already exported by the shell take precedence over project .env files.
 OVERRIDE_BACKEND_PORT="${BACKEND_PORT:-}"
 OVERRIDE_FRONTEND_PORT="${FRONTEND_PORT:-}"
 OVERRIDE_POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT:-}"
@@ -32,13 +27,17 @@ OVERRIDE_NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-}"
 OVERRIDE_CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-}"
 OVERRIDE_JWT_SECRET="${JWT_SECRET:-}"
 
-BOLD='\033[1m'; RESET='\033[0m'
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'
+BOLD='\033[1m'
+RESET='\033[0m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
 
 PIDS=""
+AIR_CMD=""
 CLEANED=0
-MANAGE_COLIMA=0
+POSTGRES_STARTED=0
 
 log()  { printf "${BOLD}[%s]${RESET} %s\n" "$1" "$2"; }
 ok()   { printf "${GREEN}${BOLD}OK${RESET} %s\n" "$1"; }
@@ -88,191 +87,153 @@ load_env() {
     POSTGRES_PASSWORD DATABASE_URL NEXT_PUBLIC_API_URL CORS_ALLOWED_ORIGINS JWT_SECRET
 }
 
-# ── Colima ─────────────────────────────────────────────────────────────────────
-colima_running() {
-  colima status >/dev/null 2>&1
-}
-
 docker_ready() {
   docker info >/dev/null 2>&1
 }
 
-ensure_colima() {
-  require_cmd colima "brew install colima docker"
-  require_cmd docker "brew install docker"
+ensure_docker() {
+  require_cmd docker "install Docker Desktop from https://www.docker.com/products/docker-desktop/"
+  docker compose version >/dev/null 2>&1 || die "Docker Compose is unavailable — update Docker Desktop"
 
-  if colima_running && docker_ready; then
-    log "colima" "already running"
-    MANAGE_COLIMA=1
-    return 0
-  fi
-
-  log "colima" "starting…"
-  colima start --activate 2>&1 | prefix "colima" "$CYAN"
-  MANAGE_COLIMA=1
-
-  local i=0
-  while ! docker_ready; do
-    i=$((i + 1))
-    [ "$i" -le 90 ] || die "Docker engine not ready after Colima start"
-    sleep 0.5
-  done
-  ok "Colima + Docker ready"
-}
-
-stop_colima() {
-  [ "$MANAGE_COLIMA" -eq 1 ] || return 0
-  if [ "$KEEP_COLIMA" = "1" ]; then
-    warn "KEEP_COLIMA=1 — leaving Colima running"
-    return 0
-  fi
-  if colima_running; then
-    log "colima" "stopping…"
-    colima stop 2>&1 | prefix "colima" "$CYAN" || true
-  fi
-}
-
-# ── Docker compose ─────────────────────────────────────────────────────────────
-start_infra() {
-  log "docker" "PostgreSQL"
-  if compose up -d --wait --wait-timeout 60 postgres 2>&1 | prefix "docker" "$CYAN"; then
-    ok "Postgres ready"
-    return 0
-  fi
-
-  warn "compose --wait failed; falling back to health checks"
-  compose up -d postgres 2>&1 | prefix "docker" "$CYAN"
-
-  local i=0
-  while [ "$i" -lt 60 ]; do
-    if compose exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
-      ok "Postgres ready"
-      return 0
-    fi
-    i=$((i + 1))
-    sleep 0.5
-  done
-  die "Postgres did not become ready"
-}
-
-stop_infra() {
   if docker_ready; then
-    log "docker" "compose down"
-    compose down --remove-orphans 2>&1 | prefix "docker" "$CYAN" || true
+    ok "Docker ready"
+    return
   fi
+
+  if [ "$(uname -s)" = "Darwin" ] && [ -d "/Applications/Docker.app" ]; then
+    log "docker" "starting Docker Desktop…"
+    open -ga Docker
+  else
+    die "Docker is installed but the engine is not running"
+  fi
+
+  local attempts=0
+  while ! docker_ready; do
+    attempts=$((attempts + 1))
+    [ "$attempts" -le 60 ] || die "Docker did not become ready within 60 seconds"
+    sleep 1
+  done
+  ok "Docker ready"
 }
 
-# ── Port / leftover process helpers ────────────────────────────────────────────
+start_postgres() {
+  log "docker" "starting PostgreSQL"
+  POSTGRES_STARTED=1
+  compose up -d --wait --wait-timeout 60 postgres 2>&1 | prefix "docker" "$CYAN"
+  ok "PostgreSQL ready on :$POSTGRES_HOST_PORT"
+}
+
+stop_postgres() {
+  [ "$POSTGRES_STARTED" -eq 1 ] || return 0
+  docker_ready || return 0
+  log "docker" "stopping PostgreSQL"
+  compose stop postgres 2>&1 | prefix "docker" "$CYAN" || true
+}
+
 process_command() {
-  local pid="$1"
-  ps -p "$pid" -o command= 2>/dev/null || true
+  ps -p "$1" -o command= 2>/dev/null || true
 }
 
-stop_app_port_processes() {
-  local port="$1"
-  local label="$2"
+release_project_port() {
+  local port="$1" label="$2" pids pid command parent parent_command target
   command -v lsof >/dev/null 2>&1 || return 0
-
-  local pids
   pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-  [ -z "$pids" ] && return 0
+  [ -z "$pids" ] && return
 
-  local pid command
   for pid in $pids; do
     command="$(process_command "$pid")"
     if [[ "$command" == *"$ROOT"* ]] \
       || [[ "$command" == *"driverlogs-api"* ]] \
       || [[ "$command" == *"next dev"* ]]; then
-      log "port" "stopping existing $label on :$port (pid $pid)"
-      kill "$pid" >/dev/null 2>&1 || true
+      log "port" "stopping stale $label process on :$port"
+      target="$pid"
+      parent="$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d ' ' || true)"
+      parent_command="$(process_command "$parent")"
+      if [[ "$parent_command" == *"/air"* ]] || [[ "$parent_command" == "air "* ]]; then
+        target="$parent"
+      fi
+      kill_tree "$target" TERM
     else
-      die "$label port $port is used by another process: $command"
+      die "$label port $port is already used by: $command"
     fi
   done
 
   sleep 0.3
-  if lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-    die "$label port $port is still in use"
-  fi
+  lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 \
+    && die "$label port $port is still in use"
 }
 
-stop_frontend_lock_process() {
-  local lock_file="$FRONTEND_DIR/.next/dev/lock"
+clear_stale_next_lock() {
+  local lock_file="$FRONTEND_DIR/.next/dev/lock" pid
   [ -f "$lock_file" ] || return 0
-
-  local pid
   pid="$(sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' "$lock_file" 2>/dev/null || true)"
+
   if [ -z "$pid" ] || ! ps -p "$pid" >/dev/null 2>&1; then
     rm -f "$lock_file"
-    return 0
+    return
   fi
 
-  log "front" "stopping existing Next lock holder $pid"
-  kill "$pid" >/dev/null 2>&1 || true
+  log "front" "stopping stale Next.js process"
+  kill_tree "$pid" TERM
   sleep 0.3
-  if ps -p "$pid" >/dev/null 2>&1; then
-    die "Frontend process $pid is still running"
-  fi
+  ps -p "$pid" >/dev/null 2>&1 && die "the previous Next.js process is still running"
 }
 
-ensure_node_modules() {
-  [ -d "$FRONTEND_DIR/node_modules" ] && return 0
-  log "npm" "install frontend"
+ensure_frontend_dependencies() {
+  [ -d "$FRONTEND_DIR/node_modules" ] && return
+  log "npm" "installing frontend dependencies"
   (cd "$FRONTEND_DIR" && npm ci --prefer-offline --no-audit --no-fund) \
     2>&1 | prefix "npm" "$CYAN"
 }
 
 resolve_air() {
   if command -v air >/dev/null 2>&1; then
-    command -v air
-    return 0
+    AIR_CMD="$(command -v air)"
+    return
   fi
-  log "air" "installing github.com/air-verse/air@latest"
+
+  log "air" "installing the Go live-reload tool"
   go install github.com/air-verse/air@latest
-  local gobin
-  gobin="$(go env GOBIN)"
-  if [ -n "$gobin" ] && [ -x "$gobin/air" ]; then
-    printf '%s\n' "$gobin/air"
+  if [ -n "$(go env GOBIN)" ]; then
+    AIR_CMD="$(go env GOBIN)/air"
   else
-    printf '%s\n' "$(go env GOPATH)/bin/air"
+    AIR_CMD="$(go env GOPATH)/bin/air"
   fi
+  [ -x "$AIR_CMD" ] || die "Air was installed but could not be found"
 }
 
-# ── App processes ──────────────────────────────────────────────────────────────
 track_pid() {
   PIDS="$PIDS $1"
 }
 
-# Kill a pid and its descendants (macOS has no setsid).
+# macOS lacks setsid, so terminate each child tree explicitly.
 kill_tree() {
-  local pid="$1" sig="${2:-TERM}" child
+  local pid="$1" signal="${2:-TERM}" child
   for child in $(pgrep -P "$pid" 2>/dev/null || true); do
-    kill_tree "$child" "$sig"
+    kill_tree "$child" "$signal"
   done
-  kill "-$sig" "$pid" 2>/dev/null || true
+  kill "-$signal" "$pid" 2>/dev/null || true
 }
 
 start_backend() {
-  local air_cmd
-  air_cmd="$(resolve_air)"
-  log "backend :$BACKEND_PORT" "air live reload"
+  log "api" "starting on :$BACKEND_PORT"
   (
     cd "$BACKEND_DIR"
     PORT="$BACKEND_PORT" \
       DATABASE_URL="$DATABASE_URL" \
       JWT_SECRET="$JWT_SECRET" \
       CORS_ALLOWED_ORIGINS="$CORS_ALLOWED_ORIGINS" \
-      "$air_cmd" 2>&1 | prefix "backend :$BACKEND_PORT" "$GREEN"
+      "$AIR_CMD" 2>&1 | prefix "api" "$GREEN"
   ) &
   track_pid $!
 }
 
 start_frontend() {
-  log "front   :$FRONTEND_PORT" "next dev"
+  log "web" "starting on :$FRONTEND_PORT"
   (
     cd "$FRONTEND_DIR"
     NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
-      npm run dev -- --port "$FRONTEND_PORT" 2>&1 | prefix "front   :$FRONTEND_PORT" "$CYAN"
+      npm run dev -- --port "$FRONTEND_PORT" 2>&1 | prefix "web" "$CYAN"
   ) &
   track_pid $!
 }
@@ -282,60 +243,69 @@ stop_apps() {
   for pid in $PIDS; do
     kill_tree "$pid" TERM
   done
-  sleep 1
+  sleep 0.5
   for pid in $PIDS; do
-    kill_tree "$pid" KILL
+    kill -0 "$pid" >/dev/null 2>&1 && kill_tree "$pid" KILL
   done
   wait 2>/dev/null || true
   PIDS=""
 }
 
+wait_for_apps() {
+  local pid
+  while :; do
+    for pid in $PIDS; do
+      if ! kill -0 "$pid" >/dev/null 2>&1; then
+        wait "$pid" 2>/dev/null || true
+        warn "an app process stopped; shutting down the stack"
+        return 1
+      fi
+    done
+    sleep 1
+  done
+}
+
 cleanup() {
+  local status=$?
   [ "$CLEANED" -eq 1 ] && return 0
   CLEANED=1
   trap - INT TERM EXIT
 
-  printf "\n${YELLOW}${BOLD}Stopping stack…${RESET}\n"
+  printf "\n${YELLOW}${BOLD}Stopping DriverLogs…${RESET}\n"
   stop_apps
-  stop_infra
-  stop_colima
-  printf "${GREEN}${BOLD}All stopped.${RESET}\n"
-  exit 0
+  stop_postgres
+  printf "${GREEN}${BOLD}Stopped.${RESET}\n"
+  exit "$status"
 }
 
-# ── Main ───────────────────────────────────────────────────────────────────────
 main() {
-  trap cleanup INT TERM EXIT
+  trap 'exit 130' INT TERM
+  trap cleanup EXIT
 
-  log "check" "toolchain"
-  require_cmd go "https://go.dev/dl/"
-  require_cmd node "install via nvm"
-  require_cmd npm "install via nvm"
-
+  log "check" "checking development tools"
+  require_cmd go "install Go from https://go.dev/dl/"
+  require_cmd node "install Node.js"
+  require_cmd npm "install npm"
   load_env
-  ok "go=$(go version | awk '{print $3}') node=$(node -v)"
+  ensure_docker
+  ok "$(go version | awk '{print $3}') · Node $(node -v)"
 
-  ensure_colima
-
-  # Drop any stale compose leftovers from a previous run, then free app ports.
-  compose down --remove-orphans >/dev/null 2>&1 || true
-  stop_frontend_lock_process
-  stop_app_port_processes "$BACKEND_PORT" "Backend"
-  stop_app_port_processes "$FRONTEND_PORT" "Frontend"
-  stop_app_port_processes "$POSTGRES_HOST_PORT" "Postgres"
-
-  ensure_node_modules
-  start_infra
+  clear_stale_next_lock
+  release_project_port "$BACKEND_PORT" "API"
+  release_project_port "$FRONTEND_PORT" "frontend"
+  ensure_frontend_dependencies
+  resolve_air
+  start_postgres
   start_backend
   start_frontend
 
-  printf "\n${BOLD}Stack up — ${RED}Ctrl-C${RESET}${BOLD} stops apps, Docker, and Colima.${RESET}\n"
-  [ "$KEEP_COLIMA" = "1" ] && warn "KEEP_COLIMA=1 — Colima will stay up on exit"
-  printf "${BOLD}  API       ${RESET} http://localhost:%s\n" "$BACKEND_PORT"
-  printf "${BOLD}  Frontend  ${RESET} http://localhost:%s\n\n" "$FRONTEND_PORT"
+  printf "\n${BOLD}DriverLogs is ready${RESET}\n"
+  printf "  Frontend  http://localhost:%s\n" "$FRONTEND_PORT"
+  printf "  API       http://localhost:%s\n" "$BACKEND_PORT"
+  printf "  Database  localhost:%s\n" "$POSTGRES_HOST_PORT"
+  printf "\n${YELLOW}Press Ctrl-C to stop.${RESET}\n\n"
 
-  wait || true
-  cleanup
+  wait_for_apps
 }
 
 main "$@"

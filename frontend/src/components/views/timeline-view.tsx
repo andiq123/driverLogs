@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
-import { Activity, BarChart3, EyeOff, FileText, ListFilter, Pencil, ReceiptText, Trash2, TrendingUp } from "lucide-react";
-import type { Expense, ExpenseCategory, Vehicle } from "@/lib/types";
+import { Activity, BarChart3, EyeOff, FileText, ListFilter, Pencil, ReceiptText, Route, Trash2, TrendingUp } from "lucide-react";
+import type { Expense, ExpenseCategory, Trip, Vehicle } from "@/lib/types";
 import { categories, categoryIcon } from "@/lib/theme";
 import { dateText, equivalents, km, money, vehicleName } from "@/lib/format";
 import { serviceDetail } from "@/lib/car-options";
@@ -14,13 +14,14 @@ import { FuelFillupWin } from "../fuel-fillup-win";
 const allCategoriesFilter = "All";
 type TimelineFilter = typeof allCategoriesFilter | ExpenseCategory;
 
-export function TimelineView({ expenses, vehicle, token, baseCurrency, country, savingExpense, openExpenseFilesID, onOpenExpenseFiles, onDeleteExpense, onUpdateExpense, onToggleAnalytics }: { expenses: Expense[]; vehicle?: Vehicle; token: string; baseCurrency: string; country: string; savingExpense?: boolean; openExpenseFilesID?: string; onOpenExpenseFiles?: (id: string) => void; onDeleteExpense: (id: string) => void; onUpdateExpense: (id: string, expense: Partial<Expense>, files?: File[]) => void; onToggleAnalytics: (expense: Expense, excluded: boolean) => void }) {
+export function TimelineView({ expenses, trips = [], vehicle, token, baseCurrency, country, savingExpense, openExpenseFilesID, onOpenExpenseFiles, onDeleteExpense, onUpdateExpense, onToggleAnalytics }: { expenses: Expense[]; trips?: Trip[]; vehicle?: Vehicle; token: string; baseCurrency: string; country: string; savingExpense?: boolean; openExpenseFilesID?: string; onOpenExpenseFiles?: (id: string) => void; onDeleteExpense: (id: string) => void; onUpdateExpense: (id: string, expense: Partial<Expense>, files?: File[]) => void; onToggleAnalytics: (expense: Expense, excluded: boolean) => void }) {
   const [editingExpense, setEditingExpense] = useState<Expense>();
   const [localFilesExpenseID, setLocalFilesExpenseID] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<TimelineFilter>(allCategoriesFilter);
   const filesExpenseID = openExpenseFilesID ?? localFilesExpenseID;
   const presentCategories = useMemo(() => categoryOptions(expenses), [expenses]);
   const odometerGains = useMemo(() => odometerGainsByID(expenses), [expenses]);
+  const tripNames = useMemo(() => Object.fromEntries(trips.map((trip) => [trip.id, trip.name])), [trips]);
   const activeFilter = categoryFilter === allCategoriesFilter || presentCategories.includes(categoryFilter) ? categoryFilter : allCategoriesFilter;
   const filteredExpenses = activeFilter === allCategoriesFilter ? expenses : expenses.filter((expense) => expense.category === activeFilter);
   const sorted = [...filteredExpenses].sort((a, b) => b.date.localeCompare(a.date));
@@ -60,6 +61,7 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                       {expense.category === "Fuel" && expense.fuel_type ? (
                         <span className="mt-1 block text-xs text-[#6b7065]">{expense.fuel_type} · {expense.fuel_liters || 0} L · {fuelPriceLabel(expense)}</span>
                       ) : null}
+                      {expense.trip_id ? <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-[#e7f1e2] px-2 py-0.5 text-[10px] font-bold text-[#376247]"><Route size={11} />{tripNames[expense.trip_id] || "Trip fuel"}</span> : null}
                       {serviceDetail(expense.service_type) ? <span className="mt-1 block text-xs text-[#6b7065]">{serviceDetail(expense.service_type)}</span> : null}
                       {expense.expires_date ? <span className="mt-1 block text-xs text-[#8a6a10]">Expires {dateText(expense.expires_date)}</span> : null}
                       {expense.odometer ? (
@@ -75,10 +77,10 @@ export function TimelineView({ expenses, vehicle, token, baseCurrency, country, 
                       <span className="hidden max-w-[8rem] truncate text-xs text-[#6b7065] min-[430px]:block sm:max-w-none">{equivalents(expense.amount_eur, expense.amount_usd)}</span>
                       {expense.exchange_rate_source ? <span className="hidden truncate text-[11px] text-[#8a9085] sm:block">Rate {dateText(expense.exchange_rate_date)}</span> : null}
                       <div className="mt-1 grid grid-cols-2 justify-end gap-1.5 sm:flex sm:flex-wrap">
-                        <IconButton type="button" icon={expense.exclude_from_analytics ? EyeOff : BarChart3} label={expense.exclude_from_analytics ? "Include in analytics" : "Exclude from analytics"} variant={expense.exclude_from_analytics ? "dark" : "soft"} onClick={() => onToggleAnalytics(expense, !expense.exclude_from_analytics)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
-                        <IconButton type="button" icon={FileText} label="Files" variant={filesExpenseID === expense.id ? "dark" : "soft"} onClick={() => toggleFiles(expense.id, filesExpenseID, onOpenExpenseFiles, setLocalFilesExpenseID)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
-                        <IconButton type="button" icon={Pencil} label="Edit" onClick={() => setEditingExpense(expense)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
-                        <IconButton type="button" icon={Trash2} label="Remove" variant="danger" onClick={() => confirmDelete(expense, onDeleteExpense)} className="size-8 rounded-[13px] sm:size-9 sm:rounded-[14px]" />
+                        <IconButton type="button" icon={expense.exclude_from_analytics ? EyeOff : BarChart3} label={expense.exclude_from_analytics ? "Include in analytics" : "Exclude from analytics"} variant={expense.exclude_from_analytics ? "dark" : "soft"} onClick={() => onToggleAnalytics(expense, !expense.exclude_from_analytics)} />
+                        <IconButton type="button" icon={FileText} label="Files" variant={filesExpenseID === expense.id ? "dark" : "soft"} onClick={() => toggleFiles(expense.id, filesExpenseID, onOpenExpenseFiles, setLocalFilesExpenseID)} />
+                        <IconButton type="button" icon={Pencil} label="Edit" onClick={() => setEditingExpense(expense)} />
+                        <IconButton type="button" icon={Trash2} label="Remove" variant="danger" onClick={() => confirmDelete(expense, onDeleteExpense)} />
                       </div>
                     </span>
                   </div>
