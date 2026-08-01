@@ -974,6 +974,10 @@ func randomAttachmentID() (string, error) {
 }
 
 func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense, current *domain.Expense) (domain.Expense, int, error) {
+	expense.Date = strings.TrimSpace(expense.Date)
+	if _, ok := parseAPIDate(expense.Date); !ok {
+		return domain.Expense{}, http.StatusBadRequest, errors.New("date must use YYYY-MM-DD")
+	}
 	settings, err := h.store.UserSettings(userID(r))
 	if err != nil {
 		return domain.Expense{}, http.StatusInternalServerError, errors.New("settings unavailable")
@@ -991,18 +995,21 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense, curre
 	if expense.BaseCurrency == "" {
 		expense.BaseCurrency = settings.DefaultCurrency
 	}
+	normalizedCurrency, validCurrency := exchange.NormalizeCurrency(expense.BaseCurrency)
+	if !validCurrency {
+		return domain.Expense{}, http.StatusBadRequest, errors.New("unsupported amount currency")
+	}
+	expense.BaseCurrency = normalizedCurrency
 	if expense.FuelPriceCurrency == "" {
 		expense.FuelPriceCurrency = expense.BaseCurrency
 	}
+	normalizedCurrency, validCurrency = exchange.NormalizeCurrency(expense.FuelPriceCurrency)
+	if !validCurrency {
+		return domain.Expense{}, http.StatusBadRequest, errors.New("unsupported fuel price currency")
+	}
+	expense.FuelPriceCurrency = normalizedCurrency
 	if expense.AmountBase <= 0 {
 		expense.AmountBase = expense.AmountMDL
-	}
-	if expense.Category == "Fuel" && expense.FuelPricePerLiterBase > 0 {
-		priceMDL, err := h.exchange.ConvertDecimalToMDL(r.Context(), expense.FuelPricePerLiterBase, expense.FuelPriceCurrency, expense.Date)
-		if err != nil {
-			return domain.Expense{}, http.StatusBadGateway, errors.New("fuel price exchange rate unavailable")
-		}
-		expense.FuelPricePerLiterMDL = priceMDL
 	}
 	if expense.Category == "Fuel" && expense.AmountBase <= 0 && expense.FuelLiters > 0 && expense.FuelPricePerLiterBase > 0 {
 		expense.AmountBase = expense.FuelLiters * expense.FuelPricePerLiterBase
@@ -1034,10 +1041,11 @@ func (h Handler) normalizeExpense(r *http.Request, expense domain.Expense, curre
 			expense.ExpiresDate = date.AddDate(1, 0, 0).Format("2006-01-02")
 		}
 	}
-	conversion, err := h.exchange.Convert(r.Context(), expense.AmountBase, expense.BaseCurrency, expense.Date)
+	conversion, priceMDL, err := h.exchange.ConvertExpense(r.Context(), expense.AmountBase, expense.BaseCurrency, expense.Date, expense.FuelPricePerLiterBase, expense.FuelPriceCurrency)
 	if err != nil {
 		return domain.Expense{}, http.StatusBadGateway, errors.New("exchange rates unavailable")
 	}
+	expense.FuelPricePerLiterMDL = priceMDL
 	expense.AmountBase = conversion.AmountBase
 	expense.BaseCurrency = conversion.BaseCurrency
 	expense.AmountMDL = conversion.AmountMDL

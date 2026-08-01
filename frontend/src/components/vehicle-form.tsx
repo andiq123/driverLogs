@@ -88,8 +88,8 @@ export function VehicleForm({ vehicle, saving, onCancel, onCreate, onUpdate }: {
         <CustomSelect name="preferred_fuel_type" label="Preferred fuel" icon={Fuel} options={fuelTypes} value={preferredFuelType} onChange={setPreferredFuelType} />
         <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" defaultValue={vehicle?.odometer || ""} placeholder="Odometer, km" />
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(120px,0.42fr)]">
-          <Input name="purchase_price" label="Purchase price" icon={BadgeDollarSign} inputMode="decimal" defaultValue={vehicle?.purchase_price || ""} />
-          <CustomSelect name="purchase_currency" label="Price currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} onChange={setPurchaseCurrency} />
+          <Input name="purchase_price" label="Purchase price" icon={BadgeDollarSign} inputMode="decimal" defaultValue={vehicle?.purchase_price || ""} showLabel />
+          <CustomSelect name="purchase_currency" label="Price currency" icon={Landmark} options={priceCurrencies} value={purchaseCurrency} showLabel onChange={setPurchaseCurrency} />
         </div>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <ActionButton loading={saving} className="mt-2">{isEditing ? "Save changes" : "Save vehicle"}</ActionButton>

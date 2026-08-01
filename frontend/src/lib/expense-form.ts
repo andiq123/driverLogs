@@ -3,6 +3,7 @@ import type { ExpenseCategory } from "./types";
 export { servicePresetOptions, serviceTypeKeys, toggleServiceTypeKey } from "./car-options";
 
 export const draftFuelTypeByVehicle = new Map<string, string>();
+export const draftCurrencyByVehicle = new Map<string, string>();
 
 export function fileKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;

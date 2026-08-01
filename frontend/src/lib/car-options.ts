@@ -14,7 +14,7 @@ export const engineOptions = [
   "Electric",
 ];
 
-export const priceCurrencies = ["MDL", "EUR", "USD", "RON"] as const;
+export const priceCurrencies = ["MDL", "RON", "EUR", "USD", "UAH", "BGN", "HUF", "PLN", "CZK", "GBP", "CHF", "TRY"] as const;
 
 export const fuelTypes = ["Super 95", "Diesel", "LPG", "Hybrid", "Electric"] as const;
 

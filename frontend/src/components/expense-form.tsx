@@ -8,6 +8,7 @@ import {
   addYear,
   amountPlaceholder,
   descriptionPlaceholder,
+  draftCurrencyByVehicle,
   draftFuelTypeByVehicle,
   expenseDescription,
   fileKey,
@@ -52,8 +53,9 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const [showDetails, setShowDetails] = useState(isEditing);
   const [category, setCategory] = useState<ExpenseCategory>(expense?.category ?? intentCategory ?? "Fuel");
   const [date, setDate] = useState(expense?.date ?? (isEditing ? "" : todayDateValue()));
+  const [amountCurrency, setAmountCurrency] = useState(expense?.base_currency || draftCurrencyByVehicle.get(vehicle.id) || (country === "RO" ? "RON" : baseCurrency));
   const [fuelType, setFuelType] = useState(() => normalizeFuelType(expense?.fuel_type || draftFuelTypeByVehicle.get(vehicle.id) || vehicle.preferred_fuel_type));
-  const [fuelPriceCurrency, setFuelPriceCurrency] = useState(expense?.fuel_price_currency || baseCurrency);
+  const [fuelPriceCurrency, setFuelPriceCurrency] = useState(expense?.fuel_price_currency || draftCurrencyByVehicle.get(vehicle.id) || (country === "RO" ? "RON" : baseCurrency));
   const [fuelPrice, setFuelPrice] = useState(expense?.fuel_price_per_liter_base ? String(expense.fuel_price_per_liter_base) : "");
   const [fuelPriceEdited, setFuelPriceEdited] = useState(false);
   const [description, setDescription] = useState(expense?.description ?? "");
@@ -83,7 +85,9 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     const defaultFuelType = normalizeFuelType(vehicle.preferred_fuel_type);
     draftFuelTypeByVehicle.set(vehicle.id, defaultFuelType);
     setFuelType(defaultFuelType);
-    setFuelPriceCurrency(baseCurrency);
+    const nextCurrency = draftCurrencyByVehicle.get(vehicle.id) || (country === "RO" ? "RON" : baseCurrency);
+    setAmountCurrency(nextCurrency);
+    setFuelPriceCurrency(nextCurrency);
     setFuelPrice("");
     setFuelPriceEdited(false);
     setDescription("");
@@ -129,12 +133,18 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     setFuelPriceEdited(true);
   }
 
+  function changeAmountCurrency(currency: string) {
+    setAmountCurrency(currency);
+    draftCurrencyByVehicle.set(vehicle.id, currency);
+    if (!fuelPriceEdited && !fuelPrice) setFuelPriceCurrency(currency);
+  }
+
   function changeFuelType(nextFuelType: string) {
     const normalizedFuelType = normalizeFuelType(nextFuelType);
     draftFuelTypeByVehicle.set(vehicle.id, normalizedFuelType);
     setFuelType(normalizedFuelType);
     setFuelPrice("");
-    setFuelPriceCurrency(baseCurrency);
+    setFuelPriceCurrency(amountCurrency);
     setFuelPriceEdited(false);
   }
 
@@ -190,16 +200,19 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       ) : null}
       <form onSubmit={submit} className="grid gap-3">
         <ExpenseCategoryPicker name="category" value={category} onChange={changeCategory} />
-        <Input name="amount_base" label={`Amount ${baseCurrency}`} icon={BadgeDollarSign} inputMode="decimal" defaultValue={expense?.amount_base || ""} placeholder={amountPlaceholder(category, baseCurrency)} required />
-        <input type="hidden" name="base_currency" value={expense?.base_currency || baseCurrency} />
+        <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+          <Input name="amount_base" label="Total paid" icon={BadgeDollarSign} inputMode="decimal" defaultValue={expense?.amount_base || ""} placeholder={amountPlaceholder(category, amountCurrency)} showLabel required />
+          <CustomSelect name="base_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={amountCurrency} showLabel onChange={changeAmountCurrency} />
+        </div>
         <input type="hidden" name="fuel_type" value={fuelType} />
 
         <AnimatePresence initial={false} mode="popLayout">
           {category === "Fuel" ? (
             <motion.div key="fuel-fields" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.28, ease: calmEase }} className="grid gap-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]">
                 <Input name="fuel_liters" label="Liters" icon={Droplets} inputMode="decimal" defaultValue={expense?.fuel_liters || ""} placeholder="Liters" />
                 <Input name="fuel_price_per_liter_base" label="Price / L" icon={CircleGauge} inputMode="decimal" value={shownFuelPrice} onChange={(event) => { setFuelPrice(event.currentTarget.value); setFuelPriceEdited(true); }} placeholder="Price / L" />
+                <div className="col-span-2 sm:col-span-1"><CustomSelect name="fuel_price_currency" label="Price currency" icon={Landmark} options={priceCurrencies} value={shownFuelPriceCurrency} showLabel onChange={(value) => { setFuelPriceCurrency(value); setFuelPriceEdited(true); }} /></div>
               </div>
               {showFuelTypeInEssentials ? (
                 <CustomSelect name="fuel_type_visible" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} />
@@ -232,7 +245,6 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
         <CalendarField name="date" label="Date" value={date} placeholder="Choose date" onChange={setDate} />
 
         {!needsOdometer && !showDetails ? <input type="hidden" name="odometer" value={odometerValue} /> : null}
-        {!showDetails || category !== "Fuel" ? <input type="hidden" name="fuel_price_currency" value={shownFuelPriceCurrency} /> : null}
 
         <button
           type="button"
@@ -256,7 +268,6 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
               {category === "Fuel" ? (
                 <>
                   {!showFuelTypeInEssentials ? <CustomSelect name="fuel_type_detail" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} /> : null}
-                  <CustomSelect name="fuel_price_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={shownFuelPriceCurrency} onChange={(value) => { setFuelPriceCurrency(value); setFuelPriceEdited(true); }} />
                   <Autocomplete name="gas_station" label="Gas station" icon={MapPin} options={gasStationBrands} value={gasStation} onChange={setGasStation} />
                 </>
               ) : null}
