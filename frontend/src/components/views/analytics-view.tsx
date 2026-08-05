@@ -1,12 +1,12 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { AlertTriangle, BarChart3, CalendarClock, Gauge, TrendingUp, type LucideIcon } from "lucide-react";
+import { AlertTriangle, BarChart3, CalendarClock, Download, Gauge, TrendingUp, type LucideIcon } from "lucide-react";
 import { Area, AreaChart, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import type { ChartDatum, MoneyTotals, TrendDatum, Vehicle } from "@/lib/types";
 import { money, monthLabel, vehicleName } from "@/lib/format";
 import { palette } from "@/lib/theme";
-import { ChartSkeleton, EmptyState, Panel } from "../ui";
+import { ActionButton, ChartSkeleton, EmptyState, Panel } from "../ui";
 
 const tooltipStyle = {
   cursor: { fill: "rgba(31,41,28,0.05)" },
@@ -15,7 +15,7 @@ const tooltipStyle = {
   itemStyle: { fontSize: 13, fontWeight: 700, color: "#151712", padding: 0 },
 } as const;
 
-export function AnalyticsView({ mounted, vehicle, totals }: { mounted: boolean; vehicle?: Vehicle; totals: MoneyTotals }) {
+export function AnalyticsView({ mounted, vehicle, totals, exporting, onExport }: { mounted: boolean; vehicle?: Vehicle; totals: MoneyTotals; exporting?: boolean; onExport?: () => void }) {
   const showCharts = useMinWidth("(min-width: 640px)");
 
   if (!vehicle) {
@@ -24,6 +24,13 @@ export function AnalyticsView({ mounted, vehicle, totals }: { mounted: boolean; 
 
   return (
     <div className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <div className="flex items-end justify-between gap-3 xl:col-span-2">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#70776a]">Consolidated report</p>
+          <h2 className="mt-0.5 text-xl font-semibold sm:text-2xl">Everything for {vehicleName(vehicle)}</h2>
+        </div>
+        <ActionButton type="button" icon={Download} loading={exporting} onClick={onExport} className="h-11 shrink-0 px-4 sm:px-5">Export JSON</ActionButton>
+      </div>
       <Panel title="Cost split" eyebrow={vehicleName(vehicle)}>
         {totals.category_totals.length === 0 ? <EmptyState icon={BarChart3} title="No analytics yet" body="Charts become available after you add expenses." /> : (
           <>

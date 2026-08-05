@@ -119,6 +119,7 @@ func NewRouter(repo Store, fuelPrices fuelprices.Service, files filestorage.Clie
 	mux.HandleFunc("PATCH /trips/{id}/end", h.requireAuth(h.endTrip))
 	mux.HandleFunc("GET /timeline", h.requireAuth(h.timeline))
 	mux.HandleFunc("GET /analytics", h.requireAuth(h.analytics))
+	mux.HandleFunc("GET /reports/export", h.requireAuth(h.exportReport))
 	mux.HandleFunc("GET /reports", h.requireAuth(h.reports))
 	return withRequestLogging(h.logger, h.withCORS(mux))
 }
@@ -1103,6 +1104,97 @@ func (h Handler) reports(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h Handler) exportReport(w http.ResponseWriter, r *http.Request) {
+	vehicleID := strings.TrimSpace(r.URL.Query().Get("vehicle_id"))
+	if vehicleID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "vehicle_id is required"})
+		return
+	}
+	ownerID := userID(r)
+	vehicle, err := h.store.Vehicle(ownerID, vehicleID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "vehicle not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "vehicle unavailable"})
+		return
+	}
+	expenses, err := h.store.UserExpenses(ownerID, vehicleID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "expenses unavailable"})
+		return
+	}
+	trips, err := h.store.UserTrips(ownerID, vehicleID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "trips unavailable"})
+		return
+	}
+	analytics, err := h.store.Analytics(ownerID, vehicleID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "analytics unavailable"})
+		return
+	}
+	settings, err := h.store.UserSettings(ownerID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings unavailable"})
+		return
+	}
+	documents, err := h.store.Documents(ownerID, "vehicle", vehicleID, "")
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "documents unavailable"})
+		return
+	}
+	attachments := make(map[string][]domain.ExpenseAttachment, len(expenses))
+	for _, expense := range expenses {
+		items, attachmentErr := h.store.ExpenseAttachments(ownerID, expense.ID)
+		if attachmentErr != nil && !errors.Is(attachmentErr, store.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "expense attachments unavailable"})
+			return
+		}
+		if len(items) > 0 {
+			attachments[expense.ID] = items
+		}
+	}
+
+	payload := map[string]any{
+		"export_version":      "1",
+		"generated_at":        time.Now().UTC(),
+		"source":              "driverlogs_app",
+		"scope":               "selected_vehicle",
+		"vehicle":             vehicle,
+		"settings":            settings,
+		"analytics":           analytics,
+		"expenses":            expenses,
+		"trips":               trips,
+		"documents":           documents,
+		"expense_attachments": attachments,
+	}
+
+	filename := fmt.Sprintf("driverlogs-%s-%s.json", safeExportPart(vehicleID), time.Now().UTC().Format("20060102"))
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(payload); err != nil {
+		h.logger.Error("write report export failed", "error", err, "vehicle_id", vehicleID)
+	}
+}
+
+func safeExportPart(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var builder strings.Builder
+	for _, char := range value {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' || char == '_' {
+			builder.WriteRune(char)
+		}
+	}
+	if builder.Len() == 0 {
+		return "vehicle"
+	}
+	return builder.String()
+}
+
 func (h Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := auth.Bearer(r.Header.Get("Authorization"))
@@ -1180,7 +1272,7 @@ func (h Handler) withCORS(next http.Handler) http.Handler {
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
-		w.Header().Set("Access-Control-Expose-Headers", "Authorization")
+		w.Header().Set("Access-Control-Expose-Headers", "Authorization,Content-Disposition")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		if r.Method == http.MethodOptions {

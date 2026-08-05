@@ -87,6 +87,17 @@ export async function getAnalytics(token: string, vehicleID?: string) {
   return getJSON<MoneyTotals>(`/analytics${query}`, token);
 }
 
+export async function downloadReportExport(token: string, vehicleID: string) {
+  const response = await fetch(`${apiBase}/reports/export?vehicle_id=${encodeURIComponent(vehicleID)}`, {
+    headers: authHeaders(token),
+  });
+  refreshToken(response);
+  if (!response.ok) throw await apiError(response, "report export failed");
+  const contentDisposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = contentDisposition.match(/filename="([^"]+)"/)?.[1] || `driverlogs-${vehicleID}.json`;
+  return { blob: await response.blob(), filename };
+}
+
 export async function getFuelPrices(token: string, country: string, fuelType: string, region = "") {
   const params = new URLSearchParams({ country, fuel_type: fuelType, limit: "6" });
   if (region.trim()) params.set("region", region.trim());

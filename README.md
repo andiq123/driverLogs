@@ -15,6 +15,7 @@ It helps a user keep one focused dashboard per selected car, record fuel and ser
 - Fuel price references and Moldova/Romania comparison in MDL
 - Smart estimates for oil change and service trends based on logged records
 - Timeline, analytics, and reports for the selected car
+- Consolidated JSON export of vehicle details, spending, expenses, trips, analytics, documents, and attachment metadata
 - Mobile-first PWA interface
 
 ## Project Structure

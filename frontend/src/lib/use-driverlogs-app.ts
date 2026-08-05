@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { errorMessage, healthCheck, logClientError } from "./api";
+import { downloadReportExport, errorMessage, healthCheck, logClientError } from "./api";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
 import { demoToken, isLocalDemoEnabled } from "./demo-mode";
@@ -16,6 +16,7 @@ const pwaUpdateToastKey = "pwa-update";
 
 export function useDriverLogsApp() {
   const [view, setRawView] = useState<View>("Dashboard");
+  const [exportingReport, setExportingReport] = useState(false);
 
   const changeView = useCallback((next: View) => {
     window.scrollTo({ top: 0 });
@@ -71,6 +72,37 @@ export function useDriverLogsApp() {
     showToast("success", "Login ID copied");
   }
 
+  const exportReport = useCallback(async () => {
+    const vehicle = appData.activeVehicle;
+    if (!vehicle) return;
+    setExportingReport(true);
+    try {
+      if (appData.isDemo) {
+        downloadJSON({
+          export_version: "1",
+          generated_at: new Date().toISOString(),
+          source: "driverlogs_app",
+          scope: "selected_vehicle",
+          vehicle,
+          settings: appData.settings,
+          analytics: appData.vehicleTotals,
+          expenses: appData.activeExpenses,
+          trips: appData.activeTrips,
+          documents: vehicle.latest_document ? [vehicle.latest_document] : [],
+          expense_attachments: {},
+        }, `driverlogs-${vehicle.id}.json`);
+      } else {
+        const exported = await downloadReportExport(token, vehicle.id);
+        downloadBlob(exported.blob, exported.filename);
+      }
+      showToast("success", "Report exported", "Your consolidated JSON report is ready.");
+    } catch (error) {
+      showToast("error", "Report was not exported", errorMessage(error, "Please try again."));
+    } finally {
+      setExportingReport(false);
+    }
+  }, [appData.activeExpenses, appData.activeTrips, appData.activeVehicle, appData.isDemo, appData.settings, appData.vehicleTotals, showToast, token]);
+
   return {
     activeExpenses: appData.activeExpenses,
     activeTrips: appData.activeTrips,
@@ -82,6 +114,8 @@ export function useDriverLogsApp() {
     closeLoginNotice: auth.closeLoginNotice,
     copyLoginID,
     expenses: appData.expenses,
+    exportReport,
+    exportingReport,
     loginID,
     loginNotice: auth.loginNotice,
     isAuthReady: auth.isAuthReady,
@@ -119,6 +153,21 @@ export function useDriverLogsApp() {
     vehicles: appData.vehicles,
     view,
   };
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadJSON(value: unknown, filename: string) {
+  downloadBlob(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }), filename);
 }
 
 export type DriverLogsApp = ReturnType<typeof useDriverLogsApp>;
