@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { downloadReportExport, errorMessage, healthCheck, logClientError } from "./api";
+import { downloadReportExport, errorMessage, healthCheck, isUnauthorizedError, logClientError } from "./api";
 import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
 import { demoToken, isLocalDemoEnabled } from "./demo-mode";
+import { buildVehicleReportSnapshot, reportSnapshotFilename } from "./report-export";
 import type { View } from "./types";
 import { useAppData } from "./use-app-data";
 import { useAppMutations } from "./use-app-mutations";
@@ -77,25 +78,36 @@ export function useDriverLogsApp() {
     if (!vehicle) return;
     setExportingReport(true);
     try {
-      if (appData.isDemo) {
-        downloadJSON({
-          export_version: "1",
-          generated_at: new Date().toISOString(),
-          source: "driverlogs_app",
-          scope: "selected_vehicle",
-          vehicle,
-          settings: appData.settings,
-          analytics: appData.vehicleTotals,
-          expenses: appData.activeExpenses,
-          trips: appData.activeTrips,
-          documents: vehicle.latest_document ? [vehicle.latest_document] : [],
-          expense_attachments: {},
-        }, `driverlogs-${vehicle.id}.json`);
+      const snapshot = () => downloadJSON(buildVehicleReportSnapshot({
+        vehicle,
+        settings: appData.settings,
+        analytics: appData.vehicleTotals,
+        expenses: appData.activeExpenses,
+        trips: appData.activeTrips,
+      }), reportSnapshotFilename(vehicle.id));
+
+      let usedSnapshot = appData.isDemo;
+      if (usedSnapshot) {
+        snapshot();
       } else {
-        const exported = await downloadReportExport(token, vehicle.id);
-        downloadBlob(exported.blob, exported.filename);
+        try {
+          const exported = await downloadReportExport(token, vehicle.id);
+          downloadBlob(exported.blob, exported.filename);
+        } catch (error) {
+          if (isUnauthorizedError(error)) throw error;
+          logClientError({
+            level: "warn",
+            area: "report.export",
+            message: "Server report export unavailable; downloaded app snapshot",
+            detail: errorMessage(error, "unknown error"),
+          });
+          snapshot();
+          usedSnapshot = true;
+        }
       }
-      showToast("success", "Report exported", "Your consolidated JSON report is ready.");
+      showToast("success", "Report exported", usedSnapshot
+        ? "Your current vehicle snapshot is ready."
+        : "Your consolidated JSON report is ready.");
     } catch (error) {
       showToast("error", "Report was not exported", errorMessage(error, "Please try again."));
     } finally {
