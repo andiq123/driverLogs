@@ -55,7 +55,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const [date, setDate] = useState(expense?.date ?? (isEditing ? "" : todayDateValue()));
   const [amountCurrency, setAmountCurrency] = useState(expense?.base_currency || draftCurrencyByVehicle.get(vehicle.id) || (country === "RO" ? "RON" : baseCurrency));
   const [fuelType, setFuelType] = useState(() => normalizeFuelType(expense?.fuel_type || draftFuelTypeByVehicle.get(vehicle.id) || vehicle.preferred_fuel_type));
-  const [fuelPriceCurrency, setFuelPriceCurrency] = useState(expense?.fuel_price_currency || draftCurrencyByVehicle.get(vehicle.id) || (country === "RO" ? "RON" : baseCurrency));
+  const [fuelPriceCurrency, setFuelPriceCurrency] = useState(expense?.fuel_price_currency || expense?.base_currency || draftCurrencyByVehicle.get(vehicle.id) || (country === "RO" ? "RON" : baseCurrency));
   const [fuelPrice, setFuelPrice] = useState(expense?.fuel_price_per_liter_base ? String(expense.fuel_price_per_liter_base) : "");
   const [fuelPriceEdited, setFuelPriceEdited] = useState(false);
   const [description, setDescription] = useState(expense?.description ?? "");
@@ -75,8 +75,11 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const referenceFuelPrice = category === "Fuel" && fuelSuggestion.fuelType === normalizeFuelType(fuelType)
     ? fuelSuggestion.suggestions.find((suggestion) => suggestion.fuel_type === fuelType)
     : undefined;
-  const shownFuelPrice = fuelPriceEdited || fuelPrice ? fuelPrice : referenceFuelPrice ? String(referenceFuelPrice.price) : "";
-  const shownFuelPriceCurrency = fuelPriceEdited || fuelPrice ? fuelPriceCurrency : referenceFuelPrice?.currency || fuelPriceCurrency;
+  // A receipt has one currency. Only prefill a reference price when it uses the
+  // same currency as the payment, so a Moldova reference cannot silently become
+  // a Romanian receipt price (or the other way around).
+  const canAutofillReferencePrice = referenceFuelPrice?.currency === fuelPriceCurrency;
+  const shownFuelPrice = fuelPriceEdited || fuelPrice ? fuelPrice : canAutofillReferencePrice ? String(referenceFuelPrice.price) : "";
   const shownExpiresDate = expiresDate || ((category === "Insurance" || category === "Inspection") && date ? addYear(date) : "");
 
   function resetCreateForm() {
@@ -111,7 +114,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       base_currency: String(form.get("base_currency") ?? baseCurrency),
       fuel_liters: numberValue(form.get("fuel_liters")),
       fuel_price_per_liter_base: numberValue(form.get("fuel_price_per_liter_base")),
-      fuel_price_currency: String(form.get("fuel_price_currency") ?? baseCurrency),
+      fuel_price_currency: fuelPriceCurrency,
       fuel_type: String(form.get("fuel_type") ?? fuelType).trim(),
       odometer: intValue(form.get("odometer")),
       service_type: String(form.get("service_type") ?? "").trim(),
@@ -128,15 +131,23 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   }
 
   function applyFuelSuggestion(suggestion: FuelPriceSuggestion) {
+    // Applying a market reference means using the same local currency for the
+    // invoice total and unit price. Conversion remains backend-owned on save.
+    setAmountCurrency(suggestion.currency);
     setFuelPriceCurrency(suggestion.currency);
+    draftCurrencyByVehicle.set(vehicle.id, suggestion.currency);
     setFuelPrice(String(suggestion.price));
     setFuelPriceEdited(true);
   }
 
   function changeAmountCurrency(currency: string) {
+    const previousCurrency = amountCurrency;
     setAmountCurrency(currency);
     draftCurrencyByVehicle.set(vehicle.id, currency);
-    if (!fuelPriceEdited && !fuelPrice) setFuelPriceCurrency(currency);
+    // New entries always keep the receipt total and unit price together. Keep
+    // a legacy split-currency record intact until the user deliberately applies
+    // a new local reference price.
+    if (!isEditing || fuelPriceCurrency === previousCurrency) setFuelPriceCurrency(currency);
   }
 
   function changeFuelType(nextFuelType: string) {
@@ -201,19 +212,19 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       <form onSubmit={submit} className="grid gap-3">
         <ExpenseCategoryPicker name="category" value={category} onChange={changeCategory} />
         <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
-          <Input name="amount_base" label="Total paid" icon={BadgeDollarSign} inputMode="decimal" defaultValue={expense?.amount_base || ""} placeholder={amountPlaceholder(category, amountCurrency)} showLabel required />
-          <CustomSelect name="base_currency" label="Currency" icon={Landmark} options={priceCurrencies} value={amountCurrency} showLabel onChange={changeAmountCurrency} />
+          <Input name="amount_base" label="Total paid" icon={BadgeDollarSign} inputMode="decimal" defaultValue={expense?.amount_base || ""} placeholder={category === "Fuel" ? "Optional — auto from liters × price" : amountPlaceholder(category, amountCurrency)} showLabel required={category !== "Fuel"} />
+          <CustomSelect name="base_currency" label="Paid in" icon={Landmark} options={priceCurrencies} value={amountCurrency} showLabel onChange={changeAmountCurrency} />
         </div>
         <input type="hidden" name="fuel_type" value={fuelType} />
 
         <AnimatePresence initial={false} mode="popLayout">
           {category === "Fuel" ? (
             <motion.div key="fuel-fields" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.28, ease: calmEase }} className="grid gap-3">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]">
-                <Input name="fuel_liters" label="Liters" icon={Droplets} inputMode="decimal" defaultValue={expense?.fuel_liters || ""} placeholder="Liters" />
-                <Input name="fuel_price_per_liter_base" label="Price / L" icon={CircleGauge} inputMode="decimal" value={shownFuelPrice} onChange={(event) => { setFuelPrice(event.currentTarget.value); setFuelPriceEdited(true); }} placeholder="Price / L" />
-                <div className="col-span-2 sm:col-span-1"><CustomSelect name="fuel_price_currency" label="Price currency" icon={Landmark} options={priceCurrencies} value={shownFuelPriceCurrency} showLabel onChange={(value) => { setFuelPriceCurrency(value); setFuelPriceEdited(true); }} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input name="fuel_liters" label="Liters" icon={Droplets} inputMode="decimal" defaultValue={expense?.fuel_liters || ""} placeholder="Liters" showLabel />
+                <Input name="fuel_price_per_liter_base" label={`Price / L · ${fuelPriceCurrency}`} icon={CircleGauge} inputMode="decimal" value={shownFuelPrice} onChange={(event) => { setFuelPrice(event.currentTarget.value); setFuelPriceEdited(true); }} placeholder={`Price / L in ${fuelPriceCurrency}`} showLabel />
               </div>
+              <p className="-mt-1 px-1 text-[11px] font-medium leading-4 text-[#70776a]">{fuelPriceCurrency === amountCurrency ? "One currency per receipt. Change “Paid in” only when the receipt uses another currency." : `This saved entry keeps its original ${fuelPriceCurrency}/L price.`}</p>
               {showFuelTypeInEssentials ? (
                 <CustomSelect name="fuel_type_visible" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} />
               ) : (

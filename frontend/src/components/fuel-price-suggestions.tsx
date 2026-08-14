@@ -17,7 +17,10 @@ export function FuelPriceSuggestions({ suggestions, status, onSelect }: { sugges
             </span>
             <span className="mt-0.5 block truncate text-xs text-[#62685e]">{suggestionScope(suggestion)} · {suggestion.source}</span>
           </span>
-          <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold">{suggestion.price} {suggestion.currency}/L</span>
+          <span className="grid justify-items-end gap-0.5">
+            <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold">{suggestion.price} {suggestion.currency}/L</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#55745b]">Use reference</span>
+          </span>
         </button>
       ))}
     </div>
