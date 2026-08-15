@@ -4,12 +4,13 @@ import { createElement } from "react";
 import { motion } from "framer-motion";
 import type { ExpenseCategory, SpendingCategory, SpendingInsight } from "@/lib/types";
 import { money } from "@/lib/format";
+import { highestFirst } from "@/lib/order";
 import { categoryIcon, palette } from "@/lib/theme";
 import { BreakdownSheet, SheetStat, sheetSpring, trendIcon } from "./bottom-sheet";
 
 export function SpendingBreakdownSheet({ spending, onClose }: { spending?: SpendingInsight; onClose: () => void }) {
   const open = Boolean(spending && spending.categories.length > 0);
-  const categories = spending?.categories ?? [];
+  const categories = highestFirst(spending?.categories ?? [], (category) => category.mdl);
   const top = categories[0];
 
   return (

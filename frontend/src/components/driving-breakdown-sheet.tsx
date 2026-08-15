@@ -4,11 +4,12 @@ import { motion } from "framer-motion";
 import { Milestone } from "lucide-react";
 import type { DistanceInsight, MonthlyDistance } from "@/lib/types";
 import { km, monthLabel } from "@/lib/format";
+import { newestFirst } from "@/lib/order";
 import { BreakdownSheet, SheetStat, sheetSpring, trendIcon } from "./bottom-sheet";
 
 export function DrivingBreakdownSheet({ distance, onClose }: { distance?: DistanceInsight; onClose: () => void }) {
   const open = Boolean(distance && distance.months.length > 0);
-  const months = distance ? [...distance.months].reverse() : []; // newest first
+  const months = newestFirst(distance?.months ?? [], (entry) => entry.month);
   const maxKM = months.reduce((peak, entry) => Math.max(peak, entry.km), 0) || 1;
   const thisMonthKey = months[0]?.month;
 
@@ -19,7 +20,7 @@ export function DrivingBreakdownSheet({ distance, onClose }: { distance?: Distan
       label="Monthly distance breakdown"
       eyebrow="Distance this month"
       title={km(distance?.this_month_km ?? 0)}
-      rowsLabel={`${months.length} month${months.length === 1 ? "" : "s"} tracked`}
+      rowsLabel={`${months.length} month${months.length === 1 ? "" : "s"} tracked · newest first`}
       explanation="Each month is the odometer at its last reading minus the reading before it began. Log odometer with fuel or service to sharpen it."
       stats={
         <div className="grid grid-cols-2 gap-2">
@@ -49,7 +50,7 @@ function MonthRow({ entry, index, maxKM, isCurrent }: { entry: MonthlyDistance; 
       <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#62685e]"><Milestone size={13} />{km(entry.from_odometer)} → {km(entry.to_odometer)}</p>
       {entry.logs && entry.logs.length ? (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {entry.logs.map((log, logIndex) => (
+          {[...entry.logs].sort((left, right) => right.odometer - left.odometer).map((log, logIndex) => (
             <span key={`${log.odometer}-${logIndex}`} className="inline-flex max-w-full items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-[#62685e]">
               <span className="min-w-0 truncate">{log.label}</span>
               <span className="shrink-0 font-bold text-[#4b5147]">{km(log.odometer)}</span>

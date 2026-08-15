@@ -67,6 +67,7 @@ export type Expense = {
   exchange_rate_date?: string;
   exchange_rate_source?: string;
   fuel_liters?: number;
+  fuel_full_tank?: boolean;
   fuel_price_per_liter_mdl?: number;
   fuel_price_currency?: string;
   fuel_price_per_liter_base?: number;
@@ -288,16 +289,33 @@ export type FuelConsumptionInterval = {
   to_odometer: number;
   distance_km: number;
   liters: number;
+  fill_count?: number;
   l_per_100km: number;
   price_per_liter_mdl?: number;
+  from_station?: string;
   station?: string;
+  method?: "full_to_full" | "estimated";
+  valid?: boolean;
+  issue?: string;
+};
+
+export type FuelConsumptionTracking = {
+  from_date: string;
+  to_date: string;
+  from_odometer: number;
+  to_odometer: number;
+  distance_km: number;
+  liters: number;
+  fill_count: number;
 };
 
 export type FuelConsumptionBreakdown = {
+  method?: "full_to_full" | "estimated";
   intervals: FuelConsumptionInterval[];
   total_liters: number;
   total_distance_km: number;
   average_l_per_100km: number;
+  tracking?: FuelConsumptionTracking;
 };
 
 export type CategoryInsight = {
@@ -343,9 +361,15 @@ export type SmartReminder = {
 export type SmartAnomaly = {
   kind: "duplicate" | "fuel_price" | "service_cost";
   title: string;
+  expense_ids?: string[];
   category?: ExpenseCategory;
   date?: string;
   value?: number;
+  baseline_value?: number;
+  difference_percent?: number;
+  sample_count?: number;
+  unit?: "MDL" | "MDL/L";
+  reason?: string;
 };
 
 export type SmartForecast = {

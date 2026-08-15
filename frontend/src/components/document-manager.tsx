@@ -5,6 +5,7 @@ import { FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, errorMessage } from "@/lib/api";
 import { attachmentAccept, fileSize, isAllowedAttachment } from "@/lib/attachments";
+import { newestFirst } from "@/lib/order";
 import type { DocumentAttachment } from "@/lib/types";
 import { FilePreviewModal } from "./file-preview-modal";
 import { IconButton } from "./ui";
@@ -32,6 +33,7 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
   const [action, setAction] = useState<"upload" | "preview" | "delete" | undefined>();
   const [message, setMessage] = useState("");
   const [previewDocument, setPreviewDocument] = useState<DocumentAttachment>();
+  const orderedDocuments = newestFirst(documents, (document) => document.created_at);
 
   useEffect(() => {
     loadRef.current = load;
@@ -115,14 +117,14 @@ export function DocumentManager({ title, body, reloadKey, initialDocuments = [],
       {message ? <p className="mt-2 rounded-[14px] bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9b3226]">{message}</p> : null}
       {loading ? (
         <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-xs font-semibold text-[#6b7065]"><Loader2 size={15} className="animate-spin" />Loading documents</div>
-      ) : documents.length === 0 ? (
+      ) : orderedDocuments.length === 0 ? (
         <button type="button" disabled={readOnly} onClick={() => inputRef.current?.click()} className="mt-3 flex min-h-11 w-full items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-left text-xs font-semibold text-[#6b7065] ring-1 ring-black/[0.04] transition-colors hover:text-[#151712] disabled:cursor-default disabled:opacity-80">
           <FileText size={16} />
           {readOnly ? "Documents are unavailable in demo mode." : "No file attached."}
         </button>
       ) : (
         <div className="mt-3 grid gap-2">
-          {documents.map((document) => (
+          {orderedDocuments.map((document) => (
             <div key={document.id} className="flex min-w-0 items-center gap-2 rounded-[16px] bg-white p-2 ring-1 ring-black/[0.04]">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-[13px] bg-[#edf4e7]"><FileText size={16} /></span>
               <button type="button" onClick={() => void openFile(document)} className="min-w-0 flex-1 text-left">

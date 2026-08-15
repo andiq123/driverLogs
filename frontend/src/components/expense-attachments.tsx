@@ -5,6 +5,7 @@ import { FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, deleteExpenseAttachment, errorMessage, getExpenseAttachmentPreview, getExpenseAttachments, uploadExpenseAttachment } from "@/lib/api";
 import { attachmentAccept, fileSize, isAllowedAttachment } from "@/lib/attachments";
+import { newestFirst } from "@/lib/order";
 import type { ExpenseAttachment } from "@/lib/types";
 import { FilePreviewModal } from "./file-preview-modal";
 import { IconButton } from "./ui";
@@ -16,6 +17,7 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
   const [action, setAction] = useState<"upload" | "preview" | "delete" | undefined>();
   const [message, setMessage] = useState("");
   const [previewAttachment, setPreviewAttachment] = useState<ExpenseAttachment>();
+  const orderedAttachments = newestFirst(attachments, (attachment) => attachment.created_at);
 
   useEffect(() => {
     let active = true;
@@ -90,14 +92,14 @@ export function ExpenseAttachments({ expenseID, token }: { expenseID: string; to
         {message ? <p className="mt-2 rounded-[14px] bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9b3226]">{message}</p> : null}
         {loading ? (
           <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-xs font-semibold text-[#6b7065]"><Loader2 size={15} className="animate-spin" />Loading files</div>
-        ) : attachments.length === 0 ? (
+        ) : orderedAttachments.length === 0 ? (
           <button type="button" onClick={() => inputRef.current?.click()} className="mt-3 flex w-full items-center gap-2 rounded-[16px] bg-white px-3 py-3 text-left text-xs font-semibold text-[#6b7065] ring-1 ring-black/[0.04] transition-colors hover:text-[#151712]">
             <FileText size={16} />
             No files yet. Attach a receipt, insurance policy, or inspection paper.
           </button>
         ) : (
           <div className="mt-3 grid gap-2">
-            {attachments.map((attachment) => (
+            {orderedAttachments.map((attachment) => (
               <div key={attachment.id} className="flex min-w-0 items-center gap-2 rounded-[16px] bg-white p-2 ring-1 ring-black/[0.04]">
                 <span className="flex size-9 items-center justify-center rounded-[13px] bg-[#edf4e7]"><FileText size={16} /></span>
                 <button type="button" onClick={() => void preview(attachment)} className="min-w-0 flex-1 text-left">

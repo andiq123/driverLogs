@@ -2,7 +2,7 @@ import { ChevronRight, FileText, Car } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { getExpenseAttachmentPreview, getUserDocumentPreview, getVehicleDocumentPreview } from "@/lib/api";
-import type { DocumentAttachment, Expense, ExpenseAttachment, ExpenseCategory, MoneyTotals, SmartReminder, Trip, Vehicle } from "@/lib/types";
+import type { DocumentAttachment, Expense, ExpenseAttachment, ExpenseCategory, MoneyTotals, SmartAnomaly, SmartReminder, Trip, Vehicle } from "@/lib/types";
 import { equivalents, km, money, vehicleName } from "@/lib/format";
 import { Badge, EmptyState, Metric } from "../ui";
 import { ExpenseForm } from "../expense-form";
@@ -10,7 +10,7 @@ import { SmartInsightsPanel } from "../smart-insights";
 import { FilePreviewModal } from "../file-preview-modal";
 import { TripCard } from "../trip-card";
 
-export function DashboardView({ vehicle, expenses, trips, userDocuments, totals, token, baseCurrency, country, savingExpense, savingTrip, isDemo, onCreateExpense, onStartTrip, onEndTrip }: { vehicle?: Vehicle; expenses: Expense[]; trips: Trip[]; userDocuments: DocumentAttachment[]; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; savingTrip?: boolean; isDemo?: boolean; onCreateExpense: (expense: Partial<Expense>, files?: File[]) => void; onStartTrip: (vehicleID: string, name?: string, startOdometer?: number) => void; onEndTrip: (tripID: string, endOdometer?: number) => void }) {
+export function DashboardView({ vehicle, expenses, trips, userDocuments, totals, token, baseCurrency, country, savingExpense, savingTrip, isDemo, onCreateExpense, onStartTrip, onEndTrip, onReviewUnusualRecords }: { vehicle?: Vehicle; expenses: Expense[]; trips: Trip[]; userDocuments: DocumentAttachment[]; totals: MoneyTotals; token: string; baseCurrency: string; country: string; savingExpense?: boolean; savingTrip?: boolean; isDemo?: boolean; onCreateExpense: (expense: Partial<Expense>, files?: File[]) => void; onStartTrip: (vehicleID: string, name?: string, startOdometer?: number) => void; onEndTrip: (tripID: string, endOdometer?: number) => void; onReviewUnusualRecords: (anomalies: SmartAnomaly[]) => void }) {
   const [expenseIntent, setExpenseIntent] = useState<{ category?: ExpenseCategory; key: number }>({ key: 0 });
   const [preview, setPreview] = useState<DocumentPreview>();
   if (!vehicle) {
@@ -23,7 +23,7 @@ export function DashboardView({ vehicle, expenses, trips, userDocuments, totals,
     <>
       <SmartReminderBar reminders={totals.insights.reminders ?? []} onSelect={(category) => setExpenseIntent((intent) => ({ category, key: intent.key + 1 }))} />
       <DocumentShortcuts token={token} vehicle={vehicle} expenses={expenses} userDocuments={userDocuments} onOpen={setPreview} />
-      <SmartInsightsPanel insights={totals.insights} />
+      <SmartInsightsPanel insights={totals.insights} onReviewAnomalies={onReviewUnusualRecords} />
     </>
   );
 
@@ -134,9 +134,14 @@ function latestCategoryExpense(expenses: Expense[], category: ExpenseCategory) {
 
 function SmartReminderBar({ reminders, onSelect }: { reminders: SmartReminder[]; onSelect: (category: ExpenseCategory) => void }) {
   if (!reminders.length) return null;
+  const orderedReminders = [...reminders].sort((left, right) => {
+    if (left.kind !== right.kind) return left.kind === "expired" ? -1 : 1;
+    if (left.date || right.date) return (left.date ?? "9999-12-31").localeCompare(right.date ?? "9999-12-31");
+    return (left.odometer ?? Number.MAX_SAFE_INTEGER) - (right.odometer ?? Number.MAX_SAFE_INTEGER);
+  });
   return (
     <section className="flex snap-x gap-2 overflow-x-auto pb-1">
-      {reminders.slice(0, 4).map((reminder, index) => (
+      {orderedReminders.slice(0, 4).map((reminder, index) => (
         <button key={`${reminder.title}-${index}`} type="button" onClick={() => onSelect(reminder.category)} className={`min-w-44 snap-start rounded-[16px] border px-3 py-2 text-left transition-transform active:scale-[0.985] ${reminder.kind === "expired" ? "border-[#f0b2a8] bg-[#fff0ec] text-[#8b2d20]" : "border-[#efd282] bg-[#fff8df] text-[#7b5a12]"}`}>
           <span className="block text-[10px] font-bold uppercase tracking-[0.14em]">{reminder.kind === "expired" ? "Due now" : "Upcoming"}</span>
           <span className="mt-0.5 block text-sm font-bold">{reminder.title}</span>

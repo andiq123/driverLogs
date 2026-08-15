@@ -5,6 +5,7 @@ import { CircleStop, Flag, Fuel, Gauge, Play, Route, Wallet } from "lucide-react
 import { useState, type FormEvent } from "react";
 import { equivalents, km, money } from "@/lib/format";
 import type { Trip, Vehicle } from "@/lib/types";
+import { newestFirst } from "@/lib/order";
 import { ActionButton, Input } from "./ui";
 
 type TripCardProps = {
@@ -19,7 +20,7 @@ type TripCardProps = {
 export function TripCard({ vehicle, trips, busy, isDemo, onStart, onEnd }: TripCardProps) {
   const [mode, setMode] = useState<"" | "start" | "end">("");
   const active = trips.find((trip) => !trip.ended_at);
-  const recent = trips.find((trip) => trip.ended_at);
+  const recent = newestFirst(trips.filter((trip) => trip.ended_at), (trip) => trip.ended_at ?? trip.started_at)[0];
 
   function submitStart(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

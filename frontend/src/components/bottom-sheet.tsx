@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Minus, TrendingDown, TrendingUp, X } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { modalBackdropMotion } from "@/lib/theme";
 
@@ -12,26 +12,47 @@ import { modalBackdropMotion } from "@/lib/theme";
 export const sheetSpring = { type: "spring", stiffness: 320, damping: 33 } as const;
 
 export function BottomSheet({ open, onClose, label, children }: { open: boolean; onClose: () => void; label: string; children: ReactNode }) {
+  const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!open) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
+    const frame = requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLElement>("[data-sheet-close]")?.focus());
     return () => {
+      cancelAnimationFrame(frame);
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKey);
+      previouslyFocused?.focus();
     };
   }, [open, onClose]);
 
   const node = (
     <AnimatePresence>
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={label}>
-          <motion.button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/35 backdrop-blur-[2px]" {...modalBackdropMotion} />
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <motion.div aria-hidden onClick={onClose} className="absolute inset-0 bg-black/35 backdrop-blur-[2px]" {...modalBackdropMotion} />
           <motion.section
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={label}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%", transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] } }}
@@ -64,7 +85,7 @@ export function SheetHeader({ eyebrow, title, unit, onClose }: { eyebrow: string
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#62685e]">{eyebrow}</p>
         <p className="mt-1 text-3xl font-semibold tracking-tight">{title} {unit ? <span className="text-base font-bold text-[#62685e]">{unit}</span> : null}</p>
       </div>
-      <button type="button" onClick={onClose} aria-label="Close" className="flex size-9 shrink-0 touch-manipulation items-center justify-center rounded-full bg-black/[0.05] text-[#62685e] outline-none transition-[background-color,transform] duration-200 active:scale-95 focus-visible:ring-2 focus-visible:ring-[#9db89a] hover:bg-black/[0.08]">
+      <button type="button" data-sheet-close onClick={onClose} aria-label="Close details" className="flex size-9 shrink-0 touch-manipulation items-center justify-center rounded-full bg-black/[0.05] text-[#62685e] outline-none transition-[background-color,transform] duration-200 active:scale-95 focus-visible:ring-2 focus-visible:ring-[#9db89a] hover:bg-black/[0.08]">
         <X size={16} />
       </button>
     </header>

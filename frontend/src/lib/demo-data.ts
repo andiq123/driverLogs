@@ -47,10 +47,11 @@ const dieselTotals: MoneyTotals = {
       consumption_samples: 3,
       consumption_confidence: "learned",
       consumption_breakdown: {
+        method: "full_to_full",
         intervals: [
-          { from_date: "2026-01-07", to_date: "2026-03-04", from_odometer: 183180, to_odometer: 183747, distance_km: 567, liters: 43.1, l_per_100km: 7.6, price_per_liter_mdl: 21.3, station: "Rompetrol" },
-          { from_date: "2026-03-04", to_date: "2026-05-24", from_odometer: 183747, to_odometer: 184275, distance_km: 528, liters: 40.09, l_per_100km: 7.59, price_per_liter_mdl: 31.32, station: "Petrom" },
-          { from_date: "2026-05-24", to_date: "2026-08-01", from_odometer: 184275, to_odometer: 184830, distance_km: 555, liters: 42.18, l_per_100km: 7.6, price_per_liter_mdl: 29.43, station: "Petrom" },
+          { from_date: "2026-01-07", to_date: "2026-03-04", from_odometer: 183180, to_odometer: 183747, distance_km: 567, liters: 43.1, fill_count: 1, l_per_100km: 7.6, price_per_liter_mdl: 21.3, station: "Rompetrol", method: "full_to_full", valid: true },
+          { from_date: "2026-03-04", to_date: "2026-05-24", from_odometer: 183747, to_odometer: 184275, distance_km: 528, liters: 40.09, fill_count: 1, l_per_100km: 7.59, price_per_liter_mdl: 31.32, station: "Petrom", method: "full_to_full", valid: true },
+          { from_date: "2026-05-24", to_date: "2026-08-01", from_odometer: 184275, to_odometer: 184830, distance_km: 555, liters: 42.18, fill_count: 1, l_per_100km: 7.6, price_per_liter_mdl: 29.43, station: "Petrom", method: "full_to_full", valid: true },
         ],
         total_liters: 125.37,
         total_distance_km: 1650,
@@ -75,11 +76,11 @@ const dieselTotals: MoneyTotals = {
       },
     },
     insurance: {
-      status: "soon",
+      status: "expired",
       confidence: "yearly",
       last_date: "2025-06-24",
       expires_date: "2026-06-24",
-      days_left: 22,
+      days_left: -52,
       interval_days: 365,
     },
     inspection: {
@@ -87,7 +88,7 @@ const dieselTotals: MoneyTotals = {
       confidence: "yearly",
       last_date: "2026-03-12",
       expires_date: "2027-03-12",
-      days_left: 283,
+      days_left: 209,
       interval_days: 365,
     },
     distance: {
@@ -147,8 +148,9 @@ const petrolTotals: MoneyTotals = {
       consumption_samples: 1,
       consumption_confidence: "low",
       consumption_breakdown: {
+        method: "full_to_full",
         intervals: [
-          { from_date: "2026-05-10", to_date: "2026-06-08", from_odometer: 45000, to_odometer: 45520, distance_km: 520, liters: 38, l_per_100km: 7.31, price_per_liter_mdl: 31, station: "Lukoil" },
+          { from_date: "2026-05-10", to_date: "2026-06-08", from_odometer: 45000, to_odometer: 45520, distance_km: 520, liters: 38, fill_count: 1, l_per_100km: 7.31, price_per_liter_mdl: 31, station: "Lukoil", method: "full_to_full", valid: true },
         ],
         total_liters: 38,
         total_distance_km: 520,
@@ -214,18 +216,18 @@ export const demoAppData: AppDataResponse = {
     },
   ],
   expenses: [
-    { id: "demo_exp_10", vehicle_id: v1, trip_id: "demo_trip_active", category: "Fuel", amount_base: 1241.36, base_currency: "MDL", amount_mdl: 1241.36, amount_eur: 61.73, amount_usd: 71.8, exchange_rate_date: "2026-08-01", exchange_rate_source: "Demo stamped rate", fuel_liters: 42.18, fuel_price_currency: "MDL", fuel_price_per_liter_base: 29.43, fuel_price_per_liter_mdl: 29.43, fuel_type: "Diesel", odometer: 184830, date: "2026-08-01", description: "Petrom" },
+    { id: "demo_exp_10", vehicle_id: v1, trip_id: "demo_trip_active", category: "Fuel", amount_base: 1241.36, base_currency: "MDL", amount_mdl: 1241.36, amount_eur: 61.73, amount_usd: 71.8, exchange_rate_date: "2026-08-01", exchange_rate_source: "Demo stamped rate", fuel_liters: 42.18, fuel_full_tank: true, fuel_price_currency: "MDL", fuel_price_per_liter_base: 29.43, fuel_price_per_liter_mdl: 29.43, fuel_type: "Diesel", odometer: 184830, date: "2026-08-01", description: "Petrom" },
     { id: "demo_exp_9", vehicle_id: v1, category: "Maintenance", amount_base: 1850, base_currency: "MDL", amount_mdl: 1850, amount_eur: 91.67, amount_usd: 106.21, exchange_rate_date: "2026-05-08", exchange_rate_source: "Demo stamped rate", odometer: 184260, service_type: "oil_change", date: "2026-05-08", description: "Oil change · Filters" },
     { id: "demo_exp_8", vehicle_id: v1, category: "Parking", amount_base: 505, base_currency: "MDL", amount_mdl: 505, amount_eur: 25.01, amount_usd: 29, exchange_rate_date: "2026-05-02", exchange_rate_source: "Demo stamped rate", odometer: 183920, date: "2026-05-02", description: "Monthly parking" },
-    { id: "demo_exp_7", vehicle_id: v1, trip_id: "demo_trip_summer", category: "Fuel", amount_base: 1255.62, base_currency: "MDL", amount_mdl: 1255.62, amount_eur: 62.29, amount_usd: 72.31, exchange_rate_date: "2026-05-24", exchange_rate_source: "Demo stamped rate", fuel_liters: 40.09, fuel_price_currency: "MDL", fuel_price_per_liter_base: 31.32, fuel_price_per_liter_mdl: 31.32, fuel_type: "Diesel", odometer: 184275, date: "2026-05-24", description: "Petrom" },
+    { id: "demo_exp_7", vehicle_id: v1, trip_id: "demo_trip_summer", category: "Fuel", amount_base: 1255.62, base_currency: "MDL", amount_mdl: 1255.62, amount_eur: 62.29, amount_usd: 72.31, exchange_rate_date: "2026-05-24", exchange_rate_source: "Demo stamped rate", fuel_liters: 40.09, fuel_full_tank: true, fuel_price_currency: "MDL", fuel_price_per_liter_base: 31.32, fuel_price_per_liter_mdl: 31.32, fuel_type: "Diesel", odometer: 184275, date: "2026-05-24", description: "Petrom" },
     { id: "demo_exp_6", vehicle_id: v1, category: "Tires", amount_base: 3350, base_currency: "MDL", amount_mdl: 3350, amount_eur: 165.95, amount_usd: 192.38, exchange_rate_date: "2026-03-29", exchange_rate_source: "Demo stamped rate", odometer: 183830, date: "2026-03-29", description: "Summer tires" },
     { id: "demo_exp_5", vehicle_id: v1, category: "Inspection", amount_base: 450, base_currency: "MDL", amount_mdl: 450, amount_eur: 22.29, amount_usd: 25.84, exchange_rate_date: "2026-03-12", exchange_rate_source: "Demo stamped rate", odometer: 183790, expires_date: "2027-03-12", date: "2026-03-12", description: "ITP" },
-    { id: "demo_exp_4", vehicle_id: v1, category: "Fuel", amount_base: 918, base_currency: "MDL", amount_mdl: 918, amount_eur: 45.47, amount_usd: 52.72, exchange_rate_date: "2026-03-04", exchange_rate_source: "Demo stamped rate", fuel_liters: 43.1, fuel_price_currency: "MDL", fuel_price_per_liter_base: 21.3, fuel_price_per_liter_mdl: 21.3, fuel_type: "Diesel", odometer: 183747, date: "2026-03-04", description: "Rompetrol" },
+    { id: "demo_exp_4", vehicle_id: v1, category: "Fuel", amount_base: 918, base_currency: "MDL", amount_mdl: 918, amount_eur: 45.47, amount_usd: 52.72, exchange_rate_date: "2026-03-04", exchange_rate_source: "Demo stamped rate", fuel_liters: 43.1, fuel_full_tank: true, fuel_price_currency: "MDL", fuel_price_per_liter_base: 21.3, fuel_price_per_liter_mdl: 21.3, fuel_type: "Diesel", odometer: 183747, date: "2026-03-04", description: "Rompetrol" },
     { id: "demo_exp_3", vehicle_id: v1, category: "Insurance", amount_base: 2190, base_currency: "MDL", amount_mdl: 2190, amount_eur: 108.47, amount_usd: 125.79, exchange_rate_date: "2026-02-24", exchange_rate_source: "Demo stamped rate", odometer: 181780, expires_date: "2026-06-24", date: "2025-06-24", description: "RCA insurance" },
     { id: "demo_exp_2", vehicle_id: v1, category: "Maintenance", amount_base: 3970, base_currency: "MDL", amount_mdl: 3970, amount_eur: 196.64, amount_usd: 228.05, exchange_rate_date: "2026-01-18", exchange_rate_source: "Demo stamped rate", odometer: 183260, service_type: "alignment", date: "2026-01-18", description: "Brake pads · Alignment" },
-    { id: "demo_exp_1", vehicle_id: v1, category: "Fuel", amount_base: 910, base_currency: "MDL", amount_mdl: 910, amount_eur: 45.08, amount_usd: 52.29, exchange_rate_date: "2026-01-07", exchange_rate_source: "Demo stamped rate", fuel_liters: 61.7, fuel_price_currency: "RON", fuel_price_per_liter_base: 7.38, fuel_price_per_liter_mdl: 14.75, fuel_type: "Diesel", odometer: 183180, date: "2026-01-07", description: "OMV Romania" },
-    { id: "demo_golf_2", vehicle_id: v2, category: "Fuel", amount_base: 1178, base_currency: "MDL", amount_mdl: 1178, amount_eur: 57.75, amount_usd: 67.82, exchange_rate_date: "2026-06-08", exchange_rate_source: "Demo stamped rate", fuel_liters: 38, fuel_price_currency: "MDL", fuel_price_per_liter_base: 31, fuel_price_per_liter_mdl: 31, fuel_type: "Super 95", odometer: 45520, date: "2026-06-08", description: "Lukoil" },
-    { id: "demo_golf_1", vehicle_id: v2, category: "Fuel", amount_base: 1200, base_currency: "MDL", amount_mdl: 1200, amount_eur: 58.82, amount_usd: 69.08, exchange_rate_date: "2026-05-10", exchange_rate_source: "Demo stamped rate", fuel_liters: 40, fuel_price_currency: "MDL", fuel_price_per_liter_base: 30, fuel_price_per_liter_mdl: 30, fuel_type: "Super 95", odometer: 45000, date: "2026-05-10", description: "Rompetrol" },
+    { id: "demo_exp_1", vehicle_id: v1, category: "Fuel", amount_base: 910, base_currency: "MDL", amount_mdl: 910, amount_eur: 45.08, amount_usd: 52.29, exchange_rate_date: "2026-01-07", exchange_rate_source: "Demo stamped rate", fuel_liters: 61.7, fuel_full_tank: true, fuel_price_currency: "RON", fuel_price_per_liter_base: 7.38, fuel_price_per_liter_mdl: 14.75, fuel_type: "Diesel", odometer: 183180, date: "2026-01-07", description: "OMV Romania" },
+    { id: "demo_golf_2", vehicle_id: v2, category: "Fuel", amount_base: 1178, base_currency: "MDL", amount_mdl: 1178, amount_eur: 57.75, amount_usd: 67.82, exchange_rate_date: "2026-06-08", exchange_rate_source: "Demo stamped rate", fuel_liters: 38, fuel_full_tank: true, fuel_price_currency: "MDL", fuel_price_per_liter_base: 31, fuel_price_per_liter_mdl: 31, fuel_type: "Super 95", odometer: 45520, date: "2026-06-08", description: "Lukoil" },
+    { id: "demo_golf_1", vehicle_id: v2, category: "Fuel", amount_base: 1200, base_currency: "MDL", amount_mdl: 1200, amount_eur: 58.82, amount_usd: 69.08, exchange_rate_date: "2026-05-10", exchange_rate_source: "Demo stamped rate", fuel_liters: 40, fuel_full_tank: true, fuel_price_currency: "MDL", fuel_price_per_liter_base: 30, fuel_price_per_liter_mdl: 30, fuel_type: "Super 95", odometer: 45000, date: "2026-05-10", description: "Rompetrol" },
   ],
   trips: [
     {

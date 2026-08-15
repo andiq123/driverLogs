@@ -4,7 +4,9 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AlertTriangle, BarChart3, CalendarClock, Download, Gauge, TrendingUp, type LucideIcon } from "lucide-react";
 import { Area, AreaChart, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import type { ChartDatum, MoneyTotals, TrendDatum, Vehicle } from "@/lib/types";
+import { anomalyBaseline, anomalyDifference, anomalyLocation, anomalyObserved, anomalyReason } from "@/lib/anomalies";
 import { money, monthLabel, vehicleName } from "@/lib/format";
+import { highestFirst, newestFirst } from "@/lib/order";
 import { palette } from "@/lib/theme";
 import { ActionButton, ChartSkeleton, EmptyState, Panel } from "../ui";
 
@@ -21,6 +23,7 @@ export function AnalyticsView({ mounted, vehicle, totals, exporting, onExport }:
   if (!vehicle) {
     return <EmptyState icon={Gauge} title="No vehicle selected" body="Add a car first. Analytics will focus on the active vehicle only." />;
   }
+  const categoryRows = highestFirst(totals.category_totals, (row) => row.amount_mdl);
 
   return (
     <div className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-[0.85fr_1.15fr]">
@@ -32,12 +35,12 @@ export function AnalyticsView({ mounted, vehicle, totals, exporting, onExport }:
         <ActionButton type="button" icon={Download} loading={exporting} onClick={onExport} className="h-11 shrink-0 px-4 sm:px-5">Export JSON</ActionButton>
       </div>
       <Panel title="Cost split" eyebrow={vehicleName(vehicle)}>
-        {totals.category_totals.length === 0 ? <EmptyState icon={BarChart3} title="No analytics yet" body="Charts become available after you add expenses." /> : (
+        {categoryRows.length === 0 ? <EmptyState icon={BarChart3} title="No analytics yet" body="Charts become available after you add expenses." /> : (
           <>
-            <MobileCategoryList rows={totals.category_totals} total={totals.total_expenses_mdl} />
+            <MobileCategoryList rows={categoryRows} total={totals.total_expenses_mdl} />
             {showCharts ? (
               <ChartSurface mounted={mounted}>
-                {({ width, height }) => <PieChart width={width} height={height}><Pie data={totals.category_totals} innerRadius={64} outerRadius={96} paddingAngle={4} dataKey="amount_mdl">{totals.category_totals.map((entry, index) => <Cell key={entry.name} fill={palette[index % palette.length]} />)}</Pie><Tooltip {...tooltipStyle} formatter={(value, name) => [money(Number(value)), String(name)]} /></PieChart>}
+                {({ width, height }) => <PieChart width={width} height={height}><Pie data={categoryRows} innerRadius={64} outerRadius={96} paddingAngle={4} dataKey="amount_mdl">{categoryRows.map((entry, index) => <Cell key={entry.name} fill={palette[index % palette.length]} />)}</Pie><Tooltip {...tooltipStyle} formatter={(value, name) => [money(Number(value)), String(name)]} /></PieChart>}
               </ChartSurface>
             ) : null}
           </>
@@ -62,7 +65,7 @@ export function AnalyticsView({ mounted, vehicle, totals, exporting, onExport }:
 
 function OutlookStrip({ totals }: { totals: MoneyTotals }) {
   if (totals.expense_count === 0) return null;
-  const anomalies = totals.insights.anomalies ?? [];
+  const anomalies = newestFirst(totals.insights.anomalies ?? [], (item) => item.date ?? "");
   return (
     <section className="min-w-0 rounded-[24px] border border-black/[0.055] bg-[#fffffb]/96 p-3.5 shadow-[0_8px_28px_rgba(31,41,28,0.06)] ring-1 ring-white/70 sm:rounded-[28px] sm:p-5 xl:col-span-2">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#70776a] sm:text-xs sm:tracking-[0.16em]">Outlook</p>
@@ -75,15 +78,26 @@ function OutlookStrip({ totals }: { totals: MoneyTotals }) {
       {anomalies.length ? (
         <div className="mt-3 grid gap-2">
           {anomalies.slice(0, 4).map((item, index) => (
-            <div key={`${item.kind}-${index}`} className="rounded-[18px] bg-[#fff8df] px-3 py-2 text-sm text-[#7b5a12]">
-              <span className="font-bold">{item.title}</span>
-              {item.date ? <span className="ml-2 text-xs opacity-75">{item.date}</span> : null}
+            <div key={`${item.kind}-${index}`} className="rounded-[18px] border border-[#efd282]/70 bg-[#fff8df] px-3 py-2.5 text-[#7b5a12]">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                <span className="text-sm font-bold">{item.title}</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.1em] opacity-70">{anomalyLocation(item)}</span>
+              </div>
+              <p className="mt-1 text-xs leading-5 opacity-85">{anomalyReason(item)}</p>
+              <p className="mt-1 text-[11px] font-semibold">{anomalySummary(item)}</p>
             </div>
           ))}
         </div>
       ) : null}
     </section>
   );
+}
+
+function anomalySummary(anomaly: NonNullable<MoneyTotals["insights"]["anomalies"]>[number]) {
+  const observed = anomalyObserved(anomaly);
+  const baseline = anomalyBaseline(anomaly);
+  const difference = anomalyDifference(anomaly);
+  return [observed ? `Detected ${observed}` : "", baseline ? `earlier average ${baseline}` : "", difference].filter(Boolean).join(" · ");
 }
 
 function MiniInsight({ icon: Icon, title, value }: { icon: LucideIcon; title: string; value: string }) {
@@ -148,7 +162,7 @@ function MobileCategoryList({ rows, total }: { rows: ChartDatum[]; total: number
 }
 
 function MobileTrendList({ rows }: { rows: TrendDatum[] }) {
-  const latest = rows.slice(-4);
+  const latest = newestFirst(rows, (row) => row.month).slice(0, 4);
   if (latest.length === 0) return <EmptyState icon={Gauge} title="No monthly trend yet" body="Add expenses on different dates to see the trend." />;
   const max = Math.max(...latest.map((row) => row.amount_mdl), 1);
   return (

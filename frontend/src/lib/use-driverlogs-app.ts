@@ -6,7 +6,7 @@ import { readToken } from "./auth-storage";
 import { copyText } from "./clipboard";
 import { demoToken, isLocalDemoEnabled } from "./demo-mode";
 import { buildVehicleReportSnapshot, reportSnapshotFilename } from "./report-export";
-import type { View } from "./types";
+import type { SmartAnomaly, View } from "./types";
 import { useAppData } from "./use-app-data";
 import { useAppMutations } from "./use-app-mutations";
 import { useAuthSession } from "./use-auth-session";
@@ -18,11 +18,21 @@ const pwaUpdateToastKey = "pwa-update";
 export function useDriverLogsApp() {
   const [view, setRawView] = useState<View>("Dashboard");
   const [exportingReport, setExportingReport] = useState(false);
+  const [reviewAnomalies, setReviewAnomalies] = useState<SmartAnomaly[]>([]);
 
   const changeView = useCallback((next: View) => {
     window.scrollTo({ top: 0 });
+    if (next !== "Timeline") setReviewAnomalies([]);
     setRawView(next);
   }, []);
+
+  const reviewUnusualRecords = useCallback((anomalies: SmartAnomaly[]) => {
+    setReviewAnomalies(anomalies);
+    window.scrollTo({ top: 0 });
+    setRawView("Timeline");
+  }, []);
+
+  const clearUnusualRecordReview = useCallback(() => setReviewAnomalies([]), []);
 
   const auth = useAuthSession();
   const { authStatus, createLogin, loginID, logout, signIn, token } = auth;
@@ -30,6 +40,7 @@ export function useDriverLogsApp() {
   const { dismissToast, showToast, toasts } = toast;
 
   const appData = useAppData({ token, logout, showToast, changeView });
+  const startDemoData = appData.startDemo;
   const mutations = useAppMutations({
     token,
     isDemo: appData.isDemo,
@@ -47,7 +58,7 @@ export function useDriverLogsApp() {
   });
 
   useEffect(() => {
-    if (readToken()) return;
+    if (appData.isDemo || readToken()) return;
     let cancelled = false;
     void healthCheck().catch((error) => {
       logClientError({ level: "warn", area: "app.health", message: "Health check failed", detail: errorMessage(error, "unknown error") });
@@ -56,7 +67,13 @@ export function useDriverLogsApp() {
     return () => {
       cancelled = true;
     };
-  }, [showToast]);
+  }, [appData.isDemo, showToast]);
+
+  const startDemo = useCallback(async () => {
+    const healthToast = toasts.find((toast) => toast.key === healthToastKey);
+    if (healthToast) dismissToast(healthToast.id);
+    await startDemoData?.();
+  }, [dismissToast, startDemoData, toasts]);
 
   useEffect(() => {
     const showUpdateToast = () => {
@@ -121,7 +138,7 @@ export function useDriverLogsApp() {
     activeVehicle: appData.activeVehicle,
     action: mutations.action,
     createLogin,
-    startDemo: appData.startDemo,
+    startDemo: startDemoData ? startDemo : undefined,
     clearAuthStatus: auth.clearAuthStatus,
     closeLoginNotice: auth.closeLoginNotice,
     copyLoginID,
@@ -136,6 +153,9 @@ export function useDriverLogsApp() {
     logout: appData.logoutApp,
     mounted: appData.mounted,
     removeVehicle: mutations.removeVehicle,
+    reviewAnomalies,
+    reviewUnusualRecords,
+    clearUnusualRecordReview,
     removeExpense: mutations.removeExpense,
     saveExpense: mutations.saveExpense,
     toggleExpenseAnalytics: mutations.toggleExpenseAnalytics,

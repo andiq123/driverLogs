@@ -41,6 +41,7 @@ type Expense struct {
 	ExchangeRateDate      string             `json:"exchange_rate_date,omitempty"`
 	ExchangeRateSource    string             `json:"exchange_rate_source,omitempty"`
 	FuelLiters            float64            `json:"fuel_liters,omitempty"`
+	FuelFullTank          bool               `json:"fuel_full_tank,omitempty"`
 	FuelPriceCurrency     string             `json:"fuel_price_currency,omitempty"`
 	FuelPricePerLiterBase float64            `json:"fuel_price_per_liter_base,omitempty"`
 	FuelPricePerLiterMDL  float64            `json:"fuel_price_per_liter_mdl,omitempty"`

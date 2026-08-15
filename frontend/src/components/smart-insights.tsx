@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, Fuel, Minus, Route, ShieldCheck, TrendingDown, TrendingUp, Wallet, Wrench, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import type { DistanceInsight, OilChangeInsight, SmartInsights, SpendingInsight, YearlyExpiryInsight } from "@/lib/types";
+import type { DistanceInsight, OilChangeInsight, SmartAnomaly, SmartInsights, SpendingInsight, YearlyExpiryInsight } from "@/lib/types";
 import { km, money } from "@/lib/format";
 import { insightTones } from "@/lib/theme";
 import { FuelBreakdownSheet } from "./fuel-breakdown-sheet";
@@ -12,7 +12,7 @@ import { SpendingBreakdownSheet } from "./spending-breakdown-sheet";
 
 type InsightTone = keyof typeof insightTones;
 
-export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
+export function SmartInsightsPanel({ insights, onReviewAnomalies }: { insights: SmartInsights; onReviewAnomalies?: (anomalies: SmartAnomaly[]) => void }) {
   const oil = insights.maintenance.oil_change;
   const fuelBreakdown = insights.fuel.consumption_breakdown;
   const distance = insights.distance;
@@ -22,10 +22,11 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
   const [showFuelMath, setShowFuelMath] = useState(false);
   const [showDrivingMath, setShowDrivingMath] = useState(false);
   const [showSpendingMath, setShowSpendingMath] = useState(false);
+  const anomalies = insights.anomalies ?? [];
   return (
     <section className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 2xl:grid-cols-4">
       <InsightTile index={0} icon={CalendarClock} title="Oil" value={oilValue(oil.next_odometer, oil.next_date)} detail={oilDetail(oil.confidence, oil.recommended_interval_km, oil.remaining_km, oil.next_odometer, oil.interval_days)} subnote={oilSubnote(oil)} tone={oilTone(oil.remaining_km, oil.next_odometer)} badge={oilBadge(oil.remaining_km, oil.next_odometer)} progress={oilProgress(oil)} />
-      <InsightTile index={1} icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples)} onClick={fuelBreakdown ? () => setShowFuelMath(true) : undefined} />
+      <InsightTile index={1} icon={Fuel} title="Fuel" value={fuelValue(insights.fuel.average_consumption_l_per_100km, insights.fuel.average_fill_mdl)} detail={fuelDetail(insights.fuel.total_liters, insights.fuel.average_price_per_liter_mdl, insights.fuel.consumption_samples, fuelBreakdown?.method)} onClick={fuelBreakdown ? () => setShowFuelMath(true) : undefined} />
       <FuelBreakdownSheet breakdown={showFuelMath ? fuelBreakdown : undefined} confidence={insights.fuel.consumption_confidence} onClose={() => setShowFuelMath(false)} />
       {distance ? <InsightTile index={2} icon={Route} title="Driving" value={distanceValue(distance)} detail={distanceDetail(distance)} sparkline={distance.months.map((entry) => entry.km)} onClick={distanceHasBreakdown ? () => setShowDrivingMath(true) : undefined} /> : null}
       <DrivingBreakdownSheet distance={showDrivingMath ? distance : undefined} onClose={() => setShowDrivingMath(false)} />
@@ -35,7 +36,7 @@ export function SmartInsightsPanel({ insights }: { insights: SmartInsights }) {
       <InsightTile index={5} icon={ShieldCheck} title="Insurance" value={expiryValue(insights.insurance)} detail={expiryDetail("insurance", insights.insurance)} tone={expiryTone(insights.insurance)} badge={expiryBadge(insights.insurance)} />
       <InsightTile index={6} icon={CheckCircle2} title="ITP" value={expiryValue(insights.inspection)} detail={expiryDetail("technical inspection", insights.inspection)} tone={expiryTone(insights.inspection)} badge={expiryBadge(insights.inspection)} />
       <AnimatePresence initial={false}>
-        {insights.anomalies?.length ? <InsightTile key="anomalies" index={7} icon={AlertTriangle} title="Check" value={String(insights.anomalies.length)} detail="Unusual records found in this car history." tone="warn" badge="Review" /> : null}
+        {anomalies.length ? <InsightTile key="anomalies" index={7} icon={AlertTriangle} title="Check" value={String(anomalies.length)} detail="Unusual records found in this car history." tone="warn" badge="Review" onClick={onReviewAnomalies ? () => onReviewAnomalies(anomalies) : undefined} /> : null}
       </AnimatePresence>
     </section>
   );
@@ -177,9 +178,11 @@ function fuelValue(consumption?: number, averageFill?: number) {
   return "No fuel yet";
 }
 
-function fuelDetail(liters: number, averagePrice: number, consumptionSamples = 0) {
+function fuelDetail(liters: number, averagePrice: number, consumptionSamples = 0, method?: "full_to_full" | "estimated") {
   if (!liters) return "Add fuel records with liters and price.";
-  if (consumptionSamples) return `Learned from ${consumptionSamples} odometer interval${consumptionSamples === 1 ? "" : "s"}.`;
+  if (consumptionSamples && method === "full_to_full") return `${consumptionSamples} verified full-to-full segment${consumptionSamples === 1 ? "" : "s"}.`;
+  if (consumptionSamples) return `${consumptionSamples} estimated odometer interval${consumptionSamples === 1 ? "" : "s"}.`;
+  if (method === "full_to_full") return "Tracking until the next full tank.";
   const price = averagePrice ? `, ${averagePrice} MDL/L avg` : "";
   return `${liters} L logged${price}.`;
 }

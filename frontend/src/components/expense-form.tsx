@@ -20,7 +20,7 @@ import { intValue, numberValue, todayDateValue, vehicleName } from "@/lib/format
 import { calmEase } from "@/lib/theme";
 import type { Expense, ExpenseCategory, FuelPriceSuggestion, Trip, Vehicle } from "@/lib/types";
 import { useFuelPriceSuggestions } from "@/lib/use-fuel-price-suggestions";
-import { BadgeDollarSign, ChevronDown, CircleGauge, Droplets, FileText, Fuel, Landmark, MapPin, Milestone, Paperclip, Plus, Route, Text, Trash2 } from "lucide-react";
+import { BadgeDollarSign, Check, ChevronDown, CircleGauge, Droplets, FileText, Fuel, Landmark, MapPin, Milestone, Paperclip, Plus, Route, Text, Trash2 } from "lucide-react";
 import { Autocomplete } from "./autocomplete";
 import { CalendarField } from "./calendar-field";
 import { CustomSelect } from "./custom-select";
@@ -57,6 +57,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   const [fuelType, setFuelType] = useState(() => normalizeFuelType(expense?.fuel_type || draftFuelTypeByVehicle.get(vehicle.id) || vehicle.preferred_fuel_type));
   const [fuelPriceCurrency, setFuelPriceCurrency] = useState(expense?.fuel_price_currency || expense?.base_currency || draftCurrencyByVehicle.get(vehicle.id) || (country === "RO" ? "RON" : baseCurrency));
   const [fuelPrice, setFuelPrice] = useState(expense?.fuel_price_per_liter_base ? String(expense.fuel_price_per_liter_base) : "");
+  const [fuelFullTank, setFuelFullTank] = useState(Boolean(expense?.fuel_full_tank));
   const [fuelPriceEdited, setFuelPriceEdited] = useState(false);
   const [description, setDescription] = useState(expense?.description ?? "");
   const [gasStation, setGasStation] = useState(expense?.category === "Fuel" ? expense.description : "");
@@ -92,6 +93,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
     setAmountCurrency(nextCurrency);
     setFuelPriceCurrency(nextCurrency);
     setFuelPrice("");
+    setFuelFullTank(false);
     setFuelPriceEdited(false);
     setDescription("");
     setGasStation("");
@@ -113,6 +115,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       amount_base: numberValue(form.get("amount_base")),
       base_currency: String(form.get("base_currency") ?? baseCurrency),
       fuel_liters: numberValue(form.get("fuel_liters")),
+      fuel_full_tank: category === "Fuel" && fuelFullTank,
       fuel_price_per_liter_base: numberValue(form.get("fuel_price_per_liter_base")),
       fuel_price_currency: fuelPriceCurrency,
       fuel_type: String(form.get("fuel_type") ?? fuelType).trim(),
@@ -162,6 +165,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
   function changeCategory(nextCategory: ExpenseCategory) {
     setCategory(nextCategory);
     if (nextCategory !== "Maintenance") setServiceType("");
+    if (nextCategory !== "Fuel") setFuelFullTank(false);
     if (nextCategory === "Fuel" && !odometerValue && odometerSuggestion) {
       setOdometerValue(String(odometerSuggestion));
     }
@@ -212,7 +216,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
       <form onSubmit={submit} className="grid gap-3">
         <ExpenseCategoryPicker name="category" value={category} onChange={changeCategory} />
         <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
-          <Input name="amount_base" label="Total paid" icon={BadgeDollarSign} inputMode="decimal" defaultValue={expense?.amount_base || ""} placeholder={category === "Fuel" ? "Optional — auto from liters × price" : amountPlaceholder(category, amountCurrency)} showLabel required={category !== "Fuel"} />
+          <Input name="amount_base" label="Total paid" icon={BadgeDollarSign} inputMode="decimal" defaultValue={expense?.amount_base || ""} placeholder={category === "Fuel" ? "Auto from liters × price" : amountPlaceholder(category, amountCurrency)} showLabel required={category !== "Fuel"} />
           <CustomSelect name="base_currency" label="Paid in" icon={Landmark} options={priceCurrencies} value={amountCurrency} showLabel onChange={changeAmountCurrency} />
         </div>
         <input type="hidden" name="fuel_type" value={fuelType} />
@@ -224,7 +228,13 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
                 <Input name="fuel_liters" label="Liters" icon={Droplets} inputMode="decimal" defaultValue={expense?.fuel_liters || ""} placeholder="Liters" showLabel />
                 <Input name="fuel_price_per_liter_base" label={`Price / L · ${fuelPriceCurrency}`} icon={CircleGauge} inputMode="decimal" value={shownFuelPrice} onChange={(event) => { setFuelPrice(event.currentTarget.value); setFuelPriceEdited(true); }} placeholder={`Price / L in ${fuelPriceCurrency}`} showLabel />
               </div>
-              <p className="-mt-1 px-1 text-[11px] font-medium leading-4 text-[#70776a]">{fuelPriceCurrency === amountCurrency ? "One currency per receipt. Change “Paid in” only when the receipt uses another currency." : `This saved entry keeps its original ${fuelPriceCurrency}/L price.`}</p>
+              <Input name="odometer" label="Odometer now" icon={Milestone} inputMode="numeric" min={!isEditing ? vehicle.odometer || undefined : undefined} value={odometerValue} onChange={(event) => setOdometerValue(event.currentTarget.value)} placeholder="Odometer now, km" showLabel />
+              <button type="button" aria-pressed={fuelFullTank} onClick={() => setFuelFullTank((value) => !value)} className={`flex min-h-14 items-center gap-3 rounded-[17px] border px-3 text-left outline-none transition-[background-color,border-color,box-shadow,transform] duration-300 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#8eb08b] ${fuelFullTank ? "border-[#8fba8c]/55 bg-[#edf6e8] text-[#214c31]" : "border-black/[0.055] bg-[#f7faf3] text-[#4f574c]"}`}>
+                <span className={`flex size-8 shrink-0 items-center justify-center rounded-[12px] transition-colors ${fuelFullTank ? "bg-[#2f7046] text-white" : "bg-white text-[#70776a]"}`}>{fuelFullTank ? <Check size={15} /> : <Fuel size={15} />}</span>
+                <span className="min-w-0 flex-1"><span className="block text-xs font-bold">Filled tank completely</span><span className="block text-[11px] leading-4 opacity-75">Enables accurate full-to-full consumption.</span></span>
+                <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${fuelFullTank ? "bg-[#3d8052]" : "bg-black/10"}`}><span className={`absolute top-1 size-4 rounded-full bg-white shadow-sm transition-transform ${fuelFullTank ? "translate-x-5" : "translate-x-1"}`} /></span>
+              </button>
+              <p className="-mt-1 px-1 text-[11px] font-medium leading-4 text-[#70776a]">{fuelPriceCurrency === amountCurrency ? "We’ll calculate distance since the last reading. Mark full tanks for reliable consumption." : `This saved entry keeps its original ${fuelPriceCurrency}/L price.`}</p>
               {showFuelTypeInEssentials ? (
                 <CustomSelect name="fuel_type_visible" label="Fuel type" icon={Fuel} options={fuelTypes} value={fuelType} onChange={changeFuelType} />
               ) : (
@@ -255,7 +265,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
 
         <CalendarField name="date" label="Date" value={date} placeholder="Choose date" onChange={setDate} />
 
-        {!needsOdometer && !showDetails ? <input type="hidden" name="odometer" value={odometerValue} /> : null}
+        {!needsOdometer && category !== "Fuel" && !showDetails ? <input type="hidden" name="odometer" value={odometerValue} /> : null}
 
         <button
           type="button"
@@ -282,7 +292,7 @@ export function ExpenseForm({ vehicle, token, baseCurrency, country, saving, exp
                   <Autocomplete name="gas_station" label="Gas station" icon={MapPin} options={gasStationBrands} value={gasStation} onChange={setGasStation} />
                 </>
               ) : null}
-              {!needsOdometer ? (
+              {!needsOdometer && category !== "Fuel" ? (
                 <Input name="odometer" label="Odometer" icon={Milestone} inputMode="numeric" value={odometerValue} onChange={(event) => setOdometerValue(event.currentTarget.value)} placeholder="Odometer, km" />
               ) : null}
               <Input name="description" label="Description" icon={Text} value={description} onChange={(event) => setDescription(event.currentTarget.value)} placeholder={descriptionPlaceholder(category)} />

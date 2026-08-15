@@ -9,6 +9,14 @@ import (
 	"driverlogs/backend/internal/domain"
 )
 
+const (
+	// These are broad passenger-vehicle guardrails, not a claim about the
+	// vehicle itself. Values outside them remain visible for review but cannot
+	// distort learned averages.
+	minPlausibleFuelConsumption = 1.0
+	maxPlausibleFuelConsumption = 50.0
+)
+
 func analyticsFrom(expenses []domain.Expense, vehicles []domain.Vehicle, vehicleID string) map[string]any {
 	expenses = includedAnalyticsExpenses(expenses)
 	var total, fuel, maintenance, insurance float64
@@ -73,10 +81,16 @@ func analyticsPayload(expenses []domain.Expense, vehicles []domain.Vehicle, vehi
 		}
 		comparison = append(comparison, map[string]any{"vehicle_id": vehicle.ID, "name": name, "amount_mdl": vehicleTotals[vehicle.ID], "amount_eur": vehicleTotalsEUR[vehicle.ID], "amount_usd": vehicleTotalsUSD[vehicle.ID], "entry_count": countVehicleExpenses(expenses, vehicle.ID)})
 	}
+	sort.SliceStable(comparison, func(i, j int) bool {
+		return numberFromAny(comparison[i]["amount_mdl"]) > numberFromAny(comparison[j]["amount_mdl"])
+	})
 	categoryBreakdown := make([]map[string]any, 0, len(categoryTotals))
 	for category, amount := range categoryTotals {
 		categoryBreakdown = append(categoryBreakdown, map[string]any{"name": category, "amount_mdl": amount, "amount_eur": categoryTotalsEUR[category], "amount_usd": categoryTotalsUSD[category]})
 	}
+	sort.SliceStable(categoryBreakdown, func(i, j int) bool {
+		return numberFromAny(categoryBreakdown[i]["amount_mdl"]) > numberFromAny(categoryBreakdown[j]["amount_mdl"])
+	})
 	vehicle := selectedVehicle(vehicles, vehicleID)
 	return map[string]any{"total_expenses_mdl": total, "total_expenses_eur": totalEUR, "total_expenses_usd": totalUSD, "fuel_mdl": fuel, "fuel_eur": fuelEUR, "fuel_usd": fuelUSD, "maintenance_mdl": maintenance, "maintenance_eur": maintenanceEUR, "maintenance_usd": maintenanceUSD, "insurance_mdl": insurance, "insurance_eur": insuranceEUR, "insurance_usd": insuranceUSD, "cost_per_km_mdl": costPerKM(expenses, total), "expense_count": len(expenses), "category_totals": categoryBreakdown, "vehicle_totals": comparison, "trends": trendsFrom(expenses), "insights": insightsFrom(expenses, vehicle.Odometer, vehicle.OilIntervalKM)}
 }
@@ -346,55 +360,154 @@ func fuelInsight(expenses []domain.Expense) map[string]any {
 	return map[string]any{"entry_count": count, "total_liters": round2(liters), "average_fill_mdl": round2(averageFill), "average_price_per_liter_mdl": averagePrice, "average_consumption_l_per_100km": consumption, "consumption_samples": consumptionSamples, "consumption_confidence": confidence, "consumption_breakdown": breakdown}
 }
 
-// fuelConsumption estimates average L/100km from consecutive fuel entries with
-// rising odometer readings: total liters refilled divided by total distance.
-// Partial fills average out across intervals, so no full-tank flag is needed.
-// The returned breakdown lists every interval used so the UI can show the math.
+// fuelConsumption prefers the full-to-full method: start with a full tank, sum
+// every subsequent refill, then close the segment at the next full tank. This
+// cancels the unknown fuel level at both boundaries and remains correct when
+// partial fills happen between them. Older data without full-tank markers keeps
+// a clearly labelled consecutive-fill estimate for backwards compatibility.
 func fuelConsumption(expenses []domain.Expense) (float64, int, map[string]any) {
-	sort.Slice(expenses, func(i, j int) bool {
-		if expenses[i].Date == expenses[j].Date {
-			return expenses[i].CreatedAt.Before(expenses[j].CreatedAt)
+	ordered := append([]domain.Expense(nil), expenses...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].Date == ordered[j].Date {
+			if !ordered[i].CreatedAt.Equal(ordered[j].CreatedAt) {
+				return ordered[i].CreatedAt.Before(ordered[j].CreatedAt)
+			}
+			if ordered[i].Odometer != ordered[j].Odometer {
+				return ordered[i].Odometer < ordered[j].Odometer
+			}
+			return ordered[i].ID < ordered[j].ID
 		}
-		return expenses[i].Date < expenses[j].Date
+		return ordered[i].Date < ordered[j].Date
 	})
+	for _, expense := range ordered {
+		if expense.FuelFullTank {
+			return fullTankConsumption(ordered)
+		}
+	}
+	return estimatedFuelConsumption(ordered)
+}
+
+func fullTankConsumption(expenses []domain.Expense) (float64, int, map[string]any) {
 	intervals := make([]map[string]any, 0)
 	var totalLiters float64
 	var totalDistance int
+	validSamples := 0
+	var anchor *domain.Expense
+	var latestAfterAnchor *domain.Expense
+	pendingLiters := 0.0
+	pendingFills := 0
+	for index := range expenses {
+		expense := &expenses[index]
+		if anchor == nil {
+			if expense.FuelFullTank && expense.Odometer > 0 {
+				anchor = expense
+			}
+			continue
+		}
+		if expense.FuelLiters > 0 {
+			pendingLiters += expense.FuelLiters
+			pendingFills++
+		}
+		if expense.Odometer > anchor.Odometer {
+			latestAfterAnchor = expense
+		}
+		if !expense.FuelFullTank || expense.Odometer <= anchor.Odometer || pendingLiters <= 0 {
+			continue
+		}
+		distance := expense.Odometer - anchor.Odometer
+		consumption := round2(pendingLiters / float64(distance) * 100)
+		valid, issue := plausibleConsumption(consumption)
+		intervals = append(intervals, fuelInterval(*anchor, *expense, distance, pendingLiters, pendingFills, consumption, "full_to_full", valid, issue))
+		if valid {
+			totalDistance += distance
+			totalLiters += pendingLiters
+			validSamples++
+		}
+		anchor = expense
+		latestAfterAnchor = nil
+		pendingLiters = 0
+		pendingFills = 0
+	}
+	tracking := map[string]any(nil)
+	if anchor != nil && latestAfterAnchor != nil {
+		tracking = map[string]any{
+			"from_date": anchor.Date, "to_date": latestAfterAnchor.Date,
+			"from_odometer": anchor.Odometer, "to_odometer": latestAfterAnchor.Odometer,
+			"distance_km": latestAfterAnchor.Odometer - anchor.Odometer,
+			"liters":      round2(pendingLiters), "fill_count": pendingFills,
+		}
+	}
+	average := 0.0
+	if validSamples > 0 && totalDistance > 0 {
+		average = round2(totalLiters / float64(totalDistance) * 100)
+	}
+	if len(intervals) == 0 && tracking == nil {
+		return 0, 0, nil
+	}
+	breakdown := map[string]any{
+		"method":              "full_to_full",
+		"intervals":           intervals,
+		"total_liters":        round2(totalLiters),
+		"total_distance_km":   totalDistance,
+		"average_l_per_100km": average,
+		"tracking":            tracking,
+	}
+	return average, validSamples, breakdown
+}
+
+func estimatedFuelConsumption(expenses []domain.Expense) (float64, int, map[string]any) {
+	intervals := make([]map[string]any, 0)
+	var totalLiters float64
+	var totalDistance, validSamples int
 	var previous *domain.Expense
 	for index := range expenses {
-		expense := expenses[index]
+		expense := &expenses[index]
 		if expense.Odometer <= 0 {
 			continue
 		}
 		if previous != nil && expense.Odometer > previous.Odometer && expense.FuelLiters > 0 {
 			distance := expense.Odometer - previous.Odometer
-			totalDistance += distance
-			totalLiters += expense.FuelLiters
-			intervals = append(intervals, map[string]any{
-				"from_date":     previous.Date,
-				"to_date":       expense.Date,
-				"from_odometer": previous.Odometer,
-				"to_odometer":   expense.Odometer,
-				"distance_km":   distance,
-				"liters":             round2(expense.FuelLiters),
-				"l_per_100km":        round2(expense.FuelLiters / float64(distance) * 100),
-				"price_per_liter_mdl": round2(expense.FuelPricePerLiterMDL),
-				"station":            expense.Description,
-			})
+			consumption := round2(expense.FuelLiters / float64(distance) * 100)
+			valid, issue := plausibleConsumption(consumption)
+			intervals = append(intervals, fuelInterval(*previous, *expense, distance, expense.FuelLiters, 1, consumption, "estimated", valid, issue))
+			if valid {
+				totalDistance += distance
+				totalLiters += expense.FuelLiters
+				validSamples++
+			}
 		}
-		previous = &expenses[index]
+		previous = expense
 	}
-	if len(intervals) == 0 || totalDistance == 0 {
+	if len(intervals) == 0 {
 		return 0, 0, nil
 	}
-	average := round2(totalLiters / float64(totalDistance) * 100)
-	breakdown := map[string]any{
-		"intervals":           intervals,
-		"total_liters":        round2(totalLiters),
-		"total_distance_km":   totalDistance,
-		"average_l_per_100km": average,
+	average := 0.0
+	if validSamples > 0 && totalDistance > 0 {
+		average = round2(totalLiters / float64(totalDistance) * 100)
 	}
-	return average, len(intervals), breakdown
+	return average, validSamples, map[string]any{
+		"method": "estimated", "intervals": intervals, "total_liters": round2(totalLiters),
+		"total_distance_km": totalDistance, "average_l_per_100km": average,
+	}
+}
+
+func fuelInterval(from, to domain.Expense, distance int, liters float64, fillCount int, consumption float64, method string, valid bool, issue string) map[string]any {
+	return map[string]any{
+		"from_date": from.Date, "to_date": to.Date, "from_odometer": from.Odometer, "to_odometer": to.Odometer,
+		"distance_km": distance, "liters": round2(liters), "fill_count": fillCount, "l_per_100km": consumption,
+		"price_per_liter_mdl": round2(to.FuelPricePerLiterMDL), "from_station": from.Description, "station": to.Description,
+		"method": method, "valid": valid, "issue": issue,
+	}
+}
+
+func plausibleConsumption(consumption float64) (bool, string) {
+	if consumption < minPlausibleFuelConsumption {
+		return false, "Too little fuel for this distance; this was probably a partial fill."
+	}
+	if consumption > maxPlausibleFuelConsumption {
+		return false, "Too much fuel for this distance; check liters and odometer."
+	}
+	return true, ""
 }
 
 func maintenanceInsight(expenses []domain.Expense, currentOdometer, oilIntervalKM int) map[string]any {
@@ -589,29 +702,55 @@ func smartReminders(insights map[string]any) []map[string]any {
 }
 
 func smartAnomalies(expenses []domain.Expense) []map[string]any {
+	ordered := append([]domain.Expense(nil), expenses...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].Date == ordered[j].Date {
+			return ordered[i].CreatedAt.Before(ordered[j].CreatedAt)
+		}
+		return ordered[i].Date < ordered[j].Date
+	})
 	anomalies := make([]map[string]any, 0)
 	fuelPrices := make([]float64, 0)
 	serviceCosts := make([]float64, 0)
-	seen := map[string]bool{}
-	for _, expense := range expenses {
+	seen := map[string]domain.Expense{}
+	for _, expense := range ordered {
 		key := expense.Category + "|" + expense.Date + "|" + strconv.FormatFloat(round2(expense.AmountMDL), 'f', 2, 64)
-		if seen[key] {
-			anomalies = append(anomalies, map[string]any{"kind": "duplicate", "title": "Possible duplicate expense", "category": expense.Category, "date": expense.Date})
+		if original, duplicate := seen[key]; duplicate {
+			anomalies = append(anomalies, map[string]any{
+				"kind": "duplicate", "title": "Possible duplicate expense", "expense_ids": []string{original.ID, expense.ID},
+				"category": expense.Category, "value": round2(expense.AmountMDL), "unit": "MDL", "date": expense.Date,
+				"reason": "Another record has the same category, date, and MDL amount.", "sample_count": 1,
+			})
 		}
-		seen[key] = true
+		seen[key] = expense
 		if expense.Category == "Fuel" && expense.FuelPricePerLiterMDL > 0 {
 			if baseline := average(fuelPrices); baseline > 0 && expense.FuelPricePerLiterMDL > baseline*1.18 {
-				anomalies = append(anomalies, map[string]any{"kind": "fuel_price", "title": "Fuel price looks high", "value": round2(expense.FuelPricePerLiterMDL), "date": expense.Date})
+				anomalies = append(anomalies, map[string]any{
+					"kind": "fuel_price", "title": "Fuel price looks high", "expense_ids": []string{expense.ID},
+					"category": "Fuel", "value": round2(expense.FuelPricePerLiterMDL), "baseline_value": round2(baseline), "unit": "MDL/L", "date": expense.Date,
+					"difference_percent": round2((expense.FuelPricePerLiterMDL - baseline) / baseline * 100), "sample_count": len(fuelPrices),
+					"reason": "The stored MDL price per liter is more than 18% above the average of earlier fuel records.",
+				})
 			}
 			fuelPrices = append(fuelPrices, expense.FuelPricePerLiterMDL)
 		}
 		if expense.Category == "Maintenance" {
 			if baseline := average(serviceCosts); baseline > 0 && expense.AmountMDL > baseline*1.75 {
-				anomalies = append(anomalies, map[string]any{"kind": "service_cost", "title": "Service cost is above usual", "value": round2(expense.AmountMDL), "date": expense.Date})
+				anomalies = append(anomalies, map[string]any{
+					"kind": "service_cost", "title": "Service cost is above usual", "expense_ids": []string{expense.ID},
+					"category": "Maintenance", "value": round2(expense.AmountMDL), "baseline_value": round2(baseline), "unit": "MDL", "date": expense.Date,
+					"difference_percent": round2((expense.AmountMDL - baseline) / baseline * 100), "sample_count": len(serviceCosts),
+					"reason": "The stored MDL service cost is more than 75% above the average of earlier maintenance records.",
+				})
 			}
 			serviceCosts = append(serviceCosts, expense.AmountMDL)
 		}
 	}
+	sort.SliceStable(anomalies, func(i, j int) bool {
+		left, _ := anomalies[i]["date"].(string)
+		right, _ := anomalies[j]["date"].(string)
+		return left > right
+	})
 	return anomalies
 }
 
